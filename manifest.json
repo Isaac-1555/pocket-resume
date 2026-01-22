@@ -1,0 +1,10 @@
+{
+  "name": "Pocket Resume",
+  "description": "Quick AI resume generator",
+  "version": "1.0",
+  "manifest_version": 3,
+  "action": {
+    "default_popup": "app.html",
+    "default_icon": "icon.png"
+  }
+}
