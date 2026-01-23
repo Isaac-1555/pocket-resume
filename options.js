@@ -1,9 +1,21 @@
 // options.js
 document.addEventListener('DOMContentLoaded', async () => {
   const apiKeyInput = document.getElementById('apiKey');
+  const toggleApiKeyButton = document.getElementById('toggleApiKey');
   const userProfileInput = document.getElementById('userProfile');
   const saveButton = document.getElementById('save');
   const statusDiv = document.getElementById('status');
+
+  // Toggle API Key visibility
+  toggleApiKeyButton.addEventListener('click', () => {
+    if (apiKeyInput.type === 'password') {
+      apiKeyInput.type = 'text';
+      toggleApiKeyButton.textContent = 'Hide';
+    } else {
+      apiKeyInput.type = 'password';
+      toggleApiKeyButton.textContent = 'Show';
+    }
+  });
 
   // Load saved settings
   const data = await chrome.storage.local.get(['geminiApiKey', 'userProfile']);

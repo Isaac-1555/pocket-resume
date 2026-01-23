@@ -5,12 +5,18 @@
     body { padding: 40px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 800px; margin: 0 auto; background: #FDFDFF; color: #2B303A; }
     h1 { font-size: 28px; border-bottom: 2px solid #F78E69; padding-bottom: 15px; margin-bottom: 30px; color: #2B303A; }
     label { display: block; margin-top: 25px; margin-bottom: 10px; font-weight: 600; color: #2B303A; font-size: 16px; }
-    input[type="text"], textarea { width: 100%; padding: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: #fff; transition: border-color 0.2s; }
-    input[type="text"]:focus, textarea:focus { outline: none; border-color: #F78E69; }
+    input[type="text"], input[type="password"], textarea { width: 100%; padding: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: #fff; transition: border-color 0.2s; }
+    input[type="text"]:focus, input[type="password"]:focus, textarea:focus { outline: none; border-color: #F78E69; }
     textarea { height: 400px; line-height: 1.5; }
     button { margin-top: 30px; padding: 12px 30px; background: #F78E69; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(247, 142, 105, 0.2); }
     button:hover { background: #ff9f7d; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(247, 142, 105, 0.3); }
     button:active { transform: translateY(0); }
+    
+    .api-key-wrapper { display: flex; gap: 10px; align-items: center; }
+    .api-key-wrapper input { margin-top: 0; }
+    .api-key-wrapper button { margin-top: 0; padding: 14px 20px; background: #e0e0e0; color: #333; box-shadow: none; }
+    .api-key-wrapper button:hover { background: #d0d0d0; transform: none; box-shadow: none; }
+
     .status { margin-top: 15px; padding: 10px; border-radius: 6px; font-weight: 500; display: none; color: #155724; background-color: #d4edda; border: 1px solid #c3e6cb; }
     small { display: block; margin-top: 8px; color: #666; font-size: 13px; }
     a { color: #F78E69; text-decoration: none; }
@@ -21,7 +27,10 @@
   <h1>PocketResume Settings</h1>
   
   <label for="apiKey">Gemini API Key:</label>
-  <input type="text" id="apiKey" placeholder="Enter your Google Gemini API Key">
+  <div class="api-key-wrapper">
+    <input type="password" id="apiKey" placeholder="Enter your Google Gemini API Key">
+    <button type="button" id="toggleApiKey">Show</button>
+  </div>
   <small>Get your key from <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a></small>
 
   <label for="userProfile">Your Resume / Professional Profile:</label>
