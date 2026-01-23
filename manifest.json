@@ -1,10 +1,26 @@
 {
-  "name": "Pocket Resume",
-  "description": "Quick AI resume generator",
-  "version": "1.0",
   "manifest_version": 3,
+  "name": "PocketResume",
+  "version": "1.1",
+  "description": "Generate tailored resumes from job descriptions using Gemini AI.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
   "action": {
-    "default_popup": "app.html",
+    "default_popup": "popup.html",
     "default_icon": "icon.png"
-  }
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
 }
