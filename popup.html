@@ -34,17 +34,12 @@
     </select>
   </div>
 
-  <button id="generateBtn">Generate Resume</button>
-  <button id="settingsBtn" class="secondary-btn">Settings (API Key & Profile)</button>
+  <button id="generateBtn">Generate PDF Resume</button>
+  <button id="settingsBtn" class="secondary-btn">⚙️ Settings (API Key & Profile)</button>
 
   <div id="status"></div>
-
-  <div id="resultArea">
-    <label>Generated Content (Markdown/HTML):</label>
-    <textarea id="outputContent"></textarea>
-    <button id="copyBtn" class="secondary-btn">Copy to Clipboard</button>
-  </div>
-
+  
+  <script src="libs/jspdf.umd.min.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

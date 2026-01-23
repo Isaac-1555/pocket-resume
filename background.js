@@ -43,9 +43,33 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeType, scree
     ${styleGuide}
     
     IMPORTANT: 
-    - Output ONLY the resume content in Markdown format.
-    - Do not invent facts not present in my profile, but you can rephrase them to match the job keywords.
-    - If I lack a skill mentioned in the JD, do not lie, but emphasize related transferable skills.
+    - Output strictly valid JSON.
+    - Do NOT use Markdown code blocks (like \`\`\`json). Just output the raw JSON string.
+    - If you must use code blocks, I will strip them, but prefer raw text.
+    - Schema:
+    {
+      "name": "String (My Name)",
+      "contact": "String (Phone | Email | LinkedIn | Location)",
+      "summary": "String (Professional Summary - keep it concise)",
+      "experience": [
+        { 
+          "title": "String", 
+          "company": "String", 
+          "location": "String",
+          "period": "String", 
+          "points": ["String", "String"] 
+        }
+      ],
+      "education": [
+         { "degree": "String", "school": "String", "year": "String", "location": "String" }
+      ],
+      "skills": ["String", "String"],
+      "projects": [
+        { "name": "String", "description": "String", "link": "String (Optional)" }
+      ]
+    }
+    - Do not invent facts. Rephrase existing profile data to match JD keywords.
+    - Ensure bullet points are impactful (Action Verb + Context + Result).
   `;
 
   // Prepare body
