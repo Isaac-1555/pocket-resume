@@ -267,7 +267,67 @@ document.addEventListener('DOMContentLoaded', () => {
       addText(data.summary, 11, 'normal', { bottomSpacing: 10 });
     }
 
-    // 3. Experience
+    // 3. Skills (Inline)
+    if (data.skills && data.skills.length > 0) {
+      addSectionHeader("Skills");
+      
+      const fontSize = 11;
+      doc.setFontSize(fontSize);
+      doc.setFont("helvetica", "normal");
+      
+      const bulletRadius = 2;
+      const bulletSpace = 12; // Space to reserve for bullet + spacing
+      let currentX = margin;
+      const h = fontSize * lineHeight;
+      
+      checkPageBreak(h);
+
+      data.skills.forEach((skill, index) => {
+        // Sanitize
+        let text = skill.replace(/[^\x00-\x7F]/g, (char) => {
+            if (char === '’' || char === '‘') return "'";
+            if (char === '“' || char === '”') return '"';
+            if (char === '–' || char === '—') return '-';
+            return " "; 
+        }).trim();
+        
+        if (!text) return;
+
+        const textWidth = doc.getTextWidth(text);
+        
+        // Wrap if text doesn't fit
+        if (currentX + textWidth > pageWidth - margin) {
+          currentX = margin;
+          y += h;
+          checkPageBreak(h);
+        }
+        
+        doc.text(text, currentX, y);
+        currentX += textWidth;
+        
+        // Draw bullet if not last
+        if (index < data.skills.length - 1) {
+           // Check if bullet fits
+           if (currentX + bulletSpace > pageWidth - margin) {
+             currentX = margin;
+             y += h;
+             checkPageBreak(h);
+           } else {
+             // Draw bullet
+             const gap = 8;
+             currentX += gap; // gap before bullet
+             const bulletY = y - (fontSize / 3);
+             doc.setFillColor(0, 0, 0);
+             doc.circle(currentX, bulletY, bulletRadius, 'F');
+             currentX += gap; // gap after bullet
+           }
+        }
+      });
+      
+      y += h + 10; // Bottom spacing
+    }
+
+    // 4. Experience
     if (data.experience && data.experience.length > 0) {
       addSectionHeader("Experience");
 
@@ -279,7 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Calculate widths to prevent overlap
         doc.setFontSize(11);
         doc.setFont("helvetica", "normal"); // Measure date with normal font
-        const periodText = exp.period;
+        const periodText = (exp.period && exp.period !== 'N/A' && exp.period !== 'n/a') ? exp.period : "";
         const dateWidth = doc.getTextWidth(periodText);
         
         // Title setup
@@ -314,11 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
         doc.setFontSize(11);
         doc.setFont("helvetica", "italic"); 
         
-        // Similar overlap check for Company/Location could be useful, 
-        // though typically less prone to overlap than long titles.
-        // We'll keep it simple but safe.
-        
-        if (exp.location) {
+        if (exp.location && exp.location !== 'N/A' && exp.location !== 'n/a') {
              const locWidth = doc.getTextWidth(exp.location);
              doc.setFont("helvetica", "normal");
              doc.text(exp.location, pageWidth - margin, y, { align: 'right' });
@@ -346,7 +402,25 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // 4. Education
+    // 5. Projects (Optional)
+    // Hide projects for Basic resume type as requested
+    if (type !== 'basic' && data.projects && data.projects.length > 0) {
+      addSectionHeader("Projects");
+      data.projects.forEach(proj => {
+        checkPageBreak(30);
+        
+        // Name (Bold)
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text(proj.name, margin, y);
+        y += 14;
+
+        // Description
+        addText(proj.description, 11, 'normal', { bottomSpacing: 10 });
+      });
+    }
+
+    // 6. Education
     if (data.education && data.education.length > 0) {
       addSectionHeader("Education");
       
@@ -356,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // School (Bold) + Year (Right)
         doc.setFontSize(11);
         doc.setFont("helvetica", "normal");
-        let yearText = edu.year || "";
+        let yearText = (edu.year && edu.year !== 'N/A' && edu.year !== 'n/a') ? edu.year : "";
         const yearWidth = doc.getTextWidth(yearText);
         
         // School Wrap
@@ -376,7 +450,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Degree
         doc.setFont("helvetica", "normal");
-        // Check for location overlap if we were to add it, but degree usually takes full width
         const degreeLines = doc.splitTextToSize(edu.degree, contentWidth);
         doc.text(degreeLines, margin, y);
         
@@ -384,28 +457,20 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // 5. Skills
-    if (data.skills && data.skills.length > 0) {
-      addSectionHeader("Skills");
-      // Use bullets for each skill to ensure clean rendering
-      data.skills.forEach(skill => addBullet(skill));
-    }
+    // 7. Certifications
+    if (data.certifications && data.certifications.length > 0) {
+      addSectionHeader("Certifications");
+      data.certifications.forEach(cert => {
+         checkPageBreak(20);
+         let text = cert.name || "";
+         
+         const issuer = (cert.issuer && cert.issuer !== 'N/A' && cert.issuer !== 'n/a') ? cert.issuer : "";
+         const year = (cert.year && cert.year !== 'N/A' && cert.year !== 'n/a') ? cert.year : "";
 
-    // 6. Projects (Optional)
-    // Hide projects for Basic resume type as requested
-    if (type !== 'basic' && data.projects && data.projects.length > 0) {
-      addSectionHeader("Projects");
-      data.projects.forEach(proj => {
-        checkPageBreak(30);
-        
-        // Name (Bold)
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "bold");
-        doc.text(proj.name, margin, y);
-        y += 14;
-
-        // Description
-        addText(proj.description, 11, 'normal', { bottomSpacing: 10 });
+         if (issuer) text += ` - ${issuer}`;
+         if (year) text += ` (${year})`;
+         
+         addBullet(text);
       });
     }
 

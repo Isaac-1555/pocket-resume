@@ -64,6 +64,9 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeType, scree
          { "degree": "String", "school": "String", "year": "String", "location": "String" }
       ],
       "skills": ["String", "String"],
+      "certifications": [
+        { "name": "String", "issuer": "String", "year": "String" }
+      ],
       "projects": [
         { "name": "String", "description": "String", "link": "String (Optional)" }
       ]
