@@ -5,6 +5,48 @@ document.addEventListener('DOMContentLoaded', () => {
   const resumeType = document.getElementById('resumeType');
   const statusDiv = document.getElementById('status');
 
+  // Custom Select Logic
+  const customSelect = document.querySelector('.custom-select');
+  const customOptions = document.querySelectorAll('.custom-option');
+  const customSelectText = document.getElementById('customSelectText');
+  const arrow = document.querySelector('.arrow');
+
+  if (customSelect && customSelectText) {
+      // Toggle dropdown
+      document.querySelector('.custom-select__trigger').addEventListener('click', function(e) {
+        customSelect.classList.toggle('open');
+        e.stopPropagation();
+      });
+
+      // Handle option selection
+      customOptions.forEach(option => {
+        option.addEventListener('click', function(e) {
+          if (!this.classList.contains('selected')) {
+            // Update selected class
+            customOptions.forEach(opt => opt.classList.remove('selected'));
+            this.classList.add('selected');
+            
+            // Update text
+            customSelectText.textContent = this.textContent;
+            
+            // Update hidden select
+            const value = this.getAttribute('data-value');
+            resumeType.value = value;
+          }
+          // Close dropdown
+          customSelect.classList.remove('open');
+          e.stopPropagation();
+        });
+      });
+
+      // Close when clicking outside
+      window.addEventListener('click', function(e) {
+        if (!customSelect.contains(e.target)) {
+          customSelect.classList.remove('open');
+        }
+      });
+  }
+
   // Check if settings are configured
   chrome.storage.local.get(['geminiApiKey', 'userProfile'], (data) => {
     if (!data.geminiApiKey || !data.userProfile) {
