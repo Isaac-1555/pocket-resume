@@ -398,7 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (exp.points && Array.isArray(exp.points)) {
           exp.points.forEach(point => addBullet(point));
         }
-        y += 10; // Space between jobs
+        y += 6; // Space between jobs (4 from bullet + 6 = 10)
       });
     }
 
@@ -453,7 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const degreeLines = doc.splitTextToSize(edu.degree, contentWidth);
         doc.text(degreeLines, margin, y);
         
-        y += (degreeLines.length * 11 * lineHeight) + 6;
+        y += (degreeLines.length * 11 * lineHeight) + 10;
       });
     }
 
@@ -472,6 +472,7 @@ document.addEventListener('DOMContentLoaded', () => {
          
          addBullet(text);
       });
+      y += 6; // Extra spacing after list to match other sections (4 from bullet + 6 = 10)
     }
 
     // Save
