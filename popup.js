@@ -464,8 +464,8 @@ document.addEventListener('DOMContentLoaded', () => {
          checkPageBreak(20);
          let text = cert.name || "";
          
-         const issuer = (cert.issuer && cert.issuer !== 'N/A' && cert.issuer !== 'n/a') ? cert.issuer : "";
-         const year = (cert.year && cert.year !== 'N/A' && cert.year !== 'n/a') ? cert.year : "";
+         const issuer = (cert.issuer && !/^(n\/a|none|unknown|ongoing)$/i.test(cert.issuer)) ? cert.issuer : "";
+         const year = (cert.year && !/^(n\/a|none|unknown|ongoing|present)$/i.test(cert.year)) ? cert.year : "";
 
          if (issuer) text += ` - ${issuer}`;
          if (year) text += ` (${year})`;

@@ -72,6 +72,8 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeType, scree
       ]
     }
     - Do not invent facts. Rephrase existing profile data to match JD keywords.
+    - IMPORTANT: If a specific field (like 'issuer' or 'year' in certifications) is NOT provided in the source profile, leave it as an empty string "". Do NOT put "N/A", "Unknown", "Ongoing", or "Present".
+    - If there is only the year and no issuer, just provide the year. If there is only the issuer and no year, just provide the issuer.
     - Ensure bullet points are impactful (Action Verb + Context + Result).
   `;
 
