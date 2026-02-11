@@ -32,6 +32,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update hidden select
             const value = this.getAttribute('data-value');
             resumeType.value = value;
+
+            // Persist selection
+            chrome.storage.local.set({ resumeType: value });
           }
           // Close dropdown
           customSelect.classList.remove('open');
@@ -48,10 +51,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Check if settings are configured
-  chrome.storage.local.get(['geminiApiKey', 'userProfile'], (data) => {
+  chrome.storage.local.get(['geminiApiKey', 'userProfile', 'resumeType'], (data) => {
     if (!data.geminiApiKey || !data.userProfile) {
       showStatus("Please configure your API Key and Profile in Settings first.", "error");
       generateBtn.disabled = true;
+    }
+
+    // Restore persisted resume type
+    if (data.resumeType) {
+      resumeType.value = data.resumeType;
+      // Update custom dropdown UI to match
+      if (customSelectText) {
+        customOptions.forEach(opt => {
+          if (opt.getAttribute('data-value') === data.resumeType) {
+            customOptions.forEach(o => o.classList.remove('selected'));
+            opt.classList.add('selected');
+            customSelectText.textContent = opt.textContent;
+          }
+        });
+      }
     }
   });
 
@@ -61,8 +79,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   generateBtn.addEventListener('click', async () => {
     // UI Reset
-    showStatus("Capturing page and generating resume... This may take 10-20 seconds.", "loading");
     generateBtn.disabled = true;
+
+    // Check if cover letter is enabled to show appropriate status
+    const settings = await chrome.storage.local.get(['coverLetterEnabled']);
+    const coverLetterEnabled = !!settings.coverLetterEnabled;
+
+    if (coverLetterEnabled) {
+      showStatus("Generating resume and cover letter... This may take 20-40 seconds.", "loading");
+    } else {
+      showStatus("Capturing page and generating resume... This may take 10-20 seconds.", "loading");
+    }
 
     // Get current tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -84,7 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (response && response.status === 'success') {
         try {
-          // Clean the response (Strip Markdown code blocks if present)
+          // Clean the resume response (Strip Markdown code blocks if present)
           let rawData = response.data.trim();
           if (rawData.startsWith('```json')) {
             rawData = rawData.replace(/^```json/, '').replace(/```$/, '');
@@ -94,7 +121,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
           const resumeData = JSON.parse(rawData);
           generatePDF(resumeData, resumeType.value);
-          showStatus("Resume downloaded successfully!", "success");
+
+          // Handle cover letter if present
+          if (response.coverLetterData) {
+            try {
+              let rawCL = response.coverLetterData.trim();
+              if (rawCL.startsWith('```json')) {
+                rawCL = rawCL.replace(/^```json/, '').replace(/```$/, '');
+              } else if (rawCL.startsWith('```')) {
+                rawCL = rawCL.replace(/^```/, '').replace(/```$/, '');
+              }
+
+              const coverLetterParsed = JSON.parse(rawCL);
+              generateCoverLetterPDF(coverLetterParsed);
+              showStatus("Resume and cover letter downloaded successfully!", "success");
+            } catch (clError) {
+              console.error("Cover Letter JSON Parse Error:", clError);
+              console.log("Raw CL Data:", response.coverLetterData);
+              showStatus("Resume downloaded. Cover letter parsing failed - please try again.", "error");
+            }
+          } else {
+            showStatus("Resume downloaded successfully!", "success");
+          }
         } catch (e) {
           console.error("JSON Parse Error:", e);
           console.log("Raw Data:", response.data);
@@ -478,5 +526,120 @@ document.addEventListener('DOMContentLoaded', () => {
     // Save
     const filename = `Resume_${(data.name || 'Generated').replace(/\s+/g, '_')}.pdf`;
     doc.save(filename);
+  }
+
+  function generateCoverLetterPDF(data) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'pt',
+      format: 'letter'
+    });
+
+    const margin = 60;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const contentWidth = pageWidth - (margin * 2);
+    const lineHeight = 1.4;
+    let y = 60;
+
+    // --- Helper: Sanitize text for standard fonts ---
+    function sanitize(text) {
+      if (!text) return "";
+      return text.replace(/[^\x00-\x7F]/g, (char) => {
+        if (char === '\u2018' || char === '\u2019') return "'";
+        if (char === '\u201C' || char === '\u201D') return '"';
+        if (char === '\u2013' || char === '\u2014') return '-';
+        return " ";
+      });
+    }
+
+    // --- Helper: Add text block ---
+    function addTextBlock(text, fontSize, fontStyle, options = {}) {
+      if (!text) return;
+
+      const align = options.align || 'left';
+      const bottomSpacing = options.bottomSpacing || 0;
+      const maxWidth = options.maxWidth || contentWidth;
+
+      doc.setFontSize(fontSize);
+      doc.setFont("helvetica", fontStyle);
+      doc.setTextColor("#000000");
+
+      const cleanText = sanitize(text);
+      const lines = doc.splitTextToSize(cleanText, maxWidth);
+      const height = lines.length * fontSize * lineHeight;
+
+      // Page break check
+      if (y + height > doc.internal.pageSize.getHeight() - margin) {
+        doc.addPage();
+        y = 60;
+      }
+
+      if (align === 'center') {
+        doc.text(lines, pageWidth / 2, y, { align: 'center' });
+      } else {
+        doc.text(lines, margin, y);
+      }
+
+      y += height + bottomSpacing;
+    }
+
+    // --- Rendering ---
+
+    // 1. Applicant Name (header)
+    addTextBlock(data.applicant_name, 14, 'bold', { align: 'center', bottomSpacing: 4 });
+
+    // 2. Contact Info
+    addTextBlock(data.applicant_contact, 10, 'normal', { align: 'center', bottomSpacing: 6 });
+
+    // 3. Horizontal rule
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(180, 180, 180);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 18;
+
+    // 4. Date
+    addTextBlock(data.date, 11, 'normal', { bottomSpacing: 10 });
+
+    // 5. Recipient block
+    if (data.recipient_name && data.recipient_name !== 'Hiring Manager') {
+      addTextBlock(data.recipient_name, 11, 'normal', { bottomSpacing: 2 });
+      if (data.recipient_title) {
+        addTextBlock(data.recipient_title, 11, 'normal', { bottomSpacing: 2 });
+      }
+    }
+    if (data.company_name) {
+      addTextBlock(data.company_name, 11, 'normal', { bottomSpacing: 2 });
+    }
+    if (data.company_address) {
+      addTextBlock(data.company_address, 11, 'normal', { bottomSpacing: 2 });
+    }
+    y += 6;
+
+    // 6. Greeting
+    addTextBlock(data.greeting, 11, 'normal', { bottomSpacing: 8 });
+
+    // 7. Opening paragraph
+    addTextBlock(data.opening_paragraph, 11, 'normal', { bottomSpacing: 8 });
+
+    // 8. Body paragraphs
+    if (data.body_paragraphs && Array.isArray(data.body_paragraphs)) {
+      data.body_paragraphs.forEach(paragraph => {
+        addTextBlock(paragraph, 11, 'normal', { bottomSpacing: 8 });
+      });
+    }
+
+    // 9. Closing paragraph
+    addTextBlock(data.closing_paragraph, 11, 'normal', { bottomSpacing: 14 });
+
+    // 10. Sign-off
+    addTextBlock(data.sign_off, 11, 'normal', { bottomSpacing: 6 });
+
+    // 11. Signature (applicant name)
+    addTextBlock(data.applicant_name, 11, 'bold', { bottomSpacing: 0 });
+
+    // Save
+    const clFilename = `CoverLetter_${(data.applicant_name || 'Generated').replace(/\s+/g, '_')}.pdf`;
+    doc.save(clFilename);
   }
 });

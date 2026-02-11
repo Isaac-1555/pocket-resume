@@ -21,6 +21,19 @@
     small { display: block; margin-top: 8px; color: #666; font-size: 13px; }
     a { color: #F78E69; text-decoration: none; }
     a:hover { text-decoration: underline; }
+
+    /* Toggle Switch */
+    .toggle-group { margin-top: 30px; display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; background: #fff; border: 1px solid #ddd; border-radius: 8px; transition: border-color 0.2s; }
+    .toggle-group:hover { border-color: #F78E69; }
+    .toggle-label { display: flex; flex-direction: column; gap: 4px; }
+    .toggle-label-text { font-weight: 600; font-size: 16px; color: #2B303A; margin: 0; }
+    .toggle-label-desc { font-size: 13px; color: #666; margin: 0; }
+    .toggle-switch { position: relative; width: 48px; height: 26px; flex-shrink: 0; margin-left: 16px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; border-radius: 26px; transition: all 0.3s ease; }
+    .toggle-slider:before { content: ""; position: absolute; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: #fff; border-radius: 50%; transition: all 0.3s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+    .toggle-switch input:checked + .toggle-slider { background-color: #F78E69; }
+    .toggle-switch input:checked + .toggle-slider:before { transform: translateX(22px); }
   </style>
 </head>
 <body>
@@ -35,6 +48,17 @@
 
   <label for="userProfile">Your Resume / Professional Profile:</label>
   <textarea id="userProfile" placeholder="Paste your current resume content here. The AI will use this to generate new resumes."></textarea>
+
+  <div class="toggle-group">
+    <div class="toggle-label">
+      <p class="toggle-label-text">Generate Cover Letter</p>
+      <p class="toggle-label-desc">Automatically generate a cover letter alongside your resume</p>
+    </div>
+    <label class="toggle-switch">
+      <input type="checkbox" id="coverLetterToggle">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
 
   <button id="save">Save Settings</button>
   <div id="status" class="status">Settings saved!</div>
