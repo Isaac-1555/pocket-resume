@@ -122,9 +122,13 @@ async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resume
     toneGuide = "Use a clear, approachable, and professional tone. Keep it straightforward and sincere.";
   }
 
+  const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
   const prompt = `
     You are an expert Cover Letter Writer.
     
+    TODAY'S DATE: ${today}
+
     MY PROFILE:
     ${userProfile}
 
@@ -154,7 +158,7 @@ async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resume
     {
       "applicant_name": "String (My full name)",
       "applicant_contact": "String (Phone | Email | Location)",
-      "date": "String (Today's date in format: Month Day, Year e.g. 'February 10, 2026')",
+      "date": "String (Use TODAY'S DATE provided above, formatted as: Month Day, Year e.g. 'February 10, 2026')",
       "recipient_name": "String (Hiring manager name from JD if available, else 'Hiring Manager')",
       "recipient_title": "String (Hiring manager title from JD if available, else empty string)",
       "company_name": "String (Company name from JD)",
