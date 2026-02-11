@@ -2,7 +2,7 @@
 
 **Last updated:** February 2026
 
-Pocket Resume is a Chrome extension designed to help users create, store, and view resumes directly within their browser, with AI-powered resume generation capabilities.
+Pocket Resume is a Chrome extension designed to help users create, store, and view resumes and cover letters directly within their browser, with AI-powered generation capabilities.
 
 Your privacy is important. This policy explains what data Pocket Resume collects, how it is used, and how it is transmitted.
 
@@ -18,11 +18,11 @@ Pocket Resume collects and processes the following user data to provide its core
 
 ### How Data is Used
 
-This data is used solely to generate tailored resumes based on your profile and the job description you are viewing. No data is collected for advertising, analytics, or tracking purposes.
+This data is used solely to generate tailored resumes and cover letters based on your profile and the job description you are viewing. No data is collected for advertising, analytics, or tracking purposes.
 
 ## Data Transmission to Third-Party Services
 
-To provide AI-powered resume generation, Pocket Resume transmits data to **Google's Gemini API** (generativelanguage.googleapis.com). Specifically:
+To provide AI-powered resume and cover letter generation, Pocket Resume transmits data to **Google's Gemini API** (generativelanguage.googleapis.com). Specifically:
 
 ### What is Sent
 
@@ -32,12 +32,13 @@ When you initiate resume generation, the extension sends the following to Google
    - Your user profile information (as entered in settings)
    - The extracted text content from the current job posting page
    - Instructions for resume formatting
+   - If cover letter generation is enabled, a separate request is made with instructions for cover letter formatting
 
 2. **Inline Data (image)**: A JPEG screenshot of the current browser tab viewport (the job posting page) to provide additional visual context for the AI
 
 ### Purpose of Transmission
 
-This data is transmitted solely to generate a tailored resume using Google's Gemini AI model. The API processes the data and returns a structured resume in JSON format.
+This data is transmitted solely to generate a tailored resume (and optionally a cover letter) using Google's Gemini AI model. The API processes the data and returns structured content in JSON format.
 
 ### API Key
 
@@ -55,7 +56,8 @@ Pocket Resume stores the following data locally on your device using Chrome's bu
 
 * Your user profile information
 * Your Gemini API key
-* Generated resumes
+* Your preferences (cover letter toggle, selected resume style)
+* Generated resumes and cover letters
 
 This locally stored data:
 * Remains entirely under your control
@@ -72,10 +74,10 @@ This locally stored data:
 Pocket Resume requests only the permissions necessary for core functionality:
 
 * **Active Tab / Tab Capture**: To capture screenshots and extract text from job posting pages
-* **Storage**: To save your profile, API key, and generated resumes locally
+* **Storage**: To save your profile, API key, preferences, and generated documents locally
 * **Scripting**: To extract text content from web pages
 
-These permissions are used exclusively to enable the resume generation features and are not used to collect data for other purposes.
+These permissions are used exclusively to enable the resume and cover letter generation features and are not used to collect data for other purposes.
 
 ## Data Retention
 
