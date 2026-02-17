@@ -211,12 +211,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Async execution wrapper
     (async () => {
       try {
-        const { tabId, resumeType } = message.payload;
+        const { tabId, resumeType, resumeId } = message.payload;
 
         // 1. Get Settings
-        const settings = await chrome.storage.local.get(['geminiApiKey', 'userProfile', 'coverLetterEnabled']);
-        if (!settings.geminiApiKey || !settings.userProfile) {
-          throw new Error("Please set your API Key and Profile in the extension settings.");
+        const settings = await chrome.storage.local.get(['geminiApiKey', 'resumes', 'userProfile', 'coverLetterEnabled']);
+        if (!settings.geminiApiKey) {
+          throw new Error("Please set your API Key in the extension settings.");
+        }
+
+        // Resolve the user profile content from the resumes array (or fallback to legacy userProfile)
+        let userProfile = '';
+        if (settings.resumes && settings.resumes.length > 0) {
+          // Find the selected resume by ID, or fall back to first resume
+          const selected = settings.resumes.find(r => r.id === resumeId) || settings.resumes[0];
+          userProfile = selected.content || '';
+        } else if (settings.userProfile) {
+          // Legacy fallback
+          userProfile = settings.userProfile;
+        }
+
+        if (!userProfile.trim()) {
+          throw new Error("Please add your resume/profile content in the extension settings.");
         }
 
         // 2. Get Tab Info for Window ID
@@ -251,7 +266,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // 5. Call Pipeline (Gemini) - Resume
         const resumeText = await callGemini(
           settings.geminiApiKey,
-          settings.userProfile,
+          userProfile,
           jobText,
           resumeType,
           screenshot
@@ -262,7 +277,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (settings.coverLetterEnabled) {
           coverLetterText = await callGeminiCoverLetter(
             settings.geminiApiKey,
-            settings.userProfile,
+            userProfile,
             jobText,
             resumeType,
             screenshot

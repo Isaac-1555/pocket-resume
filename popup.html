@@ -106,6 +106,27 @@
         border-color: #F78E69;
     }
 
+    /* Resume Selector */
+    .resume-selector { display: flex; gap: 6px; margin-bottom: 16px; }
+    .resume-selector-btn {
+      flex: 1; padding: 10px 6px; border: 2px solid #ddd; border-radius: 8px;
+      background: #fff; color: #2B303A; font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all 0.2s ease; text-align: center;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      position: relative; box-shadow: none;
+    }
+    .resume-selector-btn:hover { border-color: #F78E69; color: #F78E69; background: #FFF0EB; transform: none; box-shadow: none; }
+    .resume-selector-btn.active { border-color: #F78E69; background: #FFF0EB; color: #F78E69; font-weight: 600; }
+    .resume-selector-btn .rs-number {
+      display: block; font-size: 16px; font-weight: 700; line-height: 1.2;
+    }
+    .resume-selector-btn .rs-label {
+      display: block; font-size: 10px; font-weight: 400; color: #999; margin-top: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .resume-selector-btn.active .rs-label { color: #F78E69; }
+    .resume-selector-btn:hover .rs-label { color: #F78E69; }
+
     button { background: #F78E69; color: #fff; border: none; font-weight: 600; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(247, 142, 105, 0.2); }
     button:hover { background: #ff9f7d; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(247, 142, 105, 0.3); }
     button:active { transform: translateY(0); }
@@ -147,6 +168,10 @@
             </div>
         </div>
     </div>
+  </div>
+
+  <div id="resumeSelector" class="resume-selector" style="display: none;">
+    <!-- Rendered dynamically by popup.js -->
   </div>
 
   <button id="generateBtn">Generate PDF Resume</button>

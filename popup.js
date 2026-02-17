@@ -4,6 +4,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingsBtn = document.getElementById('settingsBtn');
   const resumeType = document.getElementById('resumeType');
   const statusDiv = document.getElementById('status');
+  const resumeSelectorDiv = document.getElementById('resumeSelector');
+
+  // --- Resume selector state ---
+  let loadedResumes = [];
+  let selectedResumeId = null;
 
   // Custom Select Logic
   const customSelect = document.querySelector('.custom-select');
@@ -50,12 +55,31 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   }
 
-  // Check if settings are configured
-  chrome.storage.local.get(['geminiApiKey', 'userProfile', 'resumeType'], (data) => {
-    if (!data.geminiApiKey || !data.userProfile) {
+  // Check if settings are configured + load resumes
+  chrome.storage.local.get(['geminiApiKey', 'resumes', 'userProfile', 'resumeType', 'selectedResumeId'], (data) => {
+    // Migration fallback: if old userProfile exists but no resumes array
+    if (!data.resumes && data.userProfile) {
+      loadedResumes = [{ id: 'migrated_1', label: 'Resume 1', content: data.userProfile }];
+    } else if (data.resumes && data.resumes.length > 0) {
+      loadedResumes = data.resumes;
+    }
+
+    const hasResumes = loadedResumes.length > 0 && loadedResumes.some(r => r.content && r.content.trim());
+
+    if (!data.geminiApiKey || !hasResumes) {
       showStatus("Please configure your API Key and Profile in Settings first.", "error");
       generateBtn.disabled = true;
     }
+
+    // Set selected resume
+    if (data.selectedResumeId && loadedResumes.find(r => r.id === data.selectedResumeId)) {
+      selectedResumeId = data.selectedResumeId;
+    } else if (loadedResumes.length > 0) {
+      selectedResumeId = loadedResumes[0].id;
+    }
+
+    // Render resume selector (only if 2+ resumes)
+    renderResumeSelector();
 
     // Restore persisted resume type
     if (data.resumeType) {
@@ -72,6 +96,37 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   });
+
+  // --- Resume Selector Rendering ---
+  function renderResumeSelector() {
+    if (loadedResumes.length < 2) {
+      resumeSelectorDiv.style.display = 'none';
+      return;
+    }
+
+    resumeSelectorDiv.style.display = 'flex';
+    resumeSelectorDiv.innerHTML = '';
+
+    loadedResumes.forEach((resume, index) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'resume-selector-btn' + (resume.id === selectedResumeId ? ' active' : '');
+      btn.title = resume.label || `Resume ${index + 1}`;
+      btn.innerHTML = `<span class="rs-number">${index + 1}</span><span class="rs-label">${escapeHtml(resume.label || `Resume ${index + 1}`)}</span>`;
+      btn.addEventListener('click', () => {
+        selectedResumeId = resume.id;
+        chrome.storage.local.set({ selectedResumeId: resume.id });
+        // Update active state
+        resumeSelectorDiv.querySelectorAll('.resume-selector-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+      resumeSelectorDiv.appendChild(btn);
+    });
+  }
+
+  function escapeHtml(str) {
+    return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
 
   settingsBtn.addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
@@ -99,7 +154,8 @@ document.addEventListener('DOMContentLoaded', () => {
       type: 'START_GENERATION',
       payload: {
         tabId: tab.id,
-        resumeType: resumeType.value
+        resumeType: resumeType.value,
+        resumeId: selectedResumeId
       }
     }, (response) => {
       
@@ -315,63 +371,78 @@ document.addEventListener('DOMContentLoaded', () => {
       addText(data.summary, 11, 'normal', { bottomSpacing: 10 });
     }
 
-    // 3. Skills (Inline)
+    // 3. Skills (Inline with bullet dot separators)
     if (data.skills && data.skills.length > 0) {
       addSectionHeader("Skills");
-      
+
       const fontSize = 11;
       doc.setFontSize(fontSize);
       doc.setFont("helvetica", "normal");
-      
-      const bulletRadius = 2;
-      const bulletSpace = 12; // Space to reserve for bullet + spacing
-      let currentX = margin;
+      doc.setTextColor("#000000");
+
       const h = fontSize * lineHeight;
-      
+      const bulletRadius = 1.5;
+      const bulletGap = 5; // space before and after bullet dot
+
+      // Sanitize each skill
+      const sanitizedSkills = data.skills
+        .map(s => (s || '').replace(/[^\x00-\x7F]/g, (char) => {
+          if (char === '\u2018' || char === '\u2019') return "'";
+          if (char === '\u201C' || char === '\u201D') return '"';
+          if (char === '\u2013' || char === '\u2014') return '-';
+          return " ";
+        }).trim())
+        .filter(s => s);
+
+      let currentX = margin;
       checkPageBreak(h);
 
-      data.skills.forEach((skill, index) => {
-        // Sanitize
-        let text = skill.replace(/[^\x00-\x7F]/g, (char) => {
-            if (char === '’' || char === '‘') return "'";
-            if (char === '“' || char === '”') return '"';
-            if (char === '–' || char === '—') return '-';
-            return " "; 
-        }).trim();
-        
-        if (!text) return;
-
+      sanitizedSkills.forEach((text, index) => {
+        doc.setFontSize(fontSize);
+        doc.setFont("helvetica", "normal");
         const textWidth = doc.getTextWidth(text);
-        
-        // Wrap if text doesn't fit
-        if (currentX + textWidth > pageWidth - margin) {
+
+        // If skill doesn't fit on current line, wrap to next line
+        if (currentX > margin && currentX + textWidth > pageWidth - margin) {
           currentX = margin;
           y += h;
           checkPageBreak(h);
         }
-        
-        doc.text(text, currentX, y);
-        currentX += textWidth;
-        
-        // Draw bullet if not last
-        if (index < data.skills.length - 1) {
-           // Check if bullet fits
-           if (currentX + bulletSpace > pageWidth - margin) {
-             currentX = margin;
-             y += h;
-             checkPageBreak(h);
-           } else {
-             // Draw bullet
-             const gap = 8;
-             currentX += gap; // gap before bullet
-             const bulletY = y - (fontSize / 3);
-             doc.setFillColor(0, 0, 0);
-             doc.circle(currentX, bulletY, bulletRadius, 'F');
-             currentX += gap; // gap after bullet
-           }
+
+        // If a single skill is wider than content area, wrap it with splitTextToSize
+        if (textWidth > contentWidth) {
+          const wrapped = doc.splitTextToSize(text, contentWidth);
+          wrapped.forEach((line, li) => {
+            checkPageBreak(h);
+            doc.text(line, margin, y);
+            if (li < wrapped.length - 1) {
+              y += h;
+              currentX = margin;
+            } else {
+              currentX = margin + doc.getTextWidth(line);
+            }
+          });
+        } else {
+          doc.text(text, currentX, y);
+          currentX += textWidth;
+        }
+
+        // Draw bullet dot separator after each skill except the last
+        if (index < sanitizedSkills.length - 1) {
+          const totalBulletWidth = bulletGap + bulletRadius * 2 + bulletGap;
+          if (currentX + totalBulletWidth > pageWidth - margin) {
+            currentX = margin;
+            y += h;
+            checkPageBreak(h);
+          }
+          currentX += bulletGap;
+          const bulletY = y - (fontSize / 3);
+          doc.setFillColor(0, 0, 0);
+          doc.circle(currentX + bulletRadius, bulletY, bulletRadius, 'F');
+          currentX += bulletRadius * 2 + bulletGap;
         }
       });
-      
+
       y += h + 10; // Bottom spacing
     }
 
