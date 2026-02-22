@@ -5,6 +5,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const resumeType = document.getElementById('resumeType');
   const statusDiv = document.getElementById('status');
   const resumeSelectorDiv = document.getElementById('resumeSelector');
+  const coverLetterToggle = document.getElementById('coverLetterToggle');
+
+  // --- Cover Letter Toggle ---
+  chrome.storage.local.get(['coverLetterEnabled'], (data) => {
+    coverLetterToggle.checked = !!data.coverLetterEnabled;
+  });
+  coverLetterToggle.addEventListener('change', () => {
+    chrome.storage.local.set({ coverLetterEnabled: coverLetterToggle.checked });
+  });
 
   // --- Resume selector state ---
   let loadedResumes = [];

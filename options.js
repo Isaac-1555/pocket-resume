@@ -2,7 +2,6 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const apiKeyInput = document.getElementById('apiKey');
   const toggleApiKeyButton = document.getElementById('toggleApiKey');
-  const coverLetterToggle = document.getElementById('coverLetterToggle');
   const saveButton = document.getElementById('save');
   const statusDiv = document.getElementById('status');
   const tabBar = document.getElementById('tabBar');
@@ -29,10 +28,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // --- Migration & Load ---
-  const data = await chrome.storage.local.get(['geminiApiKey', 'userProfile', 'resumes', 'coverLetterEnabled']);
+  const data = await chrome.storage.local.get(['geminiApiKey', 'userProfile', 'resumes']);
 
   if (data.geminiApiKey) apiKeyInput.value = data.geminiApiKey;
-  coverLetterToggle.checked = !!data.coverLetterEnabled;
 
   if (data.resumes && data.resumes.length > 0) {
     // Already migrated
@@ -153,8 +151,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     chrome.storage.local.set({
       geminiApiKey: apiKeyInput.value.trim(),
-      resumes: resumes,
-      coverLetterEnabled: coverLetterToggle.checked
+      resumes: resumes
     }, () => {
       statusDiv.style.display = 'block';
       setTimeout(() => {
