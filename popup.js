@@ -6,6 +6,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusDiv = document.getElementById('status');
   const resumeSelectorDiv = document.getElementById('resumeSelector');
   const coverLetterToggle = document.getElementById('coverLetterToggle');
+  const subtitleToggle = document.getElementById('subtitleToggle');
+
+  // --- Subtitle Toggle ---
+  chrome.storage.local.get(['subtitleToggleEnabled'], (data) => {
+    subtitleToggle.checked = !!data.subtitleToggleEnabled;
+  });
+  subtitleToggle.addEventListener('change', () => {
+    chrome.storage.local.set({ subtitleToggleEnabled: subtitleToggle.checked });
+  });
 
   // --- Cover Letter Toggle ---
   chrome.storage.local.get(['coverLetterEnabled'], (data) => {
@@ -145,9 +154,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // UI Reset
     generateBtn.disabled = true;
 
-    // Check if cover letter is enabled to show appropriate status
-    const settings = await chrome.storage.local.get(['coverLetterEnabled']);
+    // Check toggles to show appropriate status
+    const settings = await chrome.storage.local.get(['coverLetterEnabled', 'subtitleToggleEnabled']);
     const coverLetterEnabled = !!settings.coverLetterEnabled;
+    const subtitleEnabled = !!settings.subtitleToggleEnabled;
 
     if (coverLetterEnabled) {
       showStatus("Generating resume and cover letter... This may take 20-40 seconds.", "loading");
@@ -164,7 +174,8 @@ document.addEventListener('DOMContentLoaded', () => {
       payload: {
         tabId: tab.id,
         resumeType: resumeType.value,
-        resumeId: selectedResumeId
+        resumeId: selectedResumeId,
+        subtitleEnabled: subtitleEnabled
       }
     }, (response) => {
       
@@ -228,384 +239,294 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function generatePDF(data, type) {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'pt', // Use points for finer control (1 pt = 1/72 inch)
-      format: 'letter'
-    });
 
-    // --- Configuration ---
-    const margin = 40; 
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const contentWidth = pageWidth - (margin * 2);
-    const lineHeight = 1.4; // Increased from 1.2 to prevent overlap
+    // Blue accent matching the reference resume
+    const HEADER_COLOR = '#1A5DC0';
+    const HEADER_RGB = [26, 93, 192];
 
-    // State
-    let y = 50; 
+    // Progressive configs: default → tightest (for auto-fit loop)
+    const configs = [
+      { margin: 40, nameSize: 14, subtitleSize: 11, contactSize: 10, headerSize: 12, bodySize: 11, lineHeight: 1.3, sectionTopGap: 8, sectionBottomGap: 14, bulletBottom: 2, jobBottom: 4, startY: 45, bulletIndent: 12 },
+      { margin: 38, nameSize: 14, subtitleSize: 10.5, contactSize: 9.5, headerSize: 11.5, bodySize: 10.5, lineHeight: 1.2, sectionTopGap: 6, sectionBottomGap: 12, bulletBottom: 1.5, jobBottom: 3, startY: 42, bulletIndent: 11 },
+      { margin: 36, nameSize: 13, subtitleSize: 10, contactSize: 9, headerSize: 11, bodySize: 10, lineHeight: 1.15, sectionTopGap: 4, sectionBottomGap: 10, bulletBottom: 1, jobBottom: 2, startY: 40, bulletIndent: 10 },
+      { margin: 32, nameSize: 13, subtitleSize: 9.5, contactSize: 9, headerSize: 10.5, bodySize: 9.5, lineHeight: 1.1, sectionTopGap: 3, sectionBottomGap: 8, bulletBottom: 0.5, jobBottom: 1.5, startY: 38, bulletIndent: 10 },
+    ];
 
-    // --- Helper Functions ---
-    
-    // Check if we need a new page
-    function checkPageBreak(heightNeeded) {
-      if (y + heightNeeded > doc.internal.pageSize.getHeight() - margin) {
-        doc.addPage();
-        y = 50; 
-      }
+    // --- Sanitise text for standard PDF fonts ---
+    function sanitize(text) {
+      if (!text) return '';
+      return text.replace(/[^\x00-\x7F]/g, (char) => {
+        if (char === '\u2018' || char === '\u2019') return "'";
+        if (char === '\u201C' || char === '\u201D') return '"';
+        if (char === '\u2013' || char === '\u2014') return '-';
+        if (char === '\u2022') return '';
+        return ' ';
+      }).trim();
     }
 
-    // Measure text height (wrapping)
-    function measureTextHeight(text, fontSize, maxWidth) {
-      if (!text) return 0;
-      doc.setFontSize(fontSize);
-      // Clean text of characters that might mess up calculation or rendering
-      const cleanText = text.replace(/[^\x00-\x7F]/g, (char) => {
-         // Replace common curly quotes/dashes if any
-         if (char === '’' || char === '‘') return "'";
-         if (char === '“' || char === '”') return '"';
-         if (char === '–' || char === '—') return '-';
-         return ""; // Strip other non-ascii to be safe for standard fonts
-      });
-      const lines = doc.splitTextToSize(cleanText, maxWidth);
-      return lines.length * fontSize * lineHeight;
-    }
+    // --- Core renderer (driven by cfg) ---
+    function renderResume(doc, cfg) {
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const contentWidth = pageWidth - cfg.margin * 2;
+      let y = cfg.startY;
 
-    // Add Text with options
-    function addText(text, fontSize, fontStyle = 'normal', options = {}) {
-      if (!text) return;
-
-      const align = options.align || 'left';
-      const color = options.color || '#000000';
-      const maxWidth = options.maxWidth || contentWidth;
-      const bottomSpacing = options.bottomSpacing || 0;
-
-      doc.setFontSize(fontSize);
-      doc.setFont("helvetica", fontStyle);
-      doc.setTextColor(color);
-
-      // Sanitization for Standard Fonts (Standard fonts don't support full Unicode)
-      // We replace bullets and special chars to ensure they render or don't cause garbage.
-      let cleanText = text.replace(/•/g, "").trim(); // Remove bullets if they are part of the string, we handle them separately in lists
-      
-      // Replace non-ASCII for safety in standard fonts
-      cleanText = cleanText.replace(/[^\x00-\x7F]/g, (char) => {
-         if (char === '’' || char === '‘') return "'";
-         if (char === '“' || char === '”') return '"';
-         if (char === '–' || char === '—') return '-';
-         return " "; 
-      });
-
-      const lines = doc.splitTextToSize(cleanText, maxWidth);
-      const height = lines.length * fontSize * lineHeight;
-
-      checkPageBreak(height);
-
-      if (align === 'center') {
-        doc.text(lines, pageWidth / 2, y, { align: 'center' });
-      } else if (align === 'right') {
-        doc.text(lines, pageWidth - margin, y, { align: 'right' });
-      } else {
-        doc.text(lines, margin, y);
+      // --- Helpers ---
+      function checkPageBreak(h) {
+        if (y + h > pageHeight - cfg.margin) { doc.addPage(); y = cfg.startY; }
       }
 
-      y += height + bottomSpacing;
-    }
+      function addText(text, fontSize, fontStyle, options) {
+        if (!text) return;
+        options = options || {};
+        const align = options.align || 'left';
+        const color = options.color || '#000000';
+        const maxWidth = options.maxWidth || contentWidth;
+        const bottomSpacing = options.bottomSpacing || 0;
 
-    // Add Section Header
-    function addSectionHeader(title) {
-      const fontSize = 12;
-      checkPageBreak(30); 
-      y += 10; 
-
-      doc.setFontSize(fontSize);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor("#000000");
-      doc.text(title.toUpperCase(), margin, y);
-      
-      y += 6; 
-      doc.setLineWidth(1);
-      doc.setDrawColor(0, 0, 0); 
-      doc.line(margin, y, pageWidth - margin, y);
-      
-      y += 15; 
-    }
-
-    // Add Bullet Point
-    function addBullet(text) {
-      const fontSize = 11;
-      const bulletIndent = 12;
-      const maxWidth = contentWidth - bulletIndent;
-
-      doc.setFontSize(fontSize);
-      doc.setFont("helvetica", "normal");
-      
-      // Sanitize
-      let cleanText = text.replace(/[^\x00-\x7F]/g, (char) => {
-         if (char === '’' || char === '‘') return "'";
-         if (char === '“' || char === '”') return '"';
-         if (char === '–' || char === '—') return '-';
-         return " "; 
-      });
-
-      const lines = doc.splitTextToSize(cleanText, maxWidth);
-      const height = lines.length * fontSize * lineHeight;
-      
-      checkPageBreak(height);
-
-      // Draw Bullet (Graphical Circle)
-      // Centered vertically relative to the first line of text
-      const bulletY = y - (fontSize / 3); 
-      doc.setFillColor(0, 0, 0);
-      doc.circle(margin + 3, bulletY, 2, 'F'); // 2pt radius circle
-      
-      // Draw text
-      doc.text(lines, margin + bulletIndent, y);
-      
-      y += height + 4; // Spacing between bullets
-    }
-
-    // --- Rendering Logic ---
-
-    // 1. Header (Name & Contact)
-    // Name: Bold, 14
-    addText(data.name, 14, 'bold', { align: 'center', bottomSpacing: 5 });
-    
-    // Contact: Normal, 11 (Joined by | if multiple)
-    // Clean contact string if it's not already structured
-    let contactInfo = data.contact;
-    addText(contactInfo, 11, 'normal', { align: 'center', bottomSpacing: 15 });
-
-    // 2. Summary
-    if (data.summary) {
-      addSectionHeader("Professional Summary");
-      addText(data.summary, 11, 'normal', { bottomSpacing: 10 });
-    }
-
-    // 3. Skills (Inline with bullet dot separators)
-    if (data.skills && data.skills.length > 0) {
-      addSectionHeader("Skills");
-
-      const fontSize = 11;
-      doc.setFontSize(fontSize);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor("#000000");
-
-      const h = fontSize * lineHeight;
-      const bulletRadius = 1.5;
-      const bulletGap = 5; // space before and after bullet dot
-
-      // Sanitize each skill
-      const sanitizedSkills = data.skills
-        .map(s => (s || '').replace(/[^\x00-\x7F]/g, (char) => {
-          if (char === '\u2018' || char === '\u2019') return "'";
-          if (char === '\u201C' || char === '\u201D') return '"';
-          if (char === '\u2013' || char === '\u2014') return '-';
-          return " ";
-        }).trim())
-        .filter(s => s);
-
-      let currentX = margin;
-      checkPageBreak(h);
-
-      sanitizedSkills.forEach((text, index) => {
         doc.setFontSize(fontSize);
-        doc.setFont("helvetica", "normal");
-        const textWidth = doc.getTextWidth(text);
+        doc.setFont('helvetica', fontStyle);
+        doc.setTextColor(color);
 
-        // If skill doesn't fit on current line, wrap to next line
-        if (currentX > margin && currentX + textWidth > pageWidth - margin) {
-          currentX = margin;
-          y += h;
-          checkPageBreak(h);
-        }
+        const clean = sanitize(text);
+        const lines = doc.splitTextToSize(clean, maxWidth);
+        const height = lines.length * fontSize * cfg.lineHeight;
+        checkPageBreak(height);
 
-        // If a single skill is wider than content area, wrap it with splitTextToSize
-        if (textWidth > contentWidth) {
-          const wrapped = doc.splitTextToSize(text, contentWidth);
-          wrapped.forEach((line, li) => {
-            checkPageBreak(h);
-            doc.text(line, margin, y);
-            if (li < wrapped.length - 1) {
-              y += h;
-              currentX = margin;
-            } else {
-              currentX = margin + doc.getTextWidth(line);
-            }
-          });
-        } else {
-          doc.text(text, currentX, y);
-          currentX += textWidth;
-        }
+        if (align === 'center') doc.text(lines, pageWidth / 2, y, { align: 'center' });
+        else if (align === 'right') doc.text(lines, pageWidth - cfg.margin, y, { align: 'right' });
+        else doc.text(lines, cfg.margin, y);
 
-        // Draw bullet dot separator after each skill except the last
-        if (index < sanitizedSkills.length - 1) {
-          const totalBulletWidth = bulletGap + bulletRadius * 2 + bulletGap;
-          if (currentX + totalBulletWidth > pageWidth - margin) {
-            currentX = margin;
-            y += h;
-            checkPageBreak(h);
+        y += height + bottomSpacing;
+      }
+
+      function addSectionHeader(title) {
+        checkPageBreak(25);
+        y += cfg.sectionTopGap;
+
+        doc.setFontSize(cfg.headerSize);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(HEADER_COLOR);
+        doc.text(title.toUpperCase(), cfg.margin, y);
+
+        y += 5;
+        doc.setLineWidth(0.75);
+        doc.setDrawColor(HEADER_RGB[0], HEADER_RGB[1], HEADER_RGB[2]);
+        doc.line(cfg.margin, y, pageWidth - cfg.margin, y);
+
+        y += cfg.sectionBottomGap;
+      }
+
+      function addBullet(text) {
+        doc.setFontSize(cfg.bodySize);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor('#000000');
+
+        const clean = sanitize(text);
+        const maxWidth = contentWidth - cfg.bulletIndent;
+        const lines = doc.splitTextToSize(clean, maxWidth);
+        const height = lines.length * cfg.bodySize * cfg.lineHeight;
+        checkPageBreak(height);
+
+        doc.setFillColor(0, 0, 0);
+        doc.circle(cfg.margin + 3, y - cfg.bodySize / 3, 1.5, 'F');
+        doc.text(lines, cfg.margin + cfg.bulletIndent, y);
+        y += height + cfg.bulletBottom;
+      }
+
+      // Inline list with bullet-dot separators (skills / certifications)
+      function addInlineList(items) {
+        const fs = cfg.bodySize;
+        doc.setFontSize(fs);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor('#000000');
+
+        const h = fs * cfg.lineHeight;
+        const bRadius = 1.5;
+        const bGap = 4;
+        const sanitized = items.map(s => sanitize(s)).filter(Boolean);
+        let cx = cfg.margin;
+        checkPageBreak(h);
+
+        sanitized.forEach((text, i) => {
+          doc.setFontSize(fs);
+          doc.setFont('helvetica', 'normal');
+          const tw = doc.getTextWidth(text);
+
+          if (cx > cfg.margin && cx + tw > pageWidth - cfg.margin) { cx = cfg.margin; y += h; checkPageBreak(h); }
+
+          if (tw > contentWidth) {
+            const wrapped = doc.splitTextToSize(text, contentWidth);
+            wrapped.forEach((line, li) => {
+              checkPageBreak(h); doc.text(line, cfg.margin, y);
+              if (li < wrapped.length - 1) { y += h; cx = cfg.margin; } else { cx = cfg.margin + doc.getTextWidth(line); }
+            });
+          } else {
+            doc.text(text, cx, y); cx += tw;
           }
-          currentX += bulletGap;
-          const bulletY = y - (fontSize / 3);
-          doc.setFillColor(0, 0, 0);
-          doc.circle(currentX + bulletRadius, bulletY, bulletRadius, 'F');
-          currentX += bulletRadius * 2 + bulletGap;
-        }
-      });
 
-      y += h + 10; // Bottom spacing
-    }
-
-    // 4. Experience
-    if (data.experience && data.experience.length > 0) {
-      addSectionHeader("Experience");
-
-      data.experience.forEach(exp => {
-        // Need space for the job header row at least
-        checkPageBreak(50);
-
-        // Row 1: Title (Left) + Period (Right)
-        // Calculate widths to prevent overlap
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "normal"); // Measure date with normal font
-        const periodText = (exp.period && exp.period !== 'N/A' && exp.period !== 'n/a') ? exp.period : "";
-        const dateWidth = doc.getTextWidth(periodText);
-        
-        // Title setup
-        const titleText = exp.title.toUpperCase();
-        doc.setFont("helvetica", "bold");
-        
-        // Available width for title = Content Width - Date Width - Spacer (e.g. 20pt)
-        const availableTitleWidth = contentWidth - dateWidth - 20;
-        
-        // Sanitize and split title
-        let cleanTitle = titleText.replace(/[^\x00-\x7F]/g, (char) => {
-           if (char === '’' || char === '‘') return "'";
-           if (char === '“' || char === '”') return '"';
-           if (char === '–' || char === '—') return '-';
-           return " "; 
+          if (i < sanitized.length - 1) {
+            const totalBW = bGap + bRadius * 2 + bGap;
+            if (cx + totalBW > pageWidth - cfg.margin) { cx = cfg.margin; y += h; checkPageBreak(h); }
+            cx += bGap;
+            doc.setFillColor(0, 0, 0);
+            doc.circle(cx + bRadius, y - fs / 3, bRadius, 'F');
+            cx += bRadius * 2 + bGap;
+          }
         });
-        const titleLines = doc.splitTextToSize(cleanTitle, availableTitleWidth);
-        
-        // Render Date (Right aligned at the same Y as the first line of title)
-        doc.setFont("helvetica", "normal");
-        doc.text(periodText, pageWidth - margin, y, { align: 'right' });
-        
-        // Render Title (Left aligned)
-        doc.setFont("helvetica", "bold");
-        doc.text(titleLines, margin, y);
-        
-        // Adjust Y based on title height
-        const titleHeight = titleLines.length * 11 * lineHeight;
-        y += Math.max(titleHeight, 14); // Ensure we move down at least one line
 
-        // Row 2: Company (Left) + Location (Right optional)
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "italic"); 
-        
-        if (exp.location && exp.location !== 'N/A' && exp.location !== 'n/a') {
-             const locWidth = doc.getTextWidth(exp.location);
-             doc.setFont("helvetica", "normal");
-             doc.text(exp.location, pageWidth - margin, y, { align: 'right' });
-             
-             // Wrap company if needed
-             const availableCompWidth = contentWidth - locWidth - 20;
-             const companyLines = doc.splitTextToSize(exp.company, availableCompWidth);
-             doc.setFont("helvetica", "italic"); 
-             doc.text(companyLines, margin, y);
-             
-             y += Math.max(companyLines.length * 11 * lineHeight, 14);
-        } else {
-             // No location, full width for company
-             doc.text(exp.company, margin, y);
-             y += 14;
+        y += h + cfg.sectionTopGap;
+      }
+
+      // Entry header row: "Bold Primary  |  Italic Secondary"  ...  Period (right)
+      function addEntryHeader(primary, secondary, period) {
+        doc.setFontSize(cfg.bodySize);
+        doc.setTextColor('#000000');
+
+        const cleanPeriod = sanitize(period);
+        const cleanPrimary = sanitize(primary);
+        const cleanSecondary = sanitize(secondary);
+
+        // Period (right)
+        doc.setFont('helvetica', 'normal');
+        const periodWidth = cleanPeriod ? doc.getTextWidth(cleanPeriod) : 0;
+        if (cleanPeriod) doc.text(cleanPeriod, pageWidth - cfg.margin, y, { align: 'right' });
+
+        const availableWidth = contentWidth - periodWidth - 15;
+
+        // Primary (bold)
+        doc.setFont('helvetica', 'bold');
+        doc.text(cleanPrimary, cfg.margin, y);
+        const primaryWidth = doc.getTextWidth(cleanPrimary);
+
+        // " | " + Secondary (italic)
+        if (cleanSecondary) {
+          const sep = '  |  ';
+          doc.setFont('helvetica', 'normal');
+          const sepWidth = doc.getTextWidth(sep);
+          doc.setFont('helvetica', 'italic');
+          const secWidth = doc.getTextWidth(cleanSecondary);
+
+          if (primaryWidth + sepWidth + secWidth <= availableWidth) {
+            doc.setFont('helvetica', 'normal');
+            doc.text(sep, cfg.margin + primaryWidth, y);
+            doc.setFont('helvetica', 'italic');
+            doc.text(cleanSecondary, cfg.margin + primaryWidth + sepWidth, y);
+          } else {
+            y += cfg.bodySize * cfg.lineHeight;
+            doc.setFont('helvetica', 'italic');
+            doc.text(cleanSecondary, cfg.margin, y);
+          }
         }
-        
-        y += 4; // Space after job header before bullets
 
-        // Bullets
-        if (exp.points && Array.isArray(exp.points)) {
-          exp.points.forEach(point => addBullet(point));
-        }
-        y += 6; // Space between jobs (4 from bullet + 6 = 10)
-      });
+        y += cfg.bodySize * cfg.lineHeight;
+      }
+
+      // ========================
+      // === RENDERING LOGIC  ===
+      // ========================
+
+      // 1. Name
+      addText(data.name, cfg.nameSize, 'bold', { align: 'center', bottomSpacing: 2 });
+
+      // 2. Subtitle
+      if (data.subtitle) {
+        addText(data.subtitle, cfg.subtitleSize, 'normal', { align: 'center', color: HEADER_COLOR, bottomSpacing: 3 });
+      }
+
+      // 3. Contact
+      addText(data.contact, cfg.contactSize, 'normal', { align: 'center', bottomSpacing: 8 });
+
+      // 4. Summary
+      if (data.summary) {
+        addSectionHeader('Professional Summary');
+        addText(data.summary, cfg.bodySize, 'normal', { bottomSpacing: 4 });
+      }
+
+      // 5. Skills
+      if (data.skills && data.skills.length > 0) {
+        addSectionHeader('Skills');
+        addInlineList(data.skills);
+      }
+
+      // 6. Experience
+      if (data.experience && data.experience.length > 0) {
+        addSectionHeader('Experience');
+        data.experience.forEach(exp => {
+          checkPageBreak(30);
+          const location = (exp.location && !/^n\/a$/i.test(exp.location)) ? exp.location : '';
+          const company = exp.company + (location ? ' \u2014 ' + location : '');
+          const period = (exp.period && !/^n\/a$/i.test(exp.period)) ? exp.period : '';
+          addEntryHeader(exp.title, company, period);
+          y += 2;
+          if (exp.points && Array.isArray(exp.points)) { exp.points.forEach(p => addBullet(p)); }
+          y += cfg.jobBottom;
+        });
+      }
+
+      // 7. Featured Projects
+      if (type !== 'basic' && data.projects && data.projects.length > 0) {
+        addSectionHeader('Featured Projects');
+        data.projects.forEach(proj => {
+          checkPageBreak(30);
+          // Support old schema (name/description) and new schema (title/platform/period/points)
+          const title = proj.title || proj.name || '';
+          const platform = proj.platform || '';
+          const period = proj.period || '';
+          addEntryHeader(title, platform, period);
+
+          if (proj.points && Array.isArray(proj.points)) {
+            y += 2;
+            proj.points.forEach(p => addBullet(p));
+          } else if (proj.description) {
+            addText(proj.description, cfg.bodySize, 'normal', { bottomSpacing: 4 });
+          }
+          y += cfg.jobBottom;
+        });
+      }
+
+      // 8. Education
+      if (data.education && data.education.length > 0) {
+        addSectionHeader('Education');
+        data.education.forEach(edu => {
+          checkPageBreak(20);
+          const yearText = (edu.year && !/^n\/a$/i.test(edu.year)) ? edu.year : '';
+          addEntryHeader(edu.degree, edu.school, yearText);
+          y += 2;
+        });
+      }
+
+      // 9. Certifications (inline)
+      if (data.certifications && data.certifications.length > 0) {
+        addSectionHeader('Certifications');
+        // Support old schema (array of objects) and new schema (array of strings)
+        const certStrings = data.certifications.map(cert => {
+          if (typeof cert === 'string') return cert;
+          let text = cert.name || '';
+          const issuer = (cert.issuer && !/^(n\/a|none|unknown|ongoing)$/i.test(cert.issuer)) ? cert.issuer : '';
+          const yr = (cert.year && !/^(n\/a|none|unknown|ongoing|present)$/i.test(cert.year)) ? cert.year : '';
+          if (issuer) text += ' - ' + issuer;
+          if (yr) text += ' (' + yr + ')';
+          return text;
+        }).filter(Boolean);
+        addInlineList(certStrings);
+      }
     }
 
-    // 5. Projects (Optional)
-    // Hide projects for Basic resume type as requested
-    if (type !== 'basic' && data.projects && data.projects.length > 0) {
-      addSectionHeader("Projects");
-      data.projects.forEach(proj => {
-        checkPageBreak(30);
-        
-        // Name (Bold)
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "bold");
-        doc.text(proj.name, margin, y);
-        y += 14;
-
-        // Description
-        addText(proj.description, 11, 'normal', { bottomSpacing: 10 });
-      });
+    // --- Auto-fit loop: try each config, save first that fits 1 page ---
+    for (const cfg of configs) {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+      renderResume(doc, cfg);
+      if (doc.internal.getNumberOfPages() === 1) {
+        doc.save(`Resume_${(data.name || 'Generated').replace(/\s+/g, '_')}.pdf`);
+        return;
+      }
     }
 
-    // 6. Education
-    if (data.education && data.education.length > 0) {
-      addSectionHeader("Education");
-      
-      data.education.forEach(edu => {
-        checkPageBreak(40);
-        
-        // School (Bold) + Year (Right)
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "normal");
-        let yearText = (edu.year && edu.year !== 'N/A' && edu.year !== 'n/a') ? edu.year : "";
-        const yearWidth = doc.getTextWidth(yearText);
-        
-        // School Wrap
-        const availableSchoolWidth = contentWidth - yearWidth - 20;
-        doc.setFont("helvetica", "bold");
-        const schoolLines = doc.splitTextToSize(edu.school, availableSchoolWidth);
-        
-        // Render Year
-        doc.setFont("helvetica", "normal");
-        if (yearText) doc.text(yearText, pageWidth - margin, y, { align: 'right' });
-        
-        // Render School
-        doc.setFont("helvetica", "bold");
-        doc.text(schoolLines, margin, y);
-        
-        y += Math.max(schoolLines.length * 11 * lineHeight, 14);
-
-        // Degree
-        doc.setFont("helvetica", "normal");
-        const degreeLines = doc.splitTextToSize(edu.degree, contentWidth);
-        doc.text(degreeLines, margin, y);
-        
-        y += (degreeLines.length * 11 * lineHeight) + 10;
-      });
-    }
-
-    // 7. Certifications
-    if (data.certifications && data.certifications.length > 0) {
-      addSectionHeader("Certifications");
-      data.certifications.forEach(cert => {
-         checkPageBreak(20);
-         let text = cert.name || "";
-         
-         const issuer = (cert.issuer && !/^(n\/a|none|unknown|ongoing)$/i.test(cert.issuer)) ? cert.issuer : "";
-         const year = (cert.year && !/^(n\/a|none|unknown|ongoing|present)$/i.test(cert.year)) ? cert.year : "";
-
-         if (issuer) text += ` - ${issuer}`;
-         if (year) text += ` (${year})`;
-         
-         addBullet(text);
-      });
-      y += 6; // Extra spacing after list to match other sections (4 from bullet + 6 = 10)
-    }
-
-    // Save
-    const filename = `Resume_${(data.name || 'Generated').replace(/\s+/g, '_')}.pdf`;
-    doc.save(filename);
+    // Fallback: save tightest attempt even if >1 page
+    const fallbackDoc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+    renderResume(fallbackDoc, configs[configs.length - 1]);
+    fallbackDoc.save(`Resume_${(data.name || 'Generated').replace(/\s+/g, '_')}.pdf`);
   }
 
   function generateCoverLetterPDF(data) {

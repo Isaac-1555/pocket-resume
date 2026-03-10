@@ -15,7 +15,7 @@ async function captureTabScreenshot(windowId) {
   }
 }
 
-async function callGemini(apiKey, userProfile, jobDescription, resumeType, screenshotBase64) {
+async function callGemini(apiKey, userProfile, jobDescription, resumeType, screenshotBase64, subtitleEnabled) {
   const model = "gemini-2.5-flash"; 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -29,8 +29,12 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeType, scree
     styleGuide = "Use a 'Basic' style: Simple, easy to read, standard structure. Good for general applications.";
   }
 
+  const subtitleInstruction = subtitleEnabled
+    ? "Generate a tailored professional tagline/subtitle for this specific job (e.g. 'Technical Product Manager - B2B SaaS & Internal Tools'). Keep it under 10 words."
+    : "Copy the professional tagline/subtitle exactly as it appears in my profile. If none exists, create a brief one under 10 words.";
+
   const prompt = `
-    You are an expert Resume Writer.
+    You are an expert Resume Writer. The resume MUST fit on a single page.
     
     MY PROFILE:
     ${userProfile}
@@ -39,8 +43,19 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeType, scree
     ${jobDescription}
 
     TASK:
-    Write a tailored resume for this job description based on my profile.
+    Write a tailored, ONE-PAGE resume for this job description based on my profile.
     ${styleGuide}
+
+    ONE-PAGE CONSTRAINTS (critical):
+    - The final PDF will be rendered on a single US-Letter page. Content must be concise enough to fit.
+    - Include only the 2-3 most relevant experiences for this job description. Omit less relevant ones.
+    - Include only 1-2 most relevant projects. Omit projects that are not relevant to the JD.
+    - Include at most 3 education entries.
+    - Include only 12-16 of the most relevant skills for this JD.
+    - Certifications: include only relevant ones as a flat list of short names.
+    - Each experience/project bullet point MUST be a single concise line (under ~120 characters). Use short impact statements: Action Verb + Result. Do NOT write multi-line bullet points.
+    - Professional summary: 2-3 sentences max.
+    - ${subtitleInstruction}
     
     IMPORTANT: 
     - Output strictly valid JSON.
@@ -49,32 +64,35 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeType, scree
     - Schema:
     {
       "name": "String (My Name)",
+      "subtitle": "String (Professional tagline — see subtitle instruction above)",
       "contact": "String (Phone | Email | LinkedIn | Location)",
-      "summary": "String (Professional Summary - keep it concise)",
+      "summary": "String (Professional Summary - 2-3 sentences max)",
+      "skills": ["String", "String"],
       "experience": [
         { 
           "title": "String", 
           "company": "String", 
           "location": "String",
           "period": "String", 
-          "points": ["String", "String"] 
+          "points": ["String (single concise line each)"] 
+        }
+      ],
+      "projects": [
+        { 
+          "title": "String (Role & title, e.g. 'Product Manager & Lead Developer')",
+          "platform": "String (Platform/product name, e.g. 'SatBrain — AI Study Platform')",
+          "period": "String (Year)",
+          "points": ["String (single concise line each)"]
         }
       ],
       "education": [
-         { "degree": "String", "school": "String", "year": "String", "location": "String" }
+         { "degree": "String", "school": "String", "year": "String" }
       ],
-      "skills": ["String", "String"],
-      "certifications": [
-        { "name": "String", "issuer": "String", "year": "String" }
-      ],
-      "projects": [
-        { "name": "String", "description": "String", "link": "String (Optional)" }
-      ]
+      "certifications": ["String (just the cert name, e.g. 'Agile & Scrum Certification')"]
     }
     - Do not invent facts. Rephrase existing profile data to match JD keywords.
-    - IMPORTANT: If a specific field (like 'issuer' or 'year' in certifications) is NOT provided in the source profile, leave it as an empty string "". Do NOT put "N/A", "Unknown", "Ongoing", or "Present".
-    - If there is only the year and no issuer, just provide the year. If there is only the issuer and no year, just provide the issuer.
-    - Ensure bullet points are impactful (Action Verb + Context + Result).
+    - IMPORTANT: If a specific field is NOT provided in the source profile, leave it as an empty string "". Do NOT put "N/A", "Unknown", "Ongoing", or "Present".
+    - Ensure bullet points are impactful (Action Verb + Context + Result) but concise (single line).
   `;
 
   // Prepare body
@@ -211,7 +229,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Async execution wrapper
     (async () => {
       try {
-        const { tabId, resumeType, resumeId } = message.payload;
+        const { tabId, resumeType, resumeId, subtitleEnabled } = message.payload;
 
         // 1. Get Settings
         const settings = await chrome.storage.local.get(['geminiApiKey', 'resumes', 'userProfile', 'coverLetterEnabled']);
@@ -269,7 +287,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           userProfile,
           jobText,
           resumeType,
-          screenshot
+          screenshot,
+          subtitleEnabled
         );
 
         // 6. Conditionally generate cover letter
