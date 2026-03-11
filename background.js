@@ -46,15 +46,16 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeType, scree
     Write a tailored, ONE-PAGE resume for this job description based on my profile.
     ${styleGuide}
 
-    ONE-PAGE CONSTRAINTS (critical):
-    - The final PDF will be rendered on a single US-Letter page. Content must be concise enough to fit.
-    - Include only the 2-3 most relevant experiences for this job description. Omit less relevant ones.
-    - Include only 1-2 most relevant projects. Omit projects that are not relevant to the JD.
-    - Include at most 3 education entries.
-    - Include only 12-16 of the most relevant skills for this JD.
-    - Certifications: include only relevant ones as a flat list of short names.
+    CONTENT RULES (critical — preserve all profile content):
+    - The final PDF will be rendered on a single US-Letter page. Keep bullet points concise so everything fits.
+    - Include ALL experiences from my profile. Do NOT drop any. Tailor bullet point wording to match JD keywords.
+    - Include ALL projects from my profile. Do NOT drop any. Tailor bullet point wording to match JD keywords.
+    - Include ALL education entries from my profile.
+    - Include ALL skills from my profile. Reorder so the most JD-relevant skills appear first.
+    - Include ALL certifications from my profile as a flat list.
     - Each experience/project bullet point MUST be a single concise line (under ~120 characters). Use short impact statements: Action Verb + Result. Do NOT write multi-line bullet points.
     - Professional summary: 2-3 sentences max.
+    - Treat my profile as the authoritative source for structure. Mirror its sections and entries — your job is to rephrase and tailor language, not to filter or remove content.
     - ${subtitleInstruction}
     
     IMPORTANT: 
@@ -65,7 +66,7 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeType, scree
     {
       "name": "String (My Name)",
       "subtitle": "String (Professional tagline — see subtitle instruction above)",
-      "contact": "String (Phone | Email | LinkedIn | Location)",
+      "contact": "String (Include ALL contact info from my profile: Phone, Email, LinkedIn, Portfolio/Website, Location, etc. — separated by | )",
       "summary": "String (Professional Summary - 2-3 sentences max)",
       "skills": ["String", "String"],
       "experience": [

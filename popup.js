@@ -465,7 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // 7. Featured Projects
-      if (type !== 'basic' && data.projects && data.projects.length > 0) {
+      if (data.projects && data.projects.length > 0) {
         addSectionHeader('Featured Projects');
         data.projects.forEach(proj => {
           checkPageBreak(30);
