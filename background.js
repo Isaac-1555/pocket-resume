@@ -15,15 +15,36 @@ async function captureTabScreenshot(windowId) {
   }
 }
 
-async function callGemini(apiKey, userProfile, jobDescription, resumeType, screenshotBase64, subtitleEnabled) {
-  const model = "gemini-2.5-flash"; 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+function getResumeStyleConfig(selectedStyle) {
+  switch (selectedStyle) {
+    case "jake":
+      return { promptStyle: "faang", layout: "jake" };
+    case "deedy":
+      return { promptStyle: "faang", layout: "deedy" };
+    case "academic-cv":
+      return { promptStyle: "academic-cv", layout: "academic-cv" };
+    case "professional":
+      return { promptStyle: "professional", layout: "pocketresume" };
+    case "faang":
+      return { promptStyle: "faang", layout: "pocketresume" };
+    case "basic":
+    default:
+      return { promptStyle: "basic", layout: "pocketresume" };
+  }
+}
 
-  // Tailor prompt based on type
+async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, screenshotBase64, subtitleEnabled) {
+  const model = "gemini-2.5-flash";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const styleConfig = getResumeStyleConfig(resumeStyle);
+  const selectedLayout = styleConfig.layout;
+
   let styleGuide = "";
-  if (resumeType === "faang") {
+  if (styleConfig.promptStyle === "academic-cv") {
+    styleGuide = "Use an academic CV style: emphasize research, publications, teaching, service, academic distinctions, and faithful chronology. Preserve factual detail without forcing everything into an industry-resume framing.";
+  } else if (styleConfig.promptStyle === "faang") {
     styleGuide = "Use the 'FAANG' style: Single column, black and white, highly dense, focus on metrics/impact (X% improvement, Y$ saved), technical skills first, strict reverse chronological. No summary/objective unless specified. Use strong action verbs.";
-  } else if (resumeType === "professional") {
+  } else if (styleConfig.promptStyle === "professional") {
     styleGuide = "Use a 'Professional' style: Clean, balanced whitespace, professional summary at top, clear section headings, standard corporate formatting. Focus on leadership and clarity.";
   } else {
     styleGuide = "Use a 'Basic' style: Simple, easy to read, standard structure. Good for general applications.";
@@ -33,8 +54,24 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeType, scree
     ? "Generate a tailored professional tagline/subtitle for this specific job (e.g. 'Technical Product Manager - B2B SaaS & Internal Tools'). Keep it under 10 words."
     : "Copy the professional tagline/subtitle exactly as it appears in my profile. If none exists, create a brief one under 10 words.";
 
+  let layoutGuide = "Use the current PocketResume layout structure: summary, skills, experience, featured projects, education, and certifications.";
+  let documentTask = "Write a tailored, ONE-PAGE resume for this job description based on my profile.";
+  let pageRule = "The final PDF will be rendered on a single US-Letter page. Keep bullet points concise so everything fits.";
+  let bulletRule = "Each experience/project bullet point MUST be a single concise line (under ~120 characters). Use short impact statements: Action Verb + Result. Do NOT write multi-line bullet points.";
+
+  if (selectedLayout === "jake") {
+    layoutGuide = "Use a Jake-style layout adapted for PocketResume: ATS-safe, single-column, compact section rules, technical skills before education, concise publications summary, and honors/awards if present.";
+  } else if (selectedLayout === "deedy") {
+    layoutGuide = "Use a Deedy-style layout adapted for PocketResume: dense two-column industry resume. Prefer skills, links, open-source projects, and education for left-column-friendly content, and experience, selected projects, publications, and awards for right-column-friendly content.";
+  } else if (selectedLayout === "academic-cv") {
+    layoutGuide = "Use an academic CV layout adapted for PocketResume: multi-page is allowed, with education, research/work experience, research projects, publications, honors, teaching, and service only when those sections are supported by the source profile.";
+    documentTask = "Write a tailored academic/research CV for this job description based on my profile.";
+    pageRule = "The final PDF may span multiple pages when needed. Stay concise, but do not force the document onto one page.";
+    bulletRule = "Use concise, impact-focused bullets when appropriate, but academic CV sections may also contain short descriptive detail lines where needed.";
+  }
+
   const prompt = `
-    You are an expert Resume Writer. The resume MUST fit on a single page.
+    You are an expert Resume/CV Writer.
     
     MY PROFILE:
     ${userProfile}
@@ -43,22 +80,24 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeType, scree
     ${jobDescription}
 
     TASK:
-    Write a tailored, ONE-PAGE resume for this job description based on my profile.
+    ${documentTask}
     ${styleGuide}
+    ${layoutGuide}
 
     CONTENT RULES (critical — preserve all profile content):
-    - The final PDF will be rendered on a single US-Letter page. Keep bullet points concise so everything fits.
+    - ${pageRule}
     - Include ALL experiences from my profile. Do NOT drop any. Tailor bullet point wording to match JD keywords.
     - Include ALL projects from my profile. Do NOT drop any. Tailor bullet point wording to match JD keywords.
     - Include ALL education entries from my profile.
     - Include ALL skills from my profile. Reorder so the most JD-relevant skills appear first.
     - Include ALL certifications from my profile as a flat list.
-    - Each experience/project bullet point MUST be a single concise line (under ~120 characters). Use short impact statements: Action Verb + Result. Do NOT write multi-line bullet points.
-    - Professional summary: 2-3 sentences max.
+    - If the profile clearly includes links, honors/awards, publications, teaching, service, or academic distinctions, include them in the structured fields below.
+    - ${bulletRule}
+    - Professional summary: 2-3 sentences max unless the academic CV layout needs a slightly longer profile section.
     - Treat my profile as the authoritative source for structure. Mirror its sections and entries — your job is to rephrase and tailor language, not to filter or remove content.
     - ${subtitleInstruction}
     
-    IMPORTANT: 
+    IMPORTANT:
     - Output strictly valid JSON.
     - Do NOT use Markdown code blocks (like \`\`\`json). Just output the raw JSON string.
     - If you must use code blocks, I will strip them, but prefer raw text.
@@ -66,45 +105,78 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeType, scree
     {
       "name": "String (My Name)",
       "subtitle": "String (Professional tagline — see subtitle instruction above)",
+      "position": "String (Optional concise role/title for dense or academic layouts)",
+      "location": "String (Optional header location if available)",
       "contact": "String (Include ALL contact info from my profile: Phone, Email, LinkedIn, Portfolio/Website, Location, etc. — separated by | )",
-      "summary": "String (Professional Summary - 2-3 sentences max)",
+      "summary": "String",
       "skills": ["String", "String"],
+      "skillGroups": [
+        { "label": "String", "items": ["String"] }
+      ],
+      "links": [
+        { "label": "String", "text": "String", "url": "String" }
+      ],
       "experience": [
-        { 
-          "title": "String", 
-          "company": "String", 
+        {
+          "title": "String",
+          "company": "String",
           "location": "String",
-          "period": "String", 
-          "points": ["String (single concise line each)"] 
+          "period": "String",
+          "points": ["String"]
         }
       ],
       "projects": [
-        { 
-          "title": "String (Role & title, e.g. 'Product Manager & Lead Developer')",
-          "platform": "String (Platform/product name, e.g. 'SatBrain — AI Study Platform')",
-          "period": "String (Year)",
-          "points": ["String (single concise line each)"]
+        {
+          "title": "String",
+          "platform": "String",
+          "period": "String",
+          "points": ["String"],
+          "description": "String",
+          "url": "String",
+          "stars": "String",
+          "venue": "String"
+        }
+      ],
+      "openSourceProjects": [
+        {
+          "title": "String",
+          "description": "String",
+          "url": "String",
+          "stars": "String",
+          "venue": "String"
         }
       ],
       "education": [
-         { "degree": "String", "school": "String", "year": "String" }
+        { "degree": "String", "school": "String", "year": "String", "location": "String", "details": ["String"] }
       ],
-      "certifications": ["String (just the cert name, e.g. 'Agile & Scrum Certification')"]
+      "certifications": ["String"],
+      "honors": [
+        { "title": "String", "issuer": "String", "year": "String", "detail": "String" }
+      ],
+      "publicationsSummary": "String",
+      "publications": [
+        { "title": "String", "venue": "String", "year": "String", "authors": "String", "detail": "String", "citations": "String", "url": "String" }
+      ],
+      "researchInterests": ["String"],
+      "teaching": [
+        { "title": "String", "organization": "String", "period": "String", "details": ["String"] }
+      ],
+      "service": [
+        { "title": "String", "organization": "String", "period": "String", "details": ["String"] }
+      ]
     }
     - Do not invent facts. Rephrase existing profile data to match JD keywords.
-    - IMPORTANT: If a specific field is NOT provided in the source profile, leave it as an empty string "". Do NOT put "N/A", "Unknown", "Ongoing", or "Present".
-    - Ensure bullet points are impactful (Action Verb + Context + Result) but concise (single line).
+    - IMPORTANT: If a specific field is NOT provided in the source profile, leave string fields as "" and array fields as []. Do NOT put "N/A", "Unknown", "Ongoing", or "Present".
+    - Ensure bullet points are impactful (Action Verb + Context + Result) and concise unless the academic CV layout needs a short descriptive detail line.
   `;
 
-  // Prepare body
   const parts = [{ text: prompt }];
 
-  // Add image if available (Multi-modal)
   if (screenshotBase64) {
     parts.push({
       inline_data: {
         mime_type: "image/jpeg",
-        data: screenshotBase64.split(',')[1] 
+        data: screenshotBase64.split(',')[1]
       }
     });
   }
@@ -120,7 +192,7 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeType, scree
   });
 
   const data = await response.json();
-  
+
   if (!response.ok) {
     throw new Error(data.error?.message || "Gemini API Error");
   }
@@ -128,14 +200,15 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeType, scree
   return data.candidates[0].content.parts[0].text;
 }
 
-async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resumeType, screenshotBase64) {
+async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resumeStyle, screenshotBase64) {
   const model = "gemini-2.5-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const styleConfig = getResumeStyleConfig(resumeStyle);
 
   let toneGuide = "";
-  if (resumeType === "faang") {
+  if (styleConfig.promptStyle === "faang") {
     toneGuide = "Use a confident, results-driven tone. Emphasize measurable impact, technical depth, and scale of systems worked on.";
-  } else if (resumeType === "professional") {
+  } else if (styleConfig.promptStyle === "professional" || styleConfig.promptStyle === "academic-cv") {
     toneGuide = "Use a polished, corporate tone. Emphasize leadership, strategic thinking, and professional accomplishments.";
   } else {
     toneGuide = "Use a clear, approachable, and professional tone. Keep it straightforward and sincere.";
@@ -230,7 +303,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Async execution wrapper
     (async () => {
       try {
-        const { tabId, resumeType, resumeId, subtitleEnabled } = message.payload;
+        const { tabId, resumeStyle, resumeType, resumeLayout, resumeId, subtitleEnabled } = message.payload;
+        const selectedResumeStyle =
+          resumeStyle ||
+          (resumeLayout === 'jake' ? 'jake' :
+            resumeLayout === 'deedy' ? 'deedy' :
+            resumeLayout === 'academic-cv' ? 'academic-cv' :
+            resumeType || 'basic');
 
         // 1. Get Settings
         const settings = await chrome.storage.local.get(['geminiApiKey', 'resumes', 'userProfile', 'coverLetterEnabled']);
@@ -287,7 +366,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           settings.geminiApiKey,
           userProfile,
           jobText,
-          resumeType,
+          selectedResumeStyle,
           screenshot,
           subtitleEnabled
         );
@@ -299,7 +378,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             settings.geminiApiKey,
             userProfile,
             jobText,
-            resumeType,
+            selectedResumeStyle,
             screenshot
           );
         }

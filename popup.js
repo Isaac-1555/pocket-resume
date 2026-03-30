@@ -34,6 +34,31 @@ document.addEventListener('DOMContentLoaded', () => {
   const customSelectText = document.getElementById('customSelectText');
   const arrow = document.querySelector('.arrow');
 
+  function getResumeStyleConfig(selectedStyle) {
+    switch (selectedStyle) {
+      case 'jake':
+        return { promptStyle: 'faang', layout: 'jake' };
+      case 'deedy':
+        return { promptStyle: 'faang', layout: 'deedy' };
+      case 'academic-cv':
+        return { promptStyle: 'academic-cv', layout: 'academic-cv' };
+      case 'professional':
+        return { promptStyle: 'professional', layout: 'pocketresume' };
+      case 'faang':
+        return { promptStyle: 'faang', layout: 'pocketresume' };
+      case 'basic':
+      default:
+        return { promptStyle: 'basic', layout: 'pocketresume' };
+    }
+  }
+
+  function resolveStoredResumeStyle(storedStyle, storedLayout) {
+    if (storedLayout === 'jake') return 'jake';
+    if (storedLayout === 'deedy') return 'deedy';
+    if (storedLayout === 'academic-cv') return 'academic-cv';
+    return storedStyle || 'basic';
+  }
+
   if (customSelect && customSelectText) {
       // Toggle dropdown
       document.querySelector('.custom-select__trigger').addEventListener('click', function(e) {
@@ -57,7 +82,9 @@ document.addEventListener('DOMContentLoaded', () => {
             resumeType.value = value;
 
             // Persist selection
-            chrome.storage.local.set({ resumeType: value });
+            chrome.storage.local.set({ resumeType: value }, () => {
+              chrome.storage.local.remove('resumeLayout');
+            });
           }
           // Close dropdown
           customSelect.classList.remove('open');
@@ -73,8 +100,9 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   }
 
+
   // Check if settings are configured + load resumes
-  chrome.storage.local.get(['geminiApiKey', 'resumes', 'userProfile', 'resumeType', 'selectedResumeId'], (data) => {
+  chrome.storage.local.get(['geminiApiKey', 'resumes', 'userProfile', 'resumeType', 'resumeLayout', 'selectedResumeId'], (data) => {
     // Migration fallback: if old userProfile exists but no resumes array
     if (!data.resumes && data.userProfile) {
       loadedResumes = [{ id: 'migrated_1', label: 'Resume 1', content: data.userProfile }];
@@ -99,19 +127,26 @@ document.addEventListener('DOMContentLoaded', () => {
     // Render resume selector (only if 2+ resumes)
     renderResumeSelector();
 
-    // Restore persisted resume type
-    if (data.resumeType) {
-      resumeType.value = data.resumeType;
+    // Restore persisted resume style
+    const storedResumeStyle = resolveStoredResumeStyle(data.resumeType, data.resumeLayout);
+    if (storedResumeStyle) {
+      resumeType.value = storedResumeStyle;
       // Update custom dropdown UI to match
       if (customSelectText) {
         customOptions.forEach(opt => {
-          if (opt.getAttribute('data-value') === data.resumeType) {
+          if (opt.getAttribute('data-value') === storedResumeStyle) {
             customOptions.forEach(o => o.classList.remove('selected'));
             opt.classList.add('selected');
             customSelectText.textContent = opt.textContent;
           }
         });
       }
+    }
+
+    if (data.resumeLayout) {
+      chrome.storage.local.set({ resumeType: storedResumeStyle }, () => {
+        chrome.storage.local.remove('resumeLayout');
+      });
     }
   });
 
@@ -153,6 +188,8 @@ document.addEventListener('DOMContentLoaded', () => {
   generateBtn.addEventListener('click', async () => {
     // UI Reset
     generateBtn.disabled = true;
+    const selectedStyle = resumeType.value || 'basic';
+    const styleConfig = getResumeStyleConfig(selectedStyle);
 
     // Check toggles to show appropriate status
     const settings = await chrome.storage.local.get(['coverLetterEnabled', 'subtitleToggleEnabled']);
@@ -173,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
       type: 'START_GENERATION',
       payload: {
         tabId: tab.id,
-        resumeType: resumeType.value,
+        resumeStyle: selectedStyle,
         resumeId: selectedResumeId,
         subtitleEnabled: subtitleEnabled
       }
@@ -196,7 +233,13 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           const resumeData = JSON.parse(rawData);
-          generatePDF(resumeData, resumeType.value);
+          if (styleConfig.layout === 'pocketresume') {
+            generatePDF(resumeData, selectedStyle);
+          } else if (window.ResumeRenderers && typeof window.ResumeRenderers.generateResumePDF === 'function') {
+            window.ResumeRenderers.generateResumePDF(resumeData, selectedStyle, styleConfig.layout);
+          } else {
+            throw new Error('Resume renderer module failed to load.');
+          }
 
           // Handle cover letter if present
           if (response.coverLetterData) {
