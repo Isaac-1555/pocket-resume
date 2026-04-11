@@ -267,6 +267,48 @@
     return { nextY: y + height, height, lines };
   }
 
+  function estimateDeedyDensity(data) {
+    const skillGroups = data.skillGroups.length ? data.skillGroups : (data.skills.length ? [{ label: 'Core Skills', items: data.skills }] : []);
+    let score = 0;
+
+    if (data.summary) score += Math.min(6, Math.ceil(data.summary.length / 110));
+
+    score += skillGroups.reduce((total, group) => {
+      const itemsText = group.items.join(' • ');
+      return total + 1 + Math.ceil(itemsText.length / 36);
+    }, 0);
+
+    score += data.links.length * 0.8;
+
+    score += data.openSourceProjects.reduce((total, project) => {
+      const detailCount = Math.max(project.points.length, project.description ? 1 : 0);
+      return total + 1.2 + (detailCount * 0.85);
+    }, 0);
+
+    score += data.education.reduce((total, education) => {
+      return total + 1.5 + (education.degree ? 0.5 : 0) + ((education.year || education.location) ? 0.4 : 0) + (Math.min(education.details.length, 2) * 0.5);
+    }, 0);
+
+    score += data.certifications.length * 0.45;
+
+    score += data.experience.reduce((total, entry) => {
+      return total + 1.8 + (Math.max(entry.points.length, 1) * 1.05) + ((entry.title && entry.company) ? 0.3 : 0);
+    }, 0);
+
+    score += data.projects.reduce((total, project) => {
+      const detailCount = Math.max(project.points.length, project.description ? 1 : 0);
+      return total + 1.5 + (Math.max(detailCount, 1) * 0.95);
+    }, 0);
+
+    score += data.publicationsSummary
+      ? Math.min(3, Math.ceil(data.publicationsSummary.length / 120))
+      : data.publications.length * 0.85;
+
+    score += data.honors.length * 0.7;
+
+    return score;
+  }
+
   function renderJakeLayout(rawData) {
     const data = normalizeResumeData(rawData);
     const { jsPDF } = window.jspdf;
@@ -495,11 +537,24 @@
   function renderDeedyLayout(rawData) {
     const data = normalizeResumeData(rawData);
     const { jsPDF } = window.jspdf;
-    const configs = [
-      { margin: 26, nameSize: 24, subtitleSize: 10, sectionSize: 10.5, bodySize: 8.4, smallSize: 7.8, lineHeight: 1.12, columnGap: 16, leftRatio: 0.31, headerGap: 20, blockGap: 7 },
-      { margin: 22, nameSize: 22, subtitleSize: 9.4, sectionSize: 10, bodySize: 8, smallSize: 7.4, lineHeight: 1.08, columnGap: 14, leftRatio: 0.31, headerGap: 16, blockGap: 6 },
-      { margin: 18, nameSize: 20, subtitleSize: 8.8, sectionSize: 9.5, bodySize: 7.5, smallSize: 7, lineHeight: 1.04, columnGap: 12, leftRatio: 0.31, headerGap: 14, blockGap: 5 }
+    const densityScore = estimateDeedyDensity(data);
+    const standardConfigs = [
+      { margin: 26, nameSize: 24, subtitleSize: 10, sectionSize: 10.5, bodySize: 8.4, smallSize: 7.8, lineHeight: 1.12, columnGap: 16, leftRatio: 0.31, headerGap: 20, blockGap: 7, headerStackGap: 3 },
+      { margin: 22, nameSize: 22, subtitleSize: 9.4, sectionSize: 10, bodySize: 8, smallSize: 7.4, lineHeight: 1.08, columnGap: 14, leftRatio: 0.31, headerGap: 16, blockGap: 6, headerStackGap: 2 },
+      { margin: 18, nameSize: 20, subtitleSize: 8.8, sectionSize: 9.5, bodySize: 7.5, smallSize: 7, lineHeight: 1.04, columnGap: 12, leftRatio: 0.31, headerGap: 14, blockGap: 5, headerStackGap: 2 }
     ];
+    const mediumConfigs = [
+      { margin: 28, nameSize: 26, subtitleSize: 10.9, sectionSize: 11, bodySize: 8.9, smallSize: 8.2, lineHeight: 1.15, columnGap: 17, leftRatio: 0.31, headerGap: 23, blockGap: 8, headerStackGap: 3 }
+    ];
+    const roomyConfigs = [
+      { margin: 30, nameSize: 29, subtitleSize: 11.8, sectionSize: 11.8, bodySize: 9.6, smallSize: 8.9, lineHeight: 1.18, columnGap: 18, leftRatio: 0.31, headerGap: 25, blockGap: 9, headerStackGap: 4 },
+      { margin: 28, nameSize: 27, subtitleSize: 11.2, sectionSize: 11.2, bodySize: 9.2, smallSize: 8.5, lineHeight: 1.16, columnGap: 17, leftRatio: 0.31, headerGap: 24, blockGap: 8.5, headerStackGap: 3 }
+    ];
+    const configs = densityScore <= 34
+      ? roomyConfigs.concat(standardConfigs)
+      : densityScore <= 44
+        ? mediumConfigs.concat(standardConfigs)
+        : standardConfigs;
 
     function render(doc, cfg) {
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -508,9 +563,8 @@
       const leftWidth = contentWidth * cfg.leftRatio;
       const rightWidth = contentWidth - leftWidth - cfg.columnGap;
       const bottom = pageHeight - cfg.margin;
-      const startY = cfg.margin + cfg.nameSize + 18;
-      const leftColumn = { x: cfg.margin, y: startY, width: leftWidth };
-      const rightColumn = { x: cfg.margin + leftWidth + cfg.columnGap, y: startY, width: rightWidth };
+      let leftColumn;
+      let rightColumn;
       let overflow = false;
 
       function markOverflow(column) {
@@ -578,23 +632,42 @@
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(cfg.nameSize);
       doc.text(sanitizePdfText(data.name || 'Generated Resume'), cfg.margin, cfg.margin + 8);
+      const headerLineY = cfg.margin + cfg.nameSize;
+      let headerBottomY = headerLineY;
 
       const subtitle = sanitizePdfText(data.position || data.subtitle);
+      const contactLine = formatContactLine(data);
       if (subtitle) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(cfg.subtitleSize);
-        doc.text(subtitle, cfg.margin, cfg.margin + cfg.nameSize);
       }
 
-      const contactLine = formatContactLine(data);
-      if (contactLine) {
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(cfg.subtitleSize);
-        doc.text(contactLine, pageWidth - cfg.margin, cfg.margin + cfg.nameSize, { align: 'right' });
+      if (subtitle && contactLine) {
+        const subtitleWidth = doc.getTextWidth(subtitle);
+        const contactWidth = doc.getTextWidth(contactLine);
+        const minHeaderGap = 12;
+        const stackGap = cfg.headerStackGap || 2;
+
+        if (subtitleWidth + contactWidth + minHeaderGap <= contentWidth) {
+          doc.text(subtitle, cfg.margin, headerLineY);
+          doc.text(contactLine, pageWidth - cfg.margin, headerLineY, { align: 'right' });
+          headerBottomY = headerLineY + (cfg.subtitleSize * cfg.lineHeight);
+        } else {
+          const subtitleResult = addWrappedText(doc, subtitle, cfg.margin, headerLineY, contentWidth, cfg.subtitleSize, 'normal', cfg.lineHeight);
+          const contactResult = addWrappedText(doc, contactLine, cfg.margin, subtitleResult.nextY + stackGap, contentWidth, cfg.subtitleSize, 'normal', cfg.lineHeight);
+          headerBottomY = contactResult.nextY;
+        }
+      } else if (subtitle) {
+        headerBottomY = addWrappedText(doc, subtitle, cfg.margin, headerLineY, contentWidth, cfg.subtitleSize, 'normal', cfg.lineHeight).nextY;
+      } else if (contactLine) {
+        headerBottomY = addWrappedText(doc, contactLine, pageWidth - cfg.margin, headerLineY, contentWidth, cfg.subtitleSize, 'normal', cfg.lineHeight, { align: 'right' }).nextY;
       }
 
-      leftColumn.y += cfg.headerGap;
-      rightColumn.y += cfg.headerGap;
+      const defaultHeaderHeight = cfg.subtitleSize * cfg.lineHeight;
+      const extraHeaderHeight = Math.max(0, headerBottomY - headerLineY - defaultHeaderHeight);
+      const startY = cfg.margin + cfg.nameSize + 18 + cfg.headerGap + extraHeaderHeight;
+      leftColumn = { x: cfg.margin, y: startY, width: leftWidth };
+      rightColumn = { x: cfg.margin + leftWidth + cfg.columnGap, y: startY, width: rightWidth };
 
       const skillGroups = data.skillGroups.length ? data.skillGroups : [{ label: 'Core Skills', items: data.skills }];
       if (skillGroups.some((group) => group.items.length)) {
