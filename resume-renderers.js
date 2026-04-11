@@ -336,12 +336,55 @@
       }
 
       function addLabeledLine(label, values) {
-        const items = Array.isArray(values) ? values.filter(Boolean) : [];
+        const items = Array.isArray(values) ? values.map((item) => sanitizePdfText(item)).filter(Boolean) : [];
         if (!items.length) return;
         ensureSpace(cfg.bodySize * cfg.lineHeight + 2);
-        const line = `${sanitizePdfText(label)}: ${items.join(', ')}`;
-        const result = addWrappedText(doc, line, cfg.margin, y, contentWidth, cfg.bodySize, 'normal', cfg.lineHeight);
-        y = result.nextY + 1;
+        const cleanLabel = sanitizePdfText(label);
+        const isGenericSkillLabel = !cleanLabel || ['skills', 'technical skills', 'core skills'].includes(cleanLabel.toLowerCase());
+        const lineHeight = cfg.bodySize * cfg.lineHeight;
+        const dotRadius = 1.2;
+        const dotGap = 4;
+        const maxX = pageWidth - cfg.margin;
+        let x = cfg.margin;
+
+        doc.setFontSize(cfg.bodySize);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor('#000000');
+
+        if (!isGenericSkillLabel) {
+          const prefix = `${cleanLabel}: `;
+          doc.text(prefix, x, y);
+          x += doc.getTextWidth(prefix);
+        }
+
+        items.forEach((item, index) => {
+          const textWidth = doc.getTextWidth(item);
+
+          if (x > cfg.margin && x + textWidth > maxX) {
+            y += lineHeight;
+            ensureSpace(lineHeight + 2);
+            x = cfg.margin;
+          }
+
+          doc.text(item, x, y);
+          x += textWidth;
+
+          if (index < items.length - 1) {
+            const separatorWidth = dotGap + (dotRadius * 2) + dotGap;
+            if (x + separatorWidth > maxX) {
+              y += lineHeight;
+              ensureSpace(lineHeight + 2);
+              x = cfg.margin;
+            } else {
+              x += dotGap;
+              doc.setFillColor(0, 0, 0);
+              doc.circle(x + dotRadius, y - cfg.bodySize / 3, dotRadius, 'F');
+              x += (dotRadius * 2) + dotGap;
+            }
+          }
+        });
+
+        y += lineHeight + 1;
       }
 
       doc.setFont('helvetica', 'bold');
@@ -431,8 +474,7 @@
 
       if (data.certifications.length) {
         addSection('Certifications');
-        const result = addWrappedText(doc, data.certifications.join(' • '), cfg.margin, y, contentWidth, cfg.bodySize, 'normal', cfg.lineHeight);
-        y = result.nextY;
+        addLabeledLine('', data.certifications);
       }
     }
 
