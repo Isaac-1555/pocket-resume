@@ -11,13 +11,15 @@
     button { margin-top: 30px; padding: 12px 30px; background: #F78E69; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(247, 142, 105, 0.2); }
     button:hover { background: #ff9f7d; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(247, 142, 105, 0.3); }
     button:active { transform: translateY(0); }
-    
+    button:disabled { background: #ccc; color: #fff; cursor: not-allowed; transform: none; box-shadow: none; }
     .api-key-wrapper { display: flex; gap: 10px; align-items: center; }
     .api-key-wrapper input { margin-top: 0; }
     .api-key-wrapper button { margin-top: 0; padding: 14px 20px; background: #e0e0e0; color: #333; box-shadow: none; }
     .api-key-wrapper button:hover { background: #d0d0d0; transform: none; box-shadow: none; }
-
-    .status { margin-top: 15px; padding: 10px; border-radius: 6px; font-weight: 500; display: none; color: #155724; background-color: #d4edda; border: 1px solid #c3e6cb; }
+    .status { margin-top: 15px; padding: 10px; border-radius: 6px; font-weight: 500; display: none; border: 1px solid transparent; }
+    .status.success { color: #155724; background-color: #d4edda; border-color: #c3e6cb; }
+    .status.error { color: #842029; background-color: #f8d7da; border-color: #f5c2c7; }
+    .status.loading, .status.info { color: #0c5460; background-color: #d1ecf1; border-color: #bee5eb; }
     small { display: block; margin-top: 8px; color: #666; font-size: 13px; }
     a { color: #F78E69; text-decoration: none; }
     a:hover { text-decoration: underline; }
@@ -56,6 +58,46 @@
       transition: all 0.2s; margin-top: 0; box-shadow: none;
     }
     .delete-tab-btn:hover { background: #fdf0f0; border-color: #dc3545; transform: none; box-shadow: none; }
+    .resume-actions, .review-actions {
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 14px;
+    }
+    .resume-actions button, .review-actions button { margin-top: 0; }
+    .secondary-action-btn, .ghost-btn {
+      padding: 10px 18px; font-size: 14px; border-radius: 8px; box-shadow: none;
+    }
+    .secondary-action-btn { background: #FFF0EB; color: #C95F3A; border: 1px solid #F3C2B1; }
+    .secondary-action-btn:hover { background: #FFE4DA; transform: none; box-shadow: none; }
+    .ghost-btn { background: #fff; color: #2B303A; border: 1px solid #ddd; }
+    .ghost-btn:hover { background: #f8f8f8; transform: none; box-shadow: none; }
+    .resume-help { margin-top: 10px; font-size: 12px; line-height: 1.5; color: #666; }
+    .review-panel {
+      margin-top: 18px; padding: 18px; border: 1px solid #F1D7CE;
+      border-radius: 10px; background: #FFF8F5;
+    }
+    .review-panel h3 { margin: 0 0 8px; font-size: 17px; color: #2B303A; }
+    .review-note { margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: #555; }
+    .review-note.warning { color: #8a3d1d; font-weight: 600; }
+    .review-meta-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;
+      margin-bottom: 14px;
+    }
+    .review-card {
+      padding: 12px 14px; border: 1px solid #edd9d2; border-radius: 8px; background: #fff;
+    }
+    .review-card h4 { margin: 0 0 8px; font-size: 13px; color: #2B303A; }
+    .review-card ul { margin: 0; padding-left: 18px; color: #555; font-size: 12px; line-height: 1.5; }
+    .review-card li + li { margin-top: 4px; }
+    .review-preview-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px;
+    }
+    .review-preview-column label {
+      display: block; margin: 0 0 6px; font-size: 13px; font-weight: 600; color: #2B303A;
+    }
+    .review-preview-textarea {
+      width: 100%; height: 220px; padding: 12px; border: 1px solid #ddd; border-radius: 8px;
+      box-sizing: border-box; font-size: 12px; line-height: 1.5; resize: vertical; background: #fff;
+    }
+    .review-preview-textarea[readonly] { color: #444; }
 
   </style>
 </head>
@@ -81,7 +123,7 @@
   </div>
 
   <button id="save">Save Settings</button>
-  <div id="status" class="status">Settings saved!</div>
+  <div id="status" class="status"></div>
 
   <script src="options.js"></script>
 </body>

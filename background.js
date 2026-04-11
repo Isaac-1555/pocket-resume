@@ -33,6 +33,37 @@ function getResumeStyleConfig(selectedStyle) {
   }
 }
 
+function stripMarkdownCodeBlock(rawText) {
+  let text = (rawText || '').trim();
+
+  if (text.startsWith('```json')) {
+    text = text.replace(/^```json\s*/i, '').replace(/```$/, '').trim();
+  } else if (text.startsWith('```')) {
+    text = text.replace(/^```\s*/, '').replace(/```$/, '').trim();
+  }
+
+  return text;
+}
+
+function parseJsonText(rawText, contextLabel) {
+  const cleanedText = stripMarkdownCodeBlock(rawText);
+
+  try {
+    return JSON.parse(cleanedText);
+  } catch (error) {
+    console.error(`${contextLabel} JSON Parse Error:`, error);
+    console.log(`${contextLabel} Raw Data:`, rawText);
+    throw new Error(`Error parsing ${contextLabel.toLowerCase()}. Please try again.`);
+  }
+}
+
+function normalizeStringArray(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => typeof item === 'string' ? item.trim() : '')
+    .filter(Boolean);
+}
+
 async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, screenshotBase64, subtitleEnabled) {
   const model = "gemini-2.5-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -198,6 +229,96 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, scre
   }
 
   return data.candidates[0].content.parts[0].text;
+}
+
+async function callGeminiResumeRefinement(apiKey, userProfile) {
+  const model = "gemini-2.5-flash";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const prompt = `
+    You are a strict resume normalization assistant.
+
+    SOURCE RESUME:
+    ${userProfile}
+
+    TASK:
+    Rewrite the source into a single cross-style master resume that stays truthful and can be used to generate all supported PocketResume layouts.
+
+    SUPPORTED OUTPUT FAMILIES:
+    - PocketResume Basic / Professional / FAANG: needs reliable summary, skills, experience, projects, education, and certifications.
+    - Jake: ATS-safe single-column clarity, grouped technical skills, concise impact bullets, plain readable structure.
+    - Deedy: compact links/open-source/education on one side and dense experience/projects on the other.
+    - Academic CV: preserve publications, research interests, teaching, service, honors, and chronology when present.
+
+    NON-NEGOTIABLE RULES:
+    - The source resume is the only authority. Do not invent, infer, or embellish missing facts.
+    - Preserve every supported fact from the source somewhere in the refined text: names, contact info, employers, titles, locations, dates, projects, publications, awards, degrees, certifications, skills, links, teaching, service, and research details.
+    - Never add or guess metrics, dates, technologies, employers, titles, publications, awards, links, citations, star counts, or claims that are not explicitly supported by the source.
+    - You may reorganize content into clearer sections, split dense paragraphs into bullets, normalize wording, and improve readability.
+    - You may rewrite academic or publication-first language into clearer system/project/impact language ONLY when that wording is directly grounded in the source. If the source does not support a stronger claim, keep the conservative wording.
+    - Do not tailor this to any job description. This is a reusable master resume source.
+    - Use plain text with obvious section headings and bullets. No markdown tables. No code fences.
+    - Keep formatting ATS-friendly and easy for downstream parsing.
+    - If information is ambiguous, incomplete, or unverifiable, keep the wording conservative and include the issue in warnings instead of guessing.
+
+    PREFERRED SECTION ORDER WHEN SUPPORTED BY THE SOURCE:
+    Name / Contact
+    Summary
+    Skills
+    Experience
+    Projects
+    Education
+    Certifications
+    Honors
+    Publications
+    Research Interests
+    Teaching
+    Service
+
+    OUTPUT:
+    Return strictly valid JSON with this schema:
+    {
+      "refinedText": "String - plain text only",
+      "warnings": ["String"],
+      "changeSummary": ["String"]
+    }
+
+    OUTPUT REQUIREMENTS:
+    - refinedText must be plain text only and must not be empty.
+    - warnings should contain only real ambiguities or unverifiable gaps. Use [] when there are none.
+    - changeSummary should contain 3-8 concise bullets describing the structural or editorial changes you made.
+    - Return raw JSON only. Do not wrap it in markdown.
+  `;
+
+  const requestBody = {
+    contents: [{ parts: [{ text: prompt }] }]
+  };
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error?.message || "Gemini API Error (Resume Refinement)");
+  }
+
+  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const parsed = parseJsonText(rawText, 'Resume refinement response');
+  const refinedText = typeof parsed.refinedText === 'string' ? parsed.refinedText.trim() : '';
+
+  if (!refinedText) {
+    throw new Error("Resume refinement returned empty content.");
+  }
+
+  return {
+    refinedText,
+    warnings: normalizeStringArray(parsed.warnings),
+    changeSummary: normalizeStringArray(parsed.changeSummary).slice(0, 8)
+  };
 }
 
 async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resumeStyle, screenshotBase64) {
@@ -393,5 +514,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })();
 
     return true; // Keep channel open
+  }
+
+  if (message.type === 'REFINE_RESUME') {
+    (async () => {
+      try {
+        const payload = message.payload || {};
+        const settings = await chrome.storage.local.get(['geminiApiKey']);
+        const apiKey = (typeof payload.apiKey === 'string' && payload.apiKey.trim())
+          ? payload.apiKey.trim()
+          : (settings.geminiApiKey || '').trim();
+        const sourceText = typeof payload.sourceText === 'string' ? payload.sourceText : '';
+
+        if (!apiKey) {
+          throw new Error("Please set your API Key in the extension settings.");
+        }
+
+        if (!sourceText.trim()) {
+          throw new Error("Please add your resume/profile content before refining it.");
+        }
+
+        const refinement = await callGeminiResumeRefinement(apiKey, sourceText);
+        sendResponse({ status: 'success', data: refinement });
+      } catch (error) {
+        console.error("Refinement Error:", error);
+        sendResponse({ status: 'error', message: error.message });
+      }
+    })();
+
+    return true;
   }
 });
