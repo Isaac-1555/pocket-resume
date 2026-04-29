@@ -104,12 +104,24 @@
 <body>
   <h1>PocketResume Settings</h1>
   
-  <label for="apiKey">Gemini API Key:</label>
+  <label for="apiProvider">API Provider:</label>
+  <select id="apiProvider" style="width: 100%; padding: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: #fff;">
+    <option value="google">Google Gemini</option>
+    <option value="openrouter">OpenRouter</option>
+  </select>
+
+  <label for="apiKey">API Key:</label>
   <div class="api-key-wrapper">
-    <input type="password" id="apiKey" placeholder="Enter your Google Gemini API Key">
+    <input type="password" id="apiKey" placeholder="Enter your API Key">
     <button type="button" id="toggleApiKey">Show</button>
   </div>
-  <small>Get your key from <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a></small>
+
+  <label for="openrouterApiKey" style="margin-top: 20px;">OpenRouter API Key:</label>
+  <div class="api-key-wrapper">
+    <input type="password" id="openrouterApiKey" placeholder="Enter your OpenRouter API Key">
+    <button type="button" id="toggleOpenrouterApiKey">Show</button>
+  </div>
+  <small>Get your Google key from <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a> or OpenRouter key from <a href="https://openrouter.ai/keys" target="_blank">OpenRouter</a></small>
 
   <div class="resume-section">
     <label>Your Resumes / Professional Profiles:</label>

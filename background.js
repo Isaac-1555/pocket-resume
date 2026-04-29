@@ -64,9 +64,15 @@ function normalizeStringArray(value) {
     .filter(Boolean);
 }
 
-async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, screenshotBase64, subtitleEnabled) {
-  const model = "gemini-2.5-flash";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, screenshotBase64, subtitleEnabled, provider = 'google') {
+  let url, model;
+  if (provider === 'openrouter') {
+    model = "openai/gpt-oss-120b:free";
+    url = `https://openrouter.ai/api/v1/chat/completions`;
+  } else {
+    model = "gemini-2.5-flash";
+    url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  }
   const styleConfig = getResumeStyleConfig(resumeStyle);
   const selectedLayout = styleConfig.layout;
 
@@ -203,7 +209,7 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, scre
 
   const parts = [{ text: prompt }];
 
-  if (screenshotBase64) {
+  if (screenshotBase64 && provider === 'google') {
     parts.push({
       inline_data: {
         mime_type: "image/jpeg",
@@ -212,28 +218,66 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, scre
     });
   }
 
-  const requestBody = {
-    contents: [{ parts: parts }]
-  };
+  let response, data;
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody)
-  });
+  if (provider === 'openrouter') {
+    const requestBody = {
+      model: model,
+      messages: [{ role: "user", content: prompt }]
+    };
 
-  const data = await response.json();
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://pocketresume.app',
+        'X-Title': 'PocketResume'
+      },
+      body: JSON.stringify(requestBody)
+    });
 
-  if (!response.ok) {
-    throw new Error(data.error?.message || "Gemini API Error");
+    data = await response.json();
+
+    if (!response.ok) {
+      let errMsg = data.error?.message || data.error || JSON.stringify(data);
+      if (data.error?.metadata?.raw) {
+         errMsg += " | Raw Provider Error: " + JSON.stringify(data.error.metadata.raw);
+      }
+      throw new Error(errMsg || "OpenRouter API Error");
+    }
+
+    return data.choices[0].message.content;
+  } else {
+    const requestBody = {
+      contents: [{ parts: parts }]
+    };
+
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+
+    data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || "Gemini API Error");
+    }
+
+    return data.candidates[0].content.parts[0].text;
   }
-
-  return data.candidates[0].content.parts[0].text;
 }
 
-async function callGeminiResumeRefinement(apiKey, userProfile) {
-  const model = "gemini-2.5-flash";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+async function callGeminiResumeRefinement(apiKey, userProfile, provider = 'google') {
+  let url, model;
+  if (provider === 'openrouter') {
+    model = "openai/gpt-oss-120b:free";
+    url = `https://openrouter.ai/api/v1/chat/completions`;
+  } else {
+    model = "gemini-2.5-flash";
+    url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  }
 
   const prompt = `
     You are a strict resume normalization assistant.
@@ -290,23 +334,55 @@ async function callGeminiResumeRefinement(apiKey, userProfile) {
     - Return raw JSON only. Do not wrap it in markdown.
   `;
 
-  const requestBody = {
-    contents: [{ parts: [{ text: prompt }] }]
-  };
+  let response, data, rawText;
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody)
-  });
+  if (provider === 'openrouter') {
+    const requestBody = {
+      model: model,
+      messages: [{ role: "user", content: prompt }]
+    };
 
-  const data = await response.json();
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://pocketresume.app',
+        'X-Title': 'PocketResume'
+      },
+      body: JSON.stringify(requestBody)
+    });
 
-  if (!response.ok) {
-    throw new Error(data.error?.message || "Gemini API Error (Resume Refinement)");
+    data = await response.json();
+
+    if (!response.ok) {
+      let errMsg = data.error?.message || data.error || JSON.stringify(data);
+      if (data.error?.metadata?.raw) {
+         errMsg += " | Raw Provider Error: " + JSON.stringify(data.error.metadata.raw);
+      }
+      throw new Error(errMsg || "OpenRouter API Error (Resume Refinement)");
+    }
+
+    rawText = data.choices[0].message.content;
+  } else {
+    const requestBody = {
+      contents: [{ parts: [{ text: prompt }] }]
+    };
+
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+
+    data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || "Gemini API Error (Resume Refinement)");
+    }
+
+    rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   }
-
-  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   const parsed = parseJsonText(rawText, 'Resume refinement response');
   const refinedText = typeof parsed.refinedText === 'string' ? parsed.refinedText.trim() : '';
 
@@ -321,9 +397,15 @@ async function callGeminiResumeRefinement(apiKey, userProfile) {
   };
 }
 
-async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resumeStyle, screenshotBase64) {
-  const model = "gemini-2.5-flash";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resumeStyle, screenshotBase64, provider = 'google') {
+  let url, model;
+  if (provider === 'openrouter') {
+    model = "openai/gpt-oss-120b:free";
+    url = `https://openrouter.ai/api/v1/chat/completions`;
+  } else {
+    model = "gemini-2.5-flash";
+    url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  }
   const styleConfig = getResumeStyleConfig(resumeStyle);
 
   let toneGuide = "";
@@ -388,7 +470,7 @@ async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resume
 
   const parts = [{ text: prompt }];
 
-  if (screenshotBase64) {
+  if (screenshotBase64 && provider === 'google') {
     parts.push({
       inline_data: {
         mime_type: "image/jpeg",
@@ -397,23 +479,53 @@ async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resume
     });
   }
 
-  const requestBody = {
-    contents: [{ parts: parts }]
-  };
+  if (provider === 'openrouter') {
+    const requestBody = {
+      model: model,
+      messages: [{ role: "user", content: prompt }]
+    };
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody)
-  });
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://pocketresume.app',
+        'X-Title': 'PocketResume'
+      },
+      body: JSON.stringify(requestBody)
+    });
 
-  const data = await response.json();
+    const data = await response.json();
 
-  if (!response.ok) {
-    throw new Error(data.error?.message || "Gemini API Error (Cover Letter)");
+    if (!response.ok) {
+      let errMsg = data.error?.message || data.error || JSON.stringify(data);
+      if (data.error?.metadata?.raw) {
+         errMsg += " | Raw Provider Error: " + JSON.stringify(data.error.metadata.raw);
+      }
+      throw new Error(errMsg || "OpenRouter API Error (Cover Letter)");
+    }
+
+    return data.choices[0].message.content;
+  } else {
+    const requestBody = {
+      contents: [{ parts: parts }]
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || "Gemini API Error (Cover Letter)");
+    }
+
+    return data.candidates[0].content.parts[0].text;
   }
-
-  return data.candidates[0].content.parts[0].text;
 }
 
 
@@ -433,8 +545,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             resumeType || 'basic');
 
         // 1. Get Settings
-        const settings = await chrome.storage.local.get(['geminiApiKey', 'resumes', 'userProfile', 'coverLetterEnabled']);
-        if (!settings.geminiApiKey) {
+        const settings = await chrome.storage.local.get(['apiProvider', 'geminiApiKey', 'openrouterApiKey', 'resumes', 'userProfile', 'coverLetterEnabled']);
+        const provider = settings.apiProvider || 'google';
+        const apiKey = provider === 'openrouter' ? settings.openrouterApiKey : settings.geminiApiKey;
+        if (!apiKey) {
           throw new Error("Please set your API Key in the extension settings.");
         }
 
@@ -478,29 +592,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         // 4. Capture Screenshot (Viewport)
         // Pass the correct windowId from the tab object
-        const screenshot = await captureTabScreenshot(tab.windowId);
+        const screenshot = provider === 'google' ? await captureTabScreenshot(tab.windowId) : null;
 
-        const jobText = contentData.text ? contentData.text.substring(0, 40000) : "No text found on page.";
+        const maxLength = provider === 'openrouter' ? 25000 : 40000;
+        const jobText = contentData.text ? contentData.text.substring(0, maxLength) : "No text found on page.";
 
         // 5. Call Pipeline (Gemini) - Resume
         const resumeText = await callGemini(
-          settings.geminiApiKey,
+          apiKey,
           userProfile,
           jobText,
           selectedResumeStyle,
           screenshot,
-          subtitleEnabled
+          subtitleEnabled,
+          provider
         );
 
         // 6. Conditionally generate cover letter
         let coverLetterText = null;
         if (settings.coverLetterEnabled) {
           coverLetterText = await callGeminiCoverLetter(
-            settings.geminiApiKey,
+            apiKey,
             userProfile,
             jobText,
             selectedResumeStyle,
-            screenshot
+            screenshot,
+            provider
           );
         }
 
@@ -520,10 +637,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try {
         const payload = message.payload || {};
-        const settings = await chrome.storage.local.get(['geminiApiKey']);
+        const settings = await chrome.storage.local.get(['apiProvider', 'geminiApiKey', 'openrouterApiKey']);
+        const provider = settings.apiProvider || 'google';
+        const storedApiKey = provider === 'openrouter' ? settings.openrouterApiKey : settings.geminiApiKey;
         const apiKey = (typeof payload.apiKey === 'string' && payload.apiKey.trim())
           ? payload.apiKey.trim()
-          : (settings.geminiApiKey || '').trim();
+          : (storedApiKey || '').trim();
         const sourceText = typeof payload.sourceText === 'string' ? payload.sourceText : '';
 
         if (!apiKey) {
@@ -534,7 +653,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           throw new Error("Please add your resume/profile content before refining it.");
         }
 
-        const refinement = await callGeminiResumeRefinement(apiKey, sourceText);
+        const refinement = await callGeminiResumeRefinement(apiKey, sourceText, provider);
         sendResponse({ status: 'success', data: refinement });
       } catch (error) {
         console.error("Refinement Error:", error);

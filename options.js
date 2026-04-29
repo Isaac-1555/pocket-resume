@@ -1,7 +1,10 @@
 // options.js
 document.addEventListener('DOMContentLoaded', async () => {
+  const apiProviderSelect = document.getElementById('apiProvider');
   const apiKeyInput = document.getElementById('apiKey');
   const toggleApiKeyButton = document.getElementById('toggleApiKey');
+  const openrouterApiKeyInput = document.getElementById('openrouterApiKey');
+  const toggleOpenrouterApiKeyButton = document.getElementById('toggleOpenrouterApiKey');
   const saveButton = document.getElementById('save');
   const statusDiv = document.getElementById('status');
   const tabBar = document.getElementById('tabBar');
@@ -84,7 +87,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  const data = await chrome.storage.local.get(['geminiApiKey', 'userProfile', 'resumes']);
+  toggleOpenrouterApiKeyButton.addEventListener('click', () => {
+    if (openrouterApiKeyInput.type === 'password') {
+      openrouterApiKeyInput.type = 'text';
+      toggleOpenrouterApiKeyButton.textContent = 'Hide';
+    } else {
+      openrouterApiKeyInput.type = 'password';
+      toggleOpenrouterApiKeyButton.textContent = 'Show';
+    }
+  });
+
+  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'apiProvider', 'userProfile', 'resumes']);
+
+  if (data.apiProvider) apiProviderSelect.value = data.apiProvider;
+  if (data.geminiApiKey) apiKeyInput.value = data.geminiApiKey;
+  if (data.openrouterApiKey) openrouterApiKeyInput.value = data.openrouterApiKey;
 
   if (data.geminiApiKey) apiKeyInput.value = data.geminiApiKey;
 
@@ -316,12 +333,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const apiKey = apiKeyInput.value.trim();
-    if (!apiKey) {
-      showStatus('Please add your Gemini API Key before refining.', 'error', 3500);
-      return;
-    }
-
     refiningResumeId = resume.id;
     renderTabContent();
     showStatus('Refining resume into a reusable cross-style master version…', 'loading', 0);
@@ -330,8 +341,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       type: 'REFINE_RESUME',
       payload: {
         resumeId: resume.id,
-        sourceText: resume.content,
-        apiKey
+        sourceText: resume.content
       }
     }, (response) => {
       refiningResumeId = null;
@@ -375,7 +385,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveCurrentTabToState();
 
     chrome.storage.local.set({
+      apiProvider: apiProviderSelect.value,
       geminiApiKey: apiKeyInput.value.trim(),
+      openrouterApiKey: openrouterApiKeyInput.value.trim(),
       resumes: getPersistedResumes()
     }, () => {
       showStatus('Settings saved!', 'success');
