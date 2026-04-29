@@ -6,7 +6,7 @@ PocketResume is a Chrome extension that leverages Google's Gemini AI to generate
 
 - **AI-Powered Generation:** Generates resumes tailored to the specific job description on your active tab using Google Gemini 2.5 Flash.
 - **Cover Letter Generation:** Optionally generates a professional, single-page cover letter (250-400 words) alongside your resume with a single click.
-- **Contextual Understanding:** Captures both text and screenshots of the job description for accurate tailoring.
+- **Contextual Understanding:** Extracts text from the job description page for accurate tailoring.
 - **Multiple Styles:** Choose from "FAANG" (dense, impact-focused), "Professional" (balanced), or "Basic" (simple) resume styles. The cover letter tone adapts to match.
 - **PDF Export:** Automatically formats and exports the generated resume (and cover letter) as clean, professional PDFs.
 - **State Persistence:** Your selected resume style and cover letter preference are saved across sessions.

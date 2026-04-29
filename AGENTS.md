@@ -47,9 +47,8 @@ No test runner or linter is configured (no `scripts` in `package.json`). If you 
 2. Popup calls `chrome.runtime.sendMessage({ type: 'START_GENERATION', payload: { tabId, resumeType, resumeId } })`.
 3. **Background service worker** (`background.js`) handles `START_GENERATION` and orchestrates:
    - Reads settings from `chrome.storage.local` (API key, resumes/profile, cover letter toggle).
-   - Requests page content from the content script via `GET_PAGE_CONTENT`.
-     - If the content script isn’t available, background injects `content.js` using `chrome.scripting.executeScript(...)` and retries.
-   - Captures a **viewport screenshot** with `chrome.tabs.captureVisibleTab(...)` (best-effort; may fail on restricted pages).
+- Requests page content from the content script via `GET_PAGE_CONTENT`.
+     - If the content script isn't available, background injects `content.js` using `chrome.scripting.executeScript(...)` and retries.
    - Calls Gemini:
      - `callGemini(...)` generates a resume as **strict JSON text**.
      - If enabled, `callGeminiCoverLetter(...)` generates a cover letter as **strict JSON text**.
