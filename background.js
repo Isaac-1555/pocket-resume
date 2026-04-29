@@ -1,20 +1,6 @@
 // background.js
 
 // --- Pipeline Utilities ---
-async function captureTabScreenshot(windowId) {
-  try {
-    // Capture visible tab
-    // Note: This is viewport only. Full page capture requires complex scrolling/stitching 
-    // or external libraries which might be brittle on dynamic sites.
-    // For AI context, viewport + full text is usually sufficient.
-    const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'jpeg', quality: 60 });
-    return dataUrl;
-  } catch (e) {
-    console.warn("Screenshot failed (likely restricted page):", e);
-    return null;
-  }
-}
-
 function getResumeStyleConfig(selectedStyle) {
   switch (selectedStyle) {
     case "jake":
@@ -64,7 +50,7 @@ function normalizeStringArray(value) {
     .filter(Boolean);
 }
 
-async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, screenshotBase64, subtitleEnabled, provider = 'google') {
+async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, subtitleEnabled, provider = 'google') {
   let url, model;
   if (provider === 'openrouter') {
     model = "openai/gpt-oss-120b:free";
@@ -208,15 +194,6 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, scre
   `;
 
   const parts = [{ text: prompt }];
-
-  if (screenshotBase64 && provider === 'google') {
-    parts.push({
-      inline_data: {
-        mime_type: "image/jpeg",
-        data: screenshotBase64.split(',')[1]
-      }
-    });
-  }
 
   let response, data;
 
@@ -397,7 +374,7 @@ async function callGeminiResumeRefinement(apiKey, userProfile, provider = 'googl
   };
 }
 
-async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resumeStyle, screenshotBase64, provider = 'google') {
+async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resumeStyle, provider = 'google') {
   let url, model;
   if (provider === 'openrouter') {
     model = "openai/gpt-oss-120b:free";
@@ -469,15 +446,6 @@ async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resume
   `;
 
   const parts = [{ text: prompt }];
-
-  if (screenshotBase64 && provider === 'google') {
-    parts.push({
-      inline_data: {
-        mime_type: "image/jpeg",
-        data: screenshotBase64.split(',')[1]
-      }
-    });
-  }
 
   if (provider === 'openrouter') {
     const requestBody = {
@@ -590,10 +558,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           });
         });
 
-        // 4. Capture Screenshot (Viewport)
-        // Pass the correct windowId from the tab object
-        const screenshot = provider === 'google' ? await captureTabScreenshot(tab.windowId) : null;
-
+        // 4. Extract job text (content script already ran)
         const maxLength = provider === 'openrouter' ? 25000 : 40000;
         const jobText = contentData.text ? contentData.text.substring(0, maxLength) : "No text found on page.";
 
@@ -603,7 +568,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           userProfile,
           jobText,
           selectedResumeStyle,
-          screenshot,
           subtitleEnabled,
           provider
         );
@@ -616,7 +580,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             userProfile,
             jobText,
             selectedResumeStyle,
-            screenshot,
             provider
           );
         }
