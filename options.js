@@ -1,14 +1,25 @@
 // options.js
 document.addEventListener('DOMContentLoaded', async () => {
-  const apiProviderSelect = document.getElementById('apiProvider');
   const apiKeyInput = document.getElementById('apiKey');
   const toggleApiKeyButton = document.getElementById('toggleApiKey');
-  const openrouterApiKeyInput = document.getElementById('openrouterApiKey');
-  const toggleOpenrouterApiKeyButton = document.getElementById('toggleOpenrouterApiKey');
   const saveButton = document.getElementById('save');
   const statusDiv = document.getElementById('status');
   const tabBar = document.getElementById('tabBar');
   const tabContentArea = document.getElementById('tabContentArea');
+
+  const apiKeyLabel = document.getElementById('apiKeyLabel');
+  const providerHelperText = document.getElementById('providerHelperText');
+  const setActiveProviderBtn = document.getElementById('setActiveProviderBtn');
+  const providerIcons = document.querySelectorAll('.provider-icon-wrapper');
+
+  let apiKeys = {
+    google: '',
+    openrouter: '',
+    openai: '',
+    anthropic: ''
+  };
+  let activeProvider = 'google';
+  let currentlyViewedProvider = 'google';
 
   let resumes = [];
   let activeTabIndex = 0;
@@ -87,23 +98,71 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  toggleOpenrouterApiKeyButton.addEventListener('click', () => {
-    if (openrouterApiKeyInput.type === 'password') {
-      openrouterApiKeyInput.type = 'text';
-      toggleOpenrouterApiKeyButton.textContent = 'Hide';
-    } else {
-      openrouterApiKeyInput.type = 'password';
-      toggleOpenrouterApiKeyButton.textContent = 'Show';
+  const updateViewedProvider = (provider) => {
+    // Save current input value to the previously viewed provider's state before switching
+    if (currentlyViewedProvider) {
+      apiKeys[currentlyViewedProvider] = apiKeyInput.value.trim();
     }
+    
+    currentlyViewedProvider = provider;
+    apiKeyInput.value = apiKeys[provider] || '';
+    
+    providerIcons.forEach(icon => {
+      icon.classList.toggle('active-view', icon.dataset.provider === provider);
+    });
+    
+    const names = {
+      google: 'Google Gemini',
+      openrouter: 'OpenRouter',
+      openai: 'OpenAI',
+      anthropic: 'Anthropic'
+    };
+    
+    apiKeyLabel.textContent = `${names[provider]} API Key:`;
+    
+    const helperTexts = {
+      google: 'Get your Google key from <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>',
+      openrouter: 'Get your OpenRouter key from <a href="https://openrouter.ai/keys" target="_blank">OpenRouter</a>',
+      openai: 'Get your OpenAI key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>',
+      anthropic: 'Get your Anthropic key from <a href="https://console.anthropic.com/settings/keys" target="_blank">Anthropic Console</a>'
+    };
+    providerHelperText.innerHTML = helperTexts[provider];
+    
+    setActiveProviderBtn.style.display = provider === activeProvider ? 'none' : 'inline-block';
+  };
+
+  const updateActiveProvider = (provider) => {
+    activeProvider = provider;
+    providerIcons.forEach(icon => {
+      icon.classList.toggle('active-provider', icon.dataset.provider === provider);
+    });
+    setActiveProviderBtn.style.display = 'none';
+  };
+
+  providerIcons.forEach(icon => {
+    icon.addEventListener('click', () => {
+      updateViewedProvider(icon.dataset.provider);
+    });
   });
 
-  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'apiProvider', 'userProfile', 'resumes']);
+  setActiveProviderBtn.addEventListener('click', () => {
+    updateActiveProvider(currentlyViewedProvider);
+  });
+  
+  apiKeyInput.addEventListener('input', () => {
+    apiKeys[currentlyViewedProvider] = apiKeyInput.value.trim();
+  });
 
-  if (data.apiProvider) apiProviderSelect.value = data.apiProvider;
-  if (data.geminiApiKey) apiKeyInput.value = data.geminiApiKey;
-  if (data.openrouterApiKey) openrouterApiKeyInput.value = data.openrouterApiKey;
+  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'apiProvider', 'userProfile', 'resumes']);
 
-  if (data.geminiApiKey) apiKeyInput.value = data.geminiApiKey;
+  if (data.apiProvider) activeProvider = data.apiProvider;
+  if (data.geminiApiKey) apiKeys.google = data.geminiApiKey;
+  if (data.openrouterApiKey) apiKeys.openrouter = data.openrouterApiKey;
+  if (data.openaiApiKey) apiKeys.openai = data.openaiApiKey;
+  if (data.anthropicApiKey) apiKeys.anthropic = data.anthropicApiKey;
+  
+  updateActiveProvider(activeProvider);
+  updateViewedProvider(activeProvider);
 
   if (data.resumes && data.resumes.length > 0) {
     resumes = data.resumes.map((resume, index) => normalizeResumeEntry(resume, index));
@@ -383,11 +442,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   saveButton.addEventListener('click', () => {
     saveCurrentTabToState();
+    
+    // Ensure the current input value is captured if it was typed without blurring
+    apiKeys[currentlyViewedProvider] = apiKeyInput.value.trim();
 
     chrome.storage.local.set({
-      apiProvider: apiProviderSelect.value,
-      geminiApiKey: apiKeyInput.value.trim(),
-      openrouterApiKey: openrouterApiKeyInput.value.trim(),
+      apiProvider: activeProvider,
+      geminiApiKey: apiKeys.google,
+      openrouterApiKey: apiKeys.openrouter,
+      openaiApiKey: apiKeys.openai,
+      anthropicApiKey: apiKeys.anthropic,
       resumes: getPersistedResumes()
     }, () => {
       showStatus('Settings saved!', 'success');

@@ -55,6 +55,12 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, subt
   if (provider === 'openrouter') {
     model = "openai/gpt-oss-120b:free";
     url = `https://openrouter.ai/api/v1/chat/completions`;
+  } else if (provider === 'openai') {
+    model = "gpt-4o-mini";
+    url = `https://api.openai.com/v1/chat/completions`;
+  } else if (provider === 'anthropic') {
+    model = "claude-3-5-haiku-20241022";
+    url = `https://api.anthropic.com/v1/messages`;
   } else {
     model = "gemini-2.5-flash";
     url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -197,7 +203,7 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, subt
 
   let response, data;
 
-  if (provider === 'openrouter') {
+  if (provider === 'openrouter' || provider === 'openai') {
     const requestBody = {
       model: model,
       messages: [{ role: "user", content: prompt }]
@@ -221,10 +227,36 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, subt
       if (data.error?.metadata?.raw) {
          errMsg += " | Raw Provider Error: " + JSON.stringify(data.error.metadata.raw);
       }
-      throw new Error(errMsg || "OpenRouter API Error");
+      throw new Error(errMsg || `${provider} API Error`);
     }
 
     return data.choices[0].message.content;
+  } else if (provider === 'anthropic') {
+    const requestBody = {
+      model: model,
+      max_tokens: 4096,
+      messages: [{ role: "user", content: prompt }]
+    };
+
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerously-allow-browser': 'true'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    data = await response.json();
+
+    if (!response.ok) {
+      let errMsg = data.error?.message || data.error || JSON.stringify(data);
+      throw new Error(errMsg || "Anthropic API Error");
+    }
+
+    return data.content[0].text;
   } else {
     const requestBody = {
       contents: [{ parts: parts }]
@@ -251,6 +283,12 @@ async function callGeminiResumeRefinement(apiKey, userProfile, provider = 'googl
   if (provider === 'openrouter') {
     model = "openai/gpt-oss-120b:free";
     url = `https://openrouter.ai/api/v1/chat/completions`;
+  } else if (provider === 'openai') {
+    model = "gpt-4o-mini";
+    url = `https://api.openai.com/v1/chat/completions`;
+  } else if (provider === 'anthropic') {
+    model = "claude-3-5-haiku-20241022";
+    url = `https://api.anthropic.com/v1/messages`;
   } else {
     model = "gemini-2.5-flash";
     url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -313,7 +351,7 @@ async function callGeminiResumeRefinement(apiKey, userProfile, provider = 'googl
 
   let response, data, rawText;
 
-  if (provider === 'openrouter') {
+  if (provider === 'openrouter' || provider === 'openai') {
     const requestBody = {
       model: model,
       messages: [{ role: "user", content: prompt }]
@@ -337,10 +375,36 @@ async function callGeminiResumeRefinement(apiKey, userProfile, provider = 'googl
       if (data.error?.metadata?.raw) {
          errMsg += " | Raw Provider Error: " + JSON.stringify(data.error.metadata.raw);
       }
-      throw new Error(errMsg || "OpenRouter API Error (Resume Refinement)");
+      throw new Error(errMsg || `${provider} API Error (Resume Refinement)`);
     }
 
     rawText = data.choices[0].message.content;
+  } else if (provider === 'anthropic') {
+    const requestBody = {
+      model: model,
+      max_tokens: 4096,
+      messages: [{ role: "user", content: prompt }]
+    };
+
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerously-allow-browser': 'true'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    data = await response.json();
+
+    if (!response.ok) {
+      let errMsg = data.error?.message || data.error || JSON.stringify(data);
+      throw new Error(errMsg || "Anthropic API Error (Resume Refinement)");
+    }
+
+    rawText = data.content[0].text;
   } else {
     const requestBody = {
       contents: [{ parts: [{ text: prompt }] }]
@@ -379,6 +443,12 @@ async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resume
   if (provider === 'openrouter') {
     model = "openai/gpt-oss-120b:free";
     url = `https://openrouter.ai/api/v1/chat/completions`;
+  } else if (provider === 'openai') {
+    model = "gpt-4o-mini";
+    url = `https://api.openai.com/v1/chat/completions`;
+  } else if (provider === 'anthropic') {
+    model = "claude-3-5-haiku-20241022";
+    url = `https://api.anthropic.com/v1/messages`;
   } else {
     model = "gemini-2.5-flash";
     url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -447,7 +517,7 @@ async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resume
 
   const parts = [{ text: prompt }];
 
-  if (provider === 'openrouter') {
+  if (provider === 'openrouter' || provider === 'openai') {
     const requestBody = {
       model: model,
       messages: [{ role: "user", content: prompt }]
@@ -471,10 +541,36 @@ async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resume
       if (data.error?.metadata?.raw) {
          errMsg += " | Raw Provider Error: " + JSON.stringify(data.error.metadata.raw);
       }
-      throw new Error(errMsg || "OpenRouter API Error (Cover Letter)");
+      throw new Error(errMsg || `${provider} API Error (Cover Letter)`);
     }
 
     return data.choices[0].message.content;
+  } else if (provider === 'anthropic') {
+    const requestBody = {
+      model: model,
+      max_tokens: 4096,
+      messages: [{ role: "user", content: prompt }]
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerously-allow-browser': 'true'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      let errMsg = data.error?.message || data.error || JSON.stringify(data);
+      throw new Error(errMsg || "Anthropic API Error (Cover Letter)");
+    }
+
+    return data.content[0].text;
   } else {
     const requestBody = {
       contents: [{ parts: parts }]
@@ -513,9 +609,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             resumeType || 'basic');
 
         // 1. Get Settings
-        const settings = await chrome.storage.local.get(['apiProvider', 'geminiApiKey', 'openrouterApiKey', 'resumes', 'userProfile', 'coverLetterEnabled']);
+        const settings = await chrome.storage.local.get(['apiProvider', 'geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'resumes', 'userProfile', 'coverLetterEnabled']);
         const provider = settings.apiProvider || 'google';
-        const apiKey = provider === 'openrouter' ? settings.openrouterApiKey : settings.geminiApiKey;
+        
+        let apiKey;
+        if (provider === 'openrouter') apiKey = settings.openrouterApiKey;
+        else if (provider === 'openai') apiKey = settings.openaiApiKey;
+        else if (provider === 'anthropic') apiKey = settings.anthropicApiKey;
+        else apiKey = settings.geminiApiKey;
+
         if (!apiKey) {
           throw new Error("Please set your API Key in the extension settings.");
         }
@@ -600,9 +702,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try {
         const payload = message.payload || {};
-        const settings = await chrome.storage.local.get(['apiProvider', 'geminiApiKey', 'openrouterApiKey']);
+        const settings = await chrome.storage.local.get(['apiProvider', 'geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey']);
         const provider = settings.apiProvider || 'google';
-        const storedApiKey = provider === 'openrouter' ? settings.openrouterApiKey : settings.geminiApiKey;
+        let storedApiKey;
+        if (provider === 'openrouter') storedApiKey = settings.openrouterApiKey;
+        else if (provider === 'openai') storedApiKey = settings.openaiApiKey;
+        else if (provider === 'anthropic') storedApiKey = settings.anthropicApiKey;
+        else storedApiKey = settings.geminiApiKey;
+
         const apiKey = (typeof payload.apiKey === 'string' && payload.apiKey.trim())
           ? payload.apiKey.trim()
           : (storedApiKey || '').trim();

@@ -1,12 +1,18 @@
 {
   "manifest_version": 3,
   "name": "PocketResume",
-  "version": "5.2",
+  "version": "5.3",
   "description": "Generate tailored resumes from job descriptions using Gemini AI.",
   "permissions": [
     "storage",
     "activeTab",
     "scripting"
+  ],
+  "host_permissions": [
+    "https://api.openai.com/*",
+    "https://api.anthropic.com/*",
+    "https://openrouter.ai/*",
+    "https://generativelanguage.googleapis.com/*"
   ],
   "action": {
     "default_popup": "popup.html",
