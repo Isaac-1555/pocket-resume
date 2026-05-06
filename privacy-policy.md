@@ -1,6 +1,6 @@
 # Privacy Policy for Pocket Resume
 
-**Last updated:** February 2026
+**Last updated:** May 2026
 
 Pocket Resume is a Chrome extension designed to help users create, store, and view resumes and cover letters directly within their browser, with AI-powered generation capabilities.
 
@@ -22,11 +22,11 @@ This data is used solely to generate tailored resumes and cover letters based on
 
 ## Data Transmission to Third-Party Services
 
-To provide AI-powered resume and cover letter generation, Pocket Resume transmits data to **Google's Gemini API** (generativelanguage.googleapis.com). Specifically:
+To provide AI-powered resume and cover letter generation, Pocket Resume transmits data to whichever AI Provider you have selected in your settings (**Google Gemini, OpenAI, Anthropic, or OpenRouter**). Specifically:
 
 ### What is Sent
 
-When you initiate resume generation, the extension sends the following to Google's Gemini API via HTTPS POST requests:
+When you initiate resume generation, the extension sends the following to your chosen AI provider via HTTPS POST requests:
 
 1. **Prompt Data (text)**: A text prompt containing:
    - Your user profile information (as entered in settings)
@@ -34,29 +34,31 @@ When you initiate resume generation, the extension sends the following to Google
    - Instructions for resume formatting
    - If cover letter generation is enabled, a separate request is made with instructions for cover letter formatting
 
-2. **Inline Data (image)**: A JPEG screenshot of the current browser tab viewport (the job posting page) to provide additional visual context for the AI
+2. **Inline Data (image)**: If supported and enabled by the current provider, a JPEG screenshot of the current browser tab viewport (the job posting page) to provide additional visual context for the AI.
 
 ### Purpose of Transmission
 
-This data is transmitted solely to generate a tailored resume (and optionally a cover letter) using Google's Gemini AI model. The API processes the data and returns structured content in JSON format.
+This data is transmitted solely to generate a tailored resume (and optionally a cover letter) using the selected AI model. The API processes the data and returns structured content in JSON format.
 
-### API Key
+### API Keys
 
-The extension requires you to provide your own Google Gemini API key. This key is stored locally in your browser and is used to authenticate requests to Google's API. The API key is never shared with anyone other than Google's API services.
+The extension requires you to provide your own API key for your chosen provider. These keys are stored locally in your browser and are used to authenticate requests to the respective API. Your API keys are never shared with anyone other than the specific API service they belong to.
 
-### Google's Privacy Practices
+### Provider Privacy Practices
 
-Data sent to Google's Gemini API is subject to Google's privacy policies and terms of service. Please refer to:
+Data sent to your chosen AI provider is subject to their respective privacy policies and terms of service. Please refer to:
 - [Google Cloud Privacy Notice](https://cloud.google.com/terms/cloud-privacy-notice)
-- [Google API Terms of Service](https://developers.google.com/terms)
+- [OpenAI Privacy Policy](https://openai.com/policies/privacy-policy/)
+- [Anthropic Privacy Policy](https://www.anthropic.com/legal/privacy)
+- [OpenRouter Privacy Policy](https://openrouter.ai/privacy)
 
 ## Local Data Storage
 
 Pocket Resume stores the following data locally on your device using Chrome's built-in storage APIs:
 
 * Your user profile information
-* Your Gemini API key
-* Your preferences (cover letter toggle, selected resume style)
+* Your API keys
+* Your preferences (cover letter toggle, selected resume style, active AI provider)
 * Generated resumes and cover letters
 
 This locally stored data:
@@ -65,8 +67,8 @@ This locally stored data:
 
 ## Data Security
 
-* All data transmitted to Google's Gemini API is sent over secure HTTPS connections
-* Your API key and profile data are stored locally in Chrome's secure extension storage
+* All data transmitted to AI APIs is sent over secure HTTPS connections
+* Your API keys and profile data are stored locally in Chrome's secure extension storage
 * No data is stored on external servers controlled by the extension developer
 
 ## Permissions
@@ -76,13 +78,14 @@ Pocket Resume requests only the permissions necessary for core functionality:
 * **Active Tab / Tab Capture**: To capture screenshots and extract text from job posting pages
 * **Storage**: To save your profile, API key, preferences, and generated documents locally
 * **Scripting**: To extract text content from web pages
+* **Host Permissions**: To bypass CORS restrictions specifically for communicating with the supported AI provider APIs (`api.openai.com`, `api.anthropic.com`, `openrouter.ai`, and `generativelanguage.googleapis.com`)
 
 These permissions are used exclusively to enable the resume and cover letter generation features and are not used to collect data for other purposes.
 
 ## Data Retention
 
 * **Local Data**: Stored until you clear the extension's data or uninstall the extension
-* **Data Sent to Google**: Retention is governed by Google's data policies. The extension developer does not have access to or control over data processed by Google's API
+* **Data Sent to Providers**: Retention is governed by the respective AI provider's data policies. The extension developer does not have access to or control over data processed by these APIs.
 
 ## User Control
 
