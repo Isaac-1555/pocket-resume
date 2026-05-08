@@ -105,10 +105,12 @@ document.addEventListener('DOMContentLoaded', () => {
   chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'apiProvider', 'resumes', 'userProfile', 'resumeType', 'resumeLayout', 'selectedResumeId'], (data) => {
     // Migrate legacy profile
     if (data.userProfile && (!data.resumes || data.resumes.length === 0)) {
-      migrateLegacyProfile(data.userProfile);
+      loadedResumes = [{ id: 'migrated_1', label: 'Resume 1', content: data.userProfile }];
+    } else if (data.resumes && data.resumes.length > 0) {
+      loadedResumes = data.resumes;
     }
 
-    const hasResumes = (data.resumes && data.resumes.length > 0) || !!data.userProfile;
+    const hasResumes = loadedResumes.length > 0 && loadedResumes.some(r => r.content && r.content.trim());
     const provider = data.apiProvider || 'google';
     
     let hasApiKey = false;
