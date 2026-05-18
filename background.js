@@ -50,7 +50,7 @@ function normalizeStringArray(value) {
     .filter(Boolean);
 }
 
-async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, subtitleEnabled, provider = 'google') {
+async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, provider = 'google') {
   let url, model;
   if (provider === 'openrouter') {
     model = "openai/gpt-oss-120b:free";
@@ -79,9 +79,7 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, subt
     styleGuide = "Use a 'Basic' style: Simple, easy to read, standard structure. Good for general applications.";
   }
 
-  const subtitleInstruction = subtitleEnabled
-    ? "Generate a tailored professional tagline/subtitle for this specific job (e.g. 'Technical Product Manager - B2B SaaS & Internal Tools'). Keep it under 10 words."
-    : "Copy the professional tagline/subtitle exactly as it appears in my profile. If none exists, create a brief one under 10 words.";
+  const subtitleInstruction = "Generate a tailored professional tagline/subtitle (under 10 words) and position based on the Job Title extracted from the Job Description.";
 
   let layoutGuide = "Use the current PocketResume layout structure: summary, skills, experience, featured projects, education, and certifications.";
   let documentTask = "Write a tailored, ONE-PAGE resume for this job description based on my profile.";
@@ -100,7 +98,7 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, subt
   }
 
   const prompt = `
-    You are an expert Resume/CV Writer.
+    You are an expert Resume/CV Writer and Data Extraction Tool.
     
     MY PROFILE:
     ${userProfile}
@@ -113,18 +111,22 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, subt
     ${styleGuide}
     ${layoutGuide}
 
+    MERGING & EXTRACTION RULES (CRITICAL):
+    1. Extract the Job Title, Location, and Required Skills from the JOB DESCRIPTION.
+    2. Replace the location in my profile's contact string with the Job Description's location.
+    3. Add the extracted Required Skills to my profile's skills. Remove any duplicates.
+    4. ${subtitleInstruction}
+
     CONTENT RULES (critical — preserve all profile content):
     - ${pageRule}
     - Include ALL experiences from my profile. Do NOT drop any. Tailor bullet point wording to match JD keywords.
     - Include ALL projects from my profile. Do NOT drop any. Tailor bullet point wording to match JD keywords.
     - Include ALL education entries from my profile.
-    - Include ALL skills from my profile. Reorder so the most JD-relevant skills appear first.
     - Include ALL certifications from my profile as a flat list.
     - If the profile clearly includes links, honors/awards, publications, teaching, service, or academic distinctions, include them in the structured fields below.
     - ${bulletRule}
     - Professional summary: 2-3 sentences max unless the academic CV layout needs a slightly longer profile section.
     - Treat my profile as the authoritative source for structure. Mirror its sections and entries — your job is to rephrase and tailor language, not to filter or remove content.
-    - ${subtitleInstruction}
     
     IMPORTANT:
     - Output strictly valid JSON.
@@ -133,10 +135,10 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, subt
     - Schema:
     {
       "name": "String (My Name)",
-      "subtitle": "String (Professional tagline — see subtitle instruction above)",
-      "position": "String (Optional concise role/title for dense or academic layouts)",
-      "location": "String (Optional header location if available)",
-      "contact": "String (Include ALL contact info from my profile: Phone, Email, LinkedIn, Portfolio/Website, Location, etc. — separated by | )",
+      "subtitle": "String (Tailored tagline from JD Job Title)",
+      "position": "String (Concise role/title from JD Job Title)",
+      "location": "String (Location extracted from JD)",
+      "contact": "String (Include ALL contact info from my profile: Phone, Email, LinkedIn, Portfolio/Website, Location (UPDATED to JD location), etc. — separated by | )",
       "summary": "String",
       "skills": ["String", "String"],
       "skillGroups": [
@@ -276,6 +278,158 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, subt
 
     return data.candidates[0].content.parts[0].text;
   }
+}
+
+async function callGeminiResumeExtraction(apiKey, sourceText, provider = 'google') {
+  let url, model;
+  if (provider === 'openrouter') {
+    model = "openai/gpt-oss-120b:free";
+    url = `https://openrouter.ai/api/v1/chat/completions`;
+  } else if (provider === 'openai') {
+    model = "gpt-4o-mini";
+    url = `https://api.openai.com/v1/chat/completions`;
+  } else if (provider === 'anthropic') {
+    model = "claude-3-5-haiku-20241022";
+    url = `https://api.anthropic.com/v1/messages`;
+  } else {
+    model = "gemini-2.5-flash";
+    url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  }
+
+  const prompt = `
+    You are an expert data extraction assistant.
+    
+    TASK:
+    Extract all professional information from the provided raw resume text into a strict JSON schema. 
+    This JSON will act as the master profile for future resume generation.
+    
+    RAW RESUME TEXT:
+    ${sourceText}
+    
+    INSTRUCTIONS:
+    - Extract Name, Job Title (subtitle/position), and Contact info (Location, Email, Phone, LinkedIn, GitHub, Portfolio).
+    - Extract Summary, Skills, Experience, Projects, Education, and Certifications.
+    - Preserve all factual details exactly as they appear. Do not invent metrics or facts.
+    - Format contact into a single string separated by " | " if multiple are found.
+    - For missing fields, leave them as empty strings "" or empty arrays []. Do not use "N/A" or "Unknown".
+    
+    OUTPUT SCHEMA:
+    {
+      "name": "String",
+      "subtitle": "String (Current job title or professional tagline)",
+      "contact": "String (Phone | Email | Location | Links)",
+      "summary": "String",
+      "skills": ["String"],
+      "experience": [
+        {
+          "title": "String",
+          "company": "String",
+          "location": "String",
+          "period": "String",
+          "points": ["String"]
+        }
+      ],
+      "projects": [
+        {
+          "title": "String",
+          "platform": "String",
+          "period": "String",
+          "points": ["String"]
+        }
+      ],
+      "education": [
+        {
+          "degree": "String",
+          "school": "String",
+          "year": "String",
+          "location": "String"
+        }
+      ],
+      "certifications": ["String"]
+    }
+
+    IMPORTANT:
+    - Output strictly valid JSON.
+    - Do NOT use Markdown code blocks (like \`\`\`json). Just output the raw JSON string.
+  `;
+
+  let response, data, rawText;
+
+  if (provider === 'openrouter' || provider === 'openai') {
+    const requestBody = {
+      model: model,
+      messages: [{ role: "user", content: prompt }]
+    };
+
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://pocketresume.app',
+        'X-Title': 'PocketResume'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    data = await response.json();
+
+    if (!response.ok) {
+      let errMsg = data.error?.message || data.error || JSON.stringify(data);
+      if (data.error?.metadata?.raw) {
+         errMsg += " | Raw Provider Error: " + JSON.stringify(data.error.metadata.raw);
+      }
+      throw new Error(errMsg || `${provider} API Error (Resume Extraction)`);
+    }
+
+    rawText = data.choices[0].message.content;
+  } else if (provider === 'anthropic') {
+    const requestBody = {
+      model: model,
+      max_tokens: 4096,
+      messages: [{ role: "user", content: prompt }]
+    };
+
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerously-allow-browser': 'true'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    data = await response.json();
+
+    if (!response.ok) {
+      let errMsg = data.error?.message || data.error || JSON.stringify(data);
+      throw new Error(errMsg || "Anthropic API Error (Resume Extraction)");
+    }
+
+    rawText = data.content[0].text;
+  } else {
+    const requestBody = {
+      contents: [{ parts: [{ text: prompt }] }]
+    };
+
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+
+    data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || "Gemini API Error (Resume Extraction)");
+    }
+
+    rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  }
+  
+  return rawText;
 }
 
 async function callGeminiResumeRefinement(apiKey, userProfile, provider = 'google') {
@@ -600,7 +754,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Async execution wrapper
     (async () => {
       try {
-        const { tabId, resumeStyle, resumeType, resumeLayout, resumeId, subtitleEnabled } = message.payload;
+        const { tabId, resumeStyle, resumeType, resumeLayout, resumeId } = message.payload;
         const selectedResumeStyle =
           resumeStyle ||
           (resumeLayout === 'jake' ? 'jake' :
@@ -627,7 +781,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (settings.resumes && settings.resumes.length > 0) {
           // Find the selected resume by ID, or fall back to first resume
           const selected = settings.resumes.find(r => r.id === resumeId) || settings.resumes[0];
-          userProfile = selected.content || '';
+          userProfile = selected.jsonContent ? selected.jsonContent : (selected.content || '');
         } else if (settings.userProfile) {
           // Legacy fallback
           userProfile = settings.userProfile;
@@ -653,12 +807,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                    if (chrome.runtime.lastError) resolve({ text: "" }); // Fallback
                    else resolve(res);
                  });
-              });
-            } else {
-              resolve(response);
-            }
-          });
-        });
+               });
+             } else {
+               resolve(response);
+             }
+           });
+         });
 
         // 4. Extract job text (content script already ran)
         const maxLength = provider === 'openrouter' ? 25000 : 40000;
@@ -670,7 +824,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           userProfile,
           jobText,
           selectedResumeStyle,
-          subtitleEnabled,
           provider
         );
 
@@ -727,6 +880,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ status: 'success', data: refinement });
       } catch (error) {
         console.error("Refinement Error:", error);
+        sendResponse({ status: 'error', message: error.message });
+      }
+    })();
+
+    return true;
+  }
+
+  if (message.type === 'EXTRACT_RESUME_JSON') {
+    (async () => {
+      try {
+        const payload = message.payload || {};
+        const settings = await chrome.storage.local.get(['apiProvider', 'geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey']);
+        const provider = settings.apiProvider || 'google';
+        let storedApiKey;
+        if (provider === 'openrouter') storedApiKey = settings.openrouterApiKey;
+        else if (provider === 'openai') storedApiKey = settings.openaiApiKey;
+        else if (provider === 'anthropic') storedApiKey = settings.anthropicApiKey;
+        else storedApiKey = settings.geminiApiKey;
+
+        const apiKey = (typeof payload.apiKey === 'string' && payload.apiKey.trim())
+          ? payload.apiKey.trim()
+          : (storedApiKey || '').trim();
+        const sourceText = typeof payload.sourceText === 'string' ? payload.sourceText : '';
+
+        if (!apiKey) {
+          throw new Error("Please set your API Key in the extension settings.");
+        }
+
+        if (!sourceText.trim()) {
+          throw new Error("Please add your resume/profile content before extracting it.");
+        }
+
+        const extractedJson = await callGeminiResumeExtraction(apiKey, sourceText, provider);
+        sendResponse({ status: 'success', data: extractedJson });
+      } catch (error) {
+        console.error("Extraction Error:", error);
         sendResponse({ status: 'error', message: error.message });
       }
     })();

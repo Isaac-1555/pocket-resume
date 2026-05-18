@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let resumes = [];
   let activeTabIndex = 0;
   let refiningResumeId = null;
+  let extractingResumeId = null;
   let statusTimeoutId = null;
 
   function generateId() {
@@ -35,6 +36,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       id: generateId(),
       label: label || 'Resume 1',
       content: content || '',
+      jsonContent: '',
       lastRefineBackup: '',
       lastRefineAppliedAt: '',
       pendingRefine: null
@@ -46,6 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       id: typeof resume?.id === 'string' && resume.id.trim() ? resume.id : generateId(),
       label: typeof resume?.label === 'string' && resume.label.trim() ? resume.label : `Resume ${index + 1}`,
       content: typeof resume?.content === 'string' ? resume.content : '',
+      jsonContent: typeof resume?.jsonContent === 'string' ? resume.jsonContent : '',
       lastRefineBackup: typeof resume?.lastRefineBackup === 'string' ? resume.lastRefineBackup : '',
       lastRefineAppliedAt: typeof resume?.lastRefineAppliedAt === 'string' ? resume.lastRefineAppliedAt : '',
       pendingRefine: null
@@ -57,6 +60,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       id: resume.id,
       label: resume.label,
       content: resume.content,
+      jsonContent: resume.jsonContent || '',
       lastRefineBackup: resume.lastRefineBackup || '',
       lastRefineAppliedAt: resume.lastRefineAppliedAt || ''
     };
@@ -181,11 +185,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   function saveCurrentTabToState() {
     const labelInput = document.getElementById('resumeLabelInput');
     const contentTextarea = document.getElementById('resumeContentTextarea');
+    const jsonTextarea = document.getElementById('resumeJsonTextarea');
     const resume = getActiveResume();
 
     if (labelInput && contentTextarea && resume) {
       resume.label = labelInput.value.trim() || `Resume ${activeTabIndex + 1}`;
       resume.content = contentTextarea.value;
+      if (jsonTextarea) {
+        resume.jsonContent = jsonTextarea.value;
+      }
     }
   }
 
@@ -277,6 +285,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!resume) return;
 
     const isRefining = refiningResumeId === resume.id;
+    const isExtracting = extractingResumeId === resume.id;
 
     tabContentArea.innerHTML = `
       <div class="resume-label-row">
@@ -284,14 +293,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                placeholder="Label (e.g. Project Manager)" value="${escapeAttr(resume.label)}" maxlength="40">
         ${resumes.length > 1 ? '<button type="button" class="delete-tab-btn" id="deleteTabBtn">Delete</button>' : ''}
       </div>
+      <label style="margin-top: 15px; display: block; font-weight: 600;">Raw Resume</label>
       <textarea id="resumeContentTextarea"
                 placeholder="Paste your resume content for this profile here. The AI will use this to generate tailored resumes.">${escapeHtml(resume.content)}</textarea>
+      
       <div class="resume-actions">
         <button type="button" class="secondary-action-btn" id="refineResumeBtn" ${isRefining ? 'disabled' : ''}>${isRefining ? 'Refining' : 'Refine Resume'}</button>
+        <button type="button" class="secondary-action-btn" id="extractJsonBtn" ${isExtracting ? 'disabled' : ''}>${isExtracting ? 'Extracting JSON...' : 'Extract JSON'}</button>
         ${resume.lastRefineBackup ? '<button type="button" class="ghost-btn" id="undoRefineBtn">Undo Last Refine</button>' : ''}
       </div>
       <small class="resume-help">Creates a single cross-style master resume: clearer structure, better sectioning, and safer wording for all supported layouts without inventing new facts.</small>
       ${renderReviewPanel(resume)}
+
+      <label style="margin-top: 25px; display: block; font-weight: 600;">Extracted JSON Profile</label>
+      <textarea id="resumeJsonTextarea" placeholder="Click 'Extract JSON' to generate structured profile data...">${escapeHtml(resume.jsonContent)}</textarea>
     `;
 
     const labelInput = document.getElementById('resumeLabelInput');
@@ -318,6 +333,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const refineResumeBtn = document.getElementById('refineResumeBtn');
     if (refineResumeBtn) {
       refineResumeBtn.addEventListener('click', handleRefineResume);
+    }
+
+    const extractJsonBtn = document.getElementById('extractJsonBtn');
+    if (extractJsonBtn) {
+      extractJsonBtn.addEventListener('click', handleExtractJson);
     }
 
     const undoRefineBtn = document.getElementById('undoRefineBtn');
@@ -380,6 +400,64 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderTabBar();
     renderTabContent();
     showStatus('Original resume restored. Click Save Settings to persist.', 'info', 4500);
+  }
+
+  function handleExtractJson() {
+    saveCurrentTabToState();
+    const resume = getActiveResume();
+    if (!resume) return;
+
+    if (!resume.content.trim()) {
+      showStatus('Add some resume content before extracting JSON.', 'error', 3500);
+      return;
+    }
+
+    extractingResumeId = resume.id;
+    renderTabContent();
+    showStatus('Extracting profile to JSON...', 'loading', 0);
+
+    chrome.runtime.sendMessage({
+      type: 'EXTRACT_RESUME_JSON',
+      payload: {
+        resumeId: resume.id,
+        sourceText: resume.content
+      }
+    }, (response) => {
+      extractingResumeId = null;
+
+      if (chrome.runtime.lastError) {
+        renderTabContent();
+        showStatus(`Error: ${chrome.runtime.lastError.message}`, 'error', 4500);
+        return;
+      }
+
+      if (!response || response.status !== 'success' || !response.data) {
+        renderTabContent();
+        showStatus(`Error: ${response?.message || 'Unknown extraction error'}`, 'error', 4500);
+        return;
+      }
+
+      // Format JSON beautifully
+      let parsedJson;
+      try {
+        let rawData = response.data.trim();
+        if (rawData.startsWith('```json')) rawData = rawData.replace(/^```json/, '').replace(/```$/, '');
+        else if (rawData.startsWith('```')) rawData = rawData.replace(/^```/, '').replace(/```$/, '');
+        parsedJson = JSON.stringify(JSON.parse(rawData), null, 2);
+      } catch (e) {
+        parsedJson = response.data; // Fallback to raw text if parse fails
+      }
+      
+      resume.jsonContent = parsedJson;
+
+      // Persist to chrome storage immediately
+      chrome.storage.local.set({
+        resumes: getPersistedResumes()
+      }, () => {
+        renderTabContent();
+        showStatus('JSON profile extracted and saved successfully.', 'success', 5000);
+      });
+    });
   }
 
   function handleRefineResume() {

@@ -6,15 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusDiv = document.getElementById('status');
   const resumeSelectorDiv = document.getElementById('resumeSelector');
   const coverLetterToggle = document.getElementById('coverLetterToggle');
-  const subtitleToggle = document.getElementById('subtitleToggle');
-
-  // --- Subtitle Toggle ---
-  chrome.storage.local.get(['subtitleToggleEnabled'], (data) => {
-    subtitleToggle.checked = !!data.subtitleToggleEnabled;
-  });
-  subtitleToggle.addEventListener('change', () => {
-    chrome.storage.local.set({ subtitleToggleEnabled: subtitleToggle.checked });
-  });
 
   // --- Cover Letter Toggle ---
   chrome.storage.local.get(['coverLetterEnabled'], (data) => {
@@ -199,9 +190,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const styleConfig = getResumeStyleConfig(selectedStyle);
 
     // Check toggles to show appropriate status
-    const settings = await chrome.storage.local.get(['coverLetterEnabled', 'subtitleToggleEnabled']);
+    const settings = await chrome.storage.local.get(['coverLetterEnabled']);
     const coverLetterEnabled = !!settings.coverLetterEnabled;
-    const subtitleEnabled = !!settings.subtitleToggleEnabled;
 
     if (coverLetterEnabled) {
       showStatus("Generating resume and cover letter... This may take 20-40 seconds.", "loading");
@@ -218,8 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
       payload: {
         tabId: tab.id,
         resumeStyle: selectedStyle,
-        resumeId: selectedResumeId,
-        subtitleEnabled: subtitleEnabled
+        resumeId: selectedResumeId
       }
     }, (response) => {
       
