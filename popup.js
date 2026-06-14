@@ -25,29 +25,38 @@ document.addEventListener('DOMContentLoaded', () => {
   const customSelectText = document.getElementById('customSelectText');
   const arrow = document.querySelector('.arrow');
 
-  function getResumeStyleConfig(selectedStyle) {
+  function normalizeResumeStyle(selectedStyle) {
     switch (selectedStyle) {
+      case 'deedy':
+      case 'academic-cv':
+      case 'professional':
+      case 'faang':
+        return selectedStyle;
+      case 'basic':
       case 'jake':
-        return { promptStyle: 'faang', layout: 'jake' };
+      default:
+        return 'professional';
+    }
+  }
+
+  function getResumeStyleConfig(selectedStyle) {
+    switch (normalizeResumeStyle(selectedStyle)) {
       case 'deedy':
         return { promptStyle: 'faang', layout: 'deedy' };
       case 'academic-cv':
         return { promptStyle: 'academic-cv', layout: 'academic-cv' };
-      case 'professional':
-        return { promptStyle: 'professional', layout: 'pocketresume' };
       case 'faang':
         return { promptStyle: 'faang', layout: 'pocketresume' };
-      case 'basic':
+      case 'professional':
       default:
-        return { promptStyle: 'basic', layout: 'pocketresume' };
+        return { promptStyle: 'professional', layout: 'pocketresume' };
     }
   }
 
   function resolveStoredResumeStyle(storedStyle, storedLayout) {
-    if (storedLayout === 'jake') return 'jake';
     if (storedLayout === 'deedy') return 'deedy';
     if (storedLayout === 'academic-cv') return 'academic-cv';
-    return storedStyle || 'basic';
+    return normalizeResumeStyle(storedStyle);
   }
 
   if (customSelect && customSelectText) {
@@ -141,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    if (data.resumeLayout) {
+    if (data.resumeLayout || data.resumeType !== storedResumeStyle) {
       chrome.storage.local.set({ resumeType: storedResumeStyle }, () => {
         chrome.storage.local.remove('resumeLayout');
       });
@@ -186,7 +195,8 @@ document.addEventListener('DOMContentLoaded', () => {
   generateBtn.addEventListener('click', async () => {
     // UI Reset
     generateBtn.disabled = true;
-    const selectedStyle = resumeType.value || 'basic';
+    const selectedStyle = normalizeResumeStyle(resumeType.value || 'professional');
+    resumeType.value = selectedStyle;
     const styleConfig = getResumeStyleConfig(selectedStyle);
 
     // Check toggles to show appropriate status

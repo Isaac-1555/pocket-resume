@@ -1,21 +1,31 @@
 // background.js
 
 // --- Pipeline Utilities ---
-function getResumeStyleConfig(selectedStyle) {
+function normalizeResumeStyle(selectedStyle) {
   switch (selectedStyle) {
+    case "deedy":
+    case "academic-cv":
+    case "professional":
+    case "faang":
+      return selectedStyle;
+    case "basic":
     case "jake":
-      return { promptStyle: "faang", layout: "jake" };
+    default:
+      return "professional";
+  }
+}
+
+function getResumeStyleConfig(selectedStyle) {
+  switch (normalizeResumeStyle(selectedStyle)) {
     case "deedy":
       return { promptStyle: "faang", layout: "deedy" };
     case "academic-cv":
       return { promptStyle: "academic-cv", layout: "academic-cv" };
-    case "professional":
-      return { promptStyle: "professional", layout: "pocketresume" };
     case "faang":
       return { promptStyle: "faang", layout: "pocketresume" };
-    case "basic":
+    case "professional":
     default:
-      return { promptStyle: "basic", layout: "pocketresume" };
+      return { promptStyle: "professional", layout: "pocketresume" };
   }
 }
 
@@ -73,10 +83,8 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, prov
     styleGuide = "Use an academic CV style: emphasize research, publications, teaching, service, academic distinctions, and faithful chronology. Preserve factual detail without forcing everything into an industry-resume framing.";
   } else if (styleConfig.promptStyle === "faang") {
     styleGuide = "Use the 'FAANG' style: Single column, black and white, highly dense, focus on metrics/impact (X% improvement, Y$ saved), technical skills first, strict reverse chronological. No summary/objective unless specified. Use strong action verbs.";
-  } else if (styleConfig.promptStyle === "professional") {
-    styleGuide = "Use a 'Professional' style: Clean, balanced whitespace, professional summary at top, clear section headings, standard corporate formatting. Focus on leadership and clarity.";
   } else {
-    styleGuide = "Use a 'Basic' style: Simple, easy to read, standard structure. Good for general applications.";
+    styleGuide = "Use a 'Professional' style: Clean, balanced whitespace, professional summary at top, clear section headings, standard corporate formatting. Focus on leadership and clarity.";
   }
 
   const subtitleInstruction = "Generate a tailored professional tagline/subtitle (under 10 words) and position based on the Job Title extracted from the Job Description.";
@@ -86,10 +94,8 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, prov
   let pageRule = "The final PDF will be rendered on a single US-Letter page. Keep bullet points concise so everything fits.";
   let bulletRule = "Each experience/project bullet point MUST be a single concise line (under ~120 characters). Use short impact statements: Action Verb + Result. Do NOT write multi-line bullet points.";
 
-  if (selectedLayout === "jake") {
-    layoutGuide = "Use a Jake-style layout adapted for PocketResume: ATS-safe, single-column, compact section rules, technical skills before education, concise publications summary, and honors/awards if present.";
-  } else if (selectedLayout === "deedy") {
-    layoutGuide = "Use a Deedy-style layout adapted for PocketResume: dense two-column industry resume. Prefer skills, links, open-source projects, and education for left-column-friendly content, and experience, selected projects, publications, and awards for right-column-friendly content.";
+  if (selectedLayout === "deedy") {
+    layoutGuide = "Use a Double Sided layout adapted for PocketResume: dense two-column industry resume. Prefer skills, links, open-source projects, and education for left-column-friendly content, and experience, selected projects, publications, and awards for right-column-friendly content.";
   } else if (selectedLayout === "academic-cv") {
     layoutGuide = "Use an academic CV layout adapted for PocketResume: multi-page is allowed, with education, research/work experience, research projects, publications, honors, teaching, and service only when those sections are supported by the source profile.";
     documentTask = "Write a tailored academic/research CV for this job description based on my profile.";
@@ -458,9 +464,8 @@ async function callGeminiResumeRefinement(apiKey, userProfile, provider = 'googl
     Rewrite the source into a single cross-style master resume that stays truthful and can be used to generate all supported PocketResume layouts.
 
     SUPPORTED OUTPUT FAMILIES:
-    - PocketResume Basic / Professional / FAANG: needs reliable summary, skills, experience, projects, education, and certifications.
-    - Jake: ATS-safe single-column clarity, grouped technical skills, concise impact bullets, plain readable structure.
-    - Deedy: compact links/open-source/education on one side and dense experience/projects on the other.
+    - PocketResume Professional / FAANG: needs reliable summary, skills, experience, projects, education, and certifications.
+    - Double Sided: compact links/open-source/education on one side and dense experience/projects on the other.
     - Academic CV: preserve publications, research interests, teaching, service, honors, and chronology when present.
 
     NON-NEGOTIABLE RULES:
@@ -755,12 +760,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try {
         const { tabId, resumeStyle, resumeType, resumeLayout, resumeId } = message.payload;
-        const selectedResumeStyle =
+        const requestedResumeStyle =
           resumeStyle ||
-          (resumeLayout === 'jake' ? 'jake' :
-            resumeLayout === 'deedy' ? 'deedy' :
+          (resumeLayout === 'deedy' ? 'deedy' :
             resumeLayout === 'academic-cv' ? 'academic-cv' :
-            resumeType || 'basic');
+            resumeType);
+        const selectedResumeStyle = normalizeResumeStyle(requestedResumeStyle);
 
         // 1. Get Settings
         const settings = await chrome.storage.local.get(['apiProvider', 'geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'resumes', 'userProfile', 'coverLetterEnabled']);

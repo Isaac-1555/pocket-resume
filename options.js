@@ -39,18 +39,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       jsonContent: '',
       lastRefineBackup: '',
       lastRefineAppliedAt: '',
+      _lastSavedContent: content || '',
       pendingRefine: null
     };
   }
 
   function normalizeResumeEntry(resume, index) {
+    const content = typeof resume?.content === 'string' ? resume.content : '';
     return {
       id: typeof resume?.id === 'string' && resume.id.trim() ? resume.id : generateId(),
       label: typeof resume?.label === 'string' && resume.label.trim() ? resume.label : `Resume ${index + 1}`,
-      content: typeof resume?.content === 'string' ? resume.content : '',
+      content,
       jsonContent: typeof resume?.jsonContent === 'string' ? resume.jsonContent : '',
       lastRefineBackup: typeof resume?.lastRefineBackup === 'string' ? resume.lastRefineBackup : '',
       lastRefineAppliedAt: typeof resume?.lastRefineAppliedAt === 'string' ? resume.lastRefineAppliedAt : '',
+      _lastSavedContent: content,
       pendingRefine: null
     };
   }
@@ -89,6 +92,100 @@ document.addEventListener('DOMContentLoaded', async () => {
         statusDiv.style.display = 'none';
         statusTimeoutId = null;
       }, autoHideMs);
+    }
+  }
+
+  function setLocalStorage(payload) {
+    return new Promise((resolve, reject) => {
+      chrome.storage.local.set(payload, () => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve();
+      });
+    });
+  }
+
+  function sendRuntimeMessage(message) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve(response);
+      });
+    });
+  }
+
+  function getSettingsPayload() {
+    return {
+      apiProvider: activeProvider,
+      geminiApiKey: apiKeys.google,
+      openrouterApiKey: apiKeys.openrouter,
+      openaiApiKey: apiKeys.openai,
+      anthropicApiKey: apiKeys.anthropic,
+      resumes: getPersistedResumes()
+    };
+  }
+
+  function formatExtractedJson(rawText) {
+    try {
+      let rawData = (rawText || '').trim();
+      if (rawData.startsWith('```json')) rawData = rawData.replace(/^```json/, '').replace(/```$/, '');
+      else if (rawData.startsWith('```')) rawData = rawData.replace(/^```/, '').replace(/```$/, '');
+      return JSON.stringify(JSON.parse(rawData), null, 2);
+    } catch (e) {
+      return rawText;
+    }
+  }
+
+  function applyPendingRefineDraft(resume) {
+    if (!resume?.pendingRefine) {
+      return { applied: false, stale: false };
+    }
+
+    if (resume.content !== resume.pendingRefine.source) {
+      resume.pendingRefine = null;
+      return { applied: false, stale: true };
+    }
+
+    resume.lastRefineBackup = resume.content;
+    resume.lastRefineAppliedAt = new Date().toISOString();
+    resume.content = resume.pendingRefine.refinedText;
+    resume.pendingRefine = null;
+    return { applied: true, stale: false };
+  }
+
+  async function extractJsonForResume(resume) {
+    if (!resume?.content?.trim()) {
+      throw new Error('Add some resume content before extracting JSON.');
+    }
+    extractingResumeId = resume.id;
+    renderTabContent();
+    showStatus('Extracting profile to JSON...', 'loading', 0);
+
+    try {
+      const response = await sendRuntimeMessage({
+        type: 'EXTRACT_RESUME_JSON',
+        payload: {
+          resumeId: resume.id,
+          sourceText: resume.content
+        }
+      });
+
+      if (!response || response.status !== 'success' || !response.data) {
+        throw new Error(response?.message || 'Unknown extraction error');
+      }
+
+      resume.jsonContent = formatExtractedJson(response.data);
+      await setLocalStorage({ resumes: getPersistedResumes() });
+      resume._lastSavedContent = resume.content;
+      return resume.jsonContent;
+    } finally {
+      extractingResumeId = null;
+      renderTabContent();
     }
   }
 
@@ -299,14 +396,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       <div class="resume-actions">
         <button type="button" class="secondary-action-btn" id="refineResumeBtn" ${isRefining ? 'disabled' : ''}>${isRefining ? 'Refining' : 'Refine Resume'}</button>
-        <button type="button" class="secondary-action-btn" id="extractJsonBtn" ${isExtracting ? 'disabled' : ''}>${isExtracting ? 'Extracting JSON...' : 'Extract JSON'}</button>
         ${resume.lastRefineBackup ? '<button type="button" class="ghost-btn" id="undoRefineBtn">Undo Last Refine</button>' : ''}
       </div>
       <small class="resume-help">Creates a single cross-style master resume: clearer structure, better sectioning, and safer wording for all supported layouts without inventing new facts.</small>
       ${renderReviewPanel(resume)}
-
-      <label style="margin-top: 25px; display: block; font-weight: 600;">Extracted JSON Profile</label>
-      <textarea id="resumeJsonTextarea" placeholder="Click 'Extract JSON' to generate structured profile data...">${escapeHtml(resume.jsonContent)}</textarea>
+      <details class="advanced-json-section" ${isExtracting ? 'open' : ''}>
+        <summary>Advanced JSON profile</summary>
+        <p class="advanced-note">Save extracts this automatically. Use this only to inspect or retry the structured profile.</p>
+        <button type="button" class="secondary-action-btn" id="extractJsonBtn" ${isExtracting ? 'disabled' : ''}>${isExtracting ? 'Extracting JSON...' : 'Extract JSON'}</button>
+        <label style="margin-top: 15px; display: block; font-weight: 600;">Extracted JSON Profile</label>
+        <textarea id="resumeJsonTextarea" placeholder="Save settings to generate structured profile data, or click Extract JSON to retry manually.">${escapeHtml(resume.jsonContent)}</textarea>
+      </details>
     `;
 
     const labelInput = document.getElementById('resumeLabelInput');
@@ -369,20 +469,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveCurrentTabToState();
     const resume = getActiveResume();
     if (!resume?.pendingRefine) return;
-
-    if (resume.content !== resume.pendingRefine.source) {
-      resume.pendingRefine = null;
-      renderTabContent();
+    const result = applyPendingRefineDraft(resume);
+    renderTabBar();
+    renderTabContent();
+    if (result.stale) {
       showStatus('Resume text changed after the draft was created. Please refine again.', 'error', 4500);
       return;
     }
-
-    resume.lastRefineBackup = resume.content;
-    resume.lastRefineAppliedAt = new Date().toISOString();
-    resume.content = resume.pendingRefine.refinedText;
-    resume.pendingRefine = null;
-    renderTabBar();
-    renderTabContent();
     showStatus('Refined resume applied. Click Save Settings to persist or Undo to restore the original.', 'success', 5000);
   }
 
@@ -402,7 +495,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     showStatus('Original resume restored. Click Save Settings to persist.', 'info', 4500);
   }
 
-  function handleExtractJson() {
+  async function handleExtractJson() {
     saveCurrentTabToState();
     const resume = getActiveResume();
     if (!resume) return;
@@ -412,52 +505,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    extractingResumeId = resume.id;
-    renderTabContent();
-    showStatus('Extracting profile to JSON...', 'loading', 0);
-
-    chrome.runtime.sendMessage({
-      type: 'EXTRACT_RESUME_JSON',
-      payload: {
-        resumeId: resume.id,
-        sourceText: resume.content
-      }
-    }, (response) => {
-      extractingResumeId = null;
-
-      if (chrome.runtime.lastError) {
-        renderTabContent();
-        showStatus(`Error: ${chrome.runtime.lastError.message}`, 'error', 4500);
-        return;
-      }
-
-      if (!response || response.status !== 'success' || !response.data) {
-        renderTabContent();
-        showStatus(`Error: ${response?.message || 'Unknown extraction error'}`, 'error', 4500);
-        return;
-      }
-
-      // Format JSON beautifully
-      let parsedJson;
-      try {
-        let rawData = response.data.trim();
-        if (rawData.startsWith('```json')) rawData = rawData.replace(/^```json/, '').replace(/```$/, '');
-        else if (rawData.startsWith('```')) rawData = rawData.replace(/^```/, '').replace(/```$/, '');
-        parsedJson = JSON.stringify(JSON.parse(rawData), null, 2);
-      } catch (e) {
-        parsedJson = response.data; // Fallback to raw text if parse fails
-      }
-      
-      resume.jsonContent = parsedJson;
-
-      // Persist to chrome storage immediately
-      chrome.storage.local.set({
-        resumes: getPersistedResumes()
-      }, () => {
-        renderTabContent();
-        showStatus('JSON profile extracted and saved successfully.', 'success', 5000);
-      });
-    });
+    try {
+      await extractJsonForResume(resume);
+      showStatus('JSON profile extracted and saved successfully.', 'success', 5000);
+    } catch (error) {
+      showStatus(`Error: ${error.message}`, 'error', 4500);
+    }
   }
 
   function handleRefineResume() {
@@ -518,21 +571,74 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderTabBar();
   renderTabContent();
 
-  saveButton.addEventListener('click', () => {
+  saveButton.addEventListener('click', async () => {
     saveCurrentTabToState();
     
     // Ensure the current input value is captured if it was typed without blurring
     apiKeys[currentlyViewedProvider] = apiKeyInput.value.trim();
+    const resume = getActiveResume();
+    const contentChanged = !!resume && resume.content !== resume._lastSavedContent;
+    const refineResult = applyPendingRefineDraft(resume);
+    const shouldExtractJson = !!resume?.content?.trim() && (
+      refineResult.applied ||
+      contentChanged ||
+      !(resume.jsonContent || '').trim()
+    );
 
-    chrome.storage.local.set({
-      apiProvider: activeProvider,
-      geminiApiKey: apiKeys.google,
-      openrouterApiKey: apiKeys.openrouter,
-      openaiApiKey: apiKeys.openai,
-      anthropicApiKey: apiKeys.anthropic,
-      resumes: getPersistedResumes()
-    }, () => {
-      showStatus('Settings saved!', 'success');
+    if (shouldExtractJson && (refineResult.applied || contentChanged)) {
+      resume.jsonContent = '';
+    }
+    resumes.forEach((entry) => {
+      if (entry.id !== resume?.id && entry.content !== entry._lastSavedContent) {
+        entry.jsonContent = '';
+      }
     });
+    renderTabBar();
+    renderTabContent();
+
+    saveButton.disabled = true;
+
+    try {
+      await setLocalStorage(getSettingsPayload());
+      resumes.forEach((entry) => {
+        entry._lastSavedContent = entry.content;
+      });
+    } catch (error) {
+      showStatus(`Error: ${error.message}`, 'error', 4500);
+      saveButton.disabled = false;
+      return;
+    }
+
+    if (!resume?.content?.trim()) {
+      saveButton.disabled = false;
+      showStatus('Settings saved!', 'success');
+      return;
+    }
+    if (!shouldExtractJson) {
+      saveButton.disabled = false;
+      showStatus(refineResult.stale ? 'Settings saved. Stale refine draft skipped.' : 'Settings saved!', 'success');
+      return;
+    }
+
+    const loadingMessage = refineResult.stale
+      ? 'Settings saved. Refine draft was stale; extracting JSON from current resume...'
+      : refineResult.applied
+        ? 'Settings saved. Refined resume applied. Extracting JSON profile...'
+        : 'Settings saved. Extracting JSON profile...';
+    showStatus(loadingMessage, 'loading', 0);
+
+    try {
+      await extractJsonForResume(resume);
+      const successMessage = refineResult.applied
+        ? 'Settings saved. Refined resume applied and JSON profile extracted.'
+        : refineResult.stale
+          ? 'Settings saved. Stale refine draft skipped and JSON profile extracted.'
+          : 'Settings saved and JSON profile extracted.';
+      showStatus(successMessage, 'success', 5000);
+    } catch (error) {
+      showStatus(`Settings saved, but JSON extraction failed: ${error.message}. Open Advanced and retry Extract JSON.`, 'error', 7000);
+    } finally {
+      saveButton.disabled = false;
+    }
   });
 });
