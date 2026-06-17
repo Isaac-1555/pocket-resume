@@ -134,6 +134,23 @@
     .advanced-json-section summary { cursor: pointer; font-weight: 600; color: #2B303A; }
     .advanced-json-section textarea { height: 260px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; }
     .advanced-note { margin: 10px 0 12px; color: #666; font-size: 12px; line-height: 1.5; }
+    .cloud-sync-section { margin-top: 28px; padding: 20px; border: 1px solid #ddd; border-radius: 10px; background: #fff; }
+    .cloud-sync-section h2 { margin: 0 0 8px; font-size: 20px; color: #2B303A; }
+    .cloud-sync-section p { margin: 0 0 12px; color: #666; font-size: 13px; line-height: 1.5; }
+    .cloud-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; align-items: center; }
+    .cloud-actions button { margin-top: 0; padding: 10px 16px; font-size: 14px; }
+    .cloud-status-pill { display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 999px; background: #f1f1f1; color: #555; font-size: 12px; font-weight: 600; }
+    .cloud-status-pill.synced { background: #d4edda; color: #155724; }
+    .cloud-status-pill.syncing { background: #d1ecf1; color: #0c5460; }
+    .cloud-status-pill.error { background: #f8d7da; color: #842029; }
+    .cloud-restore-panel { margin-top: 14px; padding: 14px; border: 1px solid #edd9d2; border-radius: 8px; background: #FFF8F5; display: none; }
+    .cloud-restore-panel textarea { height: 180px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; }
+    .cloud-pricing-panel { margin-top: 14px; padding: 16px; border: 1px solid #edd9d2; border-radius: 10px; background: #FFF8F5; display: none; }
+    .cloud-pricing-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .cloud-pricing-panel-header h3 { margin: 0 0 4px; font-size: 17px; color: #2B303A; }
+    .cloud-pricing-panel-header p { margin: 0; }
+    .cloud-pricing-table { min-height: 180px; }
+    .cloud-pricing-fallback { padding: 12px; border: 1px solid #f5c2c7; border-radius: 8px; background: #f8d7da; color: #842029; display: none; }
 
   </style>
 </head>
@@ -142,6 +159,38 @@
   
   <div class="api-header">
     <label>AI Provider Selection</label>
+  </div>
+
+  <div class="cloud-sync-section">
+    <h2>Cloud Sync</h2>
+    <p>Optional online backup for your resumes. Local storage still works if you never sign in.</p>
+    <div class="cloud-actions">
+      <span id="cloudAuthStatus" class="cloud-status-pill">Cloud sync unavailable</span>
+      <button type="button" id="cloudSignInBtn" class="secondary-action-btn">Sign In</button>
+      <button type="button" id="cloudSignOutBtn" class="ghost-btn" style="display: none;">Sign Out</button>
+      <button type="button" id="cloudUpgradeBtn" class="secondary-action-btn" style="display: none;">View Plans</button>
+      <button type="button" id="cloudPushBtn" class="secondary-action-btn">Push Local to Cloud</button>
+      <button type="button" id="cloudRestoreBtn" class="ghost-btn">Restore from Cloud</button>
+    </div>
+    <div id="cloudPricingPanel" class="cloud-pricing-panel">
+      <div class="cloud-pricing-panel-header">
+        <div>
+          <h3>Choose a Cloud Sync plan</h3>
+          <p>Subscribe to enable encrypted online resume backup and restore across devices.</p>
+        </div>
+        <button type="button" id="cloudClosePricingBtn" class="ghost-btn">Close</button>
+      </div>
+      <div id="cloudPricingFallback" class="cloud-pricing-fallback"></div>
+      <div id="cloudPricingTable" class="cloud-pricing-table"></div>
+    </div>
+    <div id="cloudRestorePanel" class="cloud-restore-panel">
+      <p>Cloud resumes found. Review below, then replace local resumes if correct.</p>
+      <textarea id="cloudRestorePreview" readonly></textarea>
+      <div class="cloud-actions">
+        <button type="button" id="cloudApplyRestoreBtn" class="secondary-action-btn">Replace Local with Cloud</button>
+        <button type="button" id="cloudCancelRestoreBtn" class="ghost-btn">Cancel</button>
+      </div>
+    </div>
   </div>
   
   <div class="provider-icons">
@@ -185,6 +234,7 @@
 
   <button id="save">Save Settings</button>
   <div id="status" class="status"></div>
+  <script src="cloud-sync.js"></script>
 
   <script src="options.js"></script>
 </body>

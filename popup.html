@@ -128,6 +128,26 @@
     .resume-selector-btn.active .rs-label { color: #F78E69; }
     .resume-selector-btn:hover .rs-label { color: #F78E69; }
 
+    /* Cloud Sync Account */
+    .cloud-account-card { position: relative; margin-bottom: 16px; padding: 12px; border: 1px solid #ddd; border-radius: 12px; background: #fff; overflow: visible; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .cloud-account-row { display: flex; align-items: center; gap: 10px; position: relative; z-index: 2; }
+    .cloud-account-copy { flex: 1; min-width: 0; }
+    .cloud-account-title { margin: 0; font-size: 13px; font-weight: 700; color: #2B303A; }
+    .cloud-account-subtitle { margin: 2px 0 0; font-size: 11px; line-height: 1.35; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cloud-account-card.inactive { border-color: #cfcfcf; background: #f5f5f5; }
+    .cloud-account-card.inactive:after { content: ''; position: absolute; inset: 0; border-radius: 12px; background: rgba(128,128,128,0.22); pointer-events: none; z-index: 1; }
+    .cloud-account-card.inactive .cloud-account-title, .cloud-account-card.inactive .cloud-account-subtitle { color: #555; }
+    .cloud-avatar-btn { flex: 0 0 auto; width: 40px; height: 40px; padding: 0; border: 1px solid #ddd; border-radius: 50%; background: #fff; color: #2B303A; display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: none; position: relative; z-index: 3; }
+    .cloud-avatar-btn:hover { background: #fff; border-color: #F78E69; transform: none; box-shadow: none; }
+    .cloud-avatar-btn img { width: 100%; height: 100%; object-fit: cover; display: none; }
+    .cloud-avatar-initials { font-size: 13px; font-weight: 700; color: #2B303A; }
+    .cloud-plan-badge { display: inline-flex; align-items: center; margin-top: 6px; padding: 3px 8px; border-radius: 999px; background: #d4edda; color: #155724; font-size: 10px; font-weight: 700; }
+    .cloud-plan-badge.inactive { background: #e5e5e5; color: #555; }
+    .cloud-account-menu { position: absolute; top: 58px; right: 10px; z-index: 20; display: none; width: 160px; padding: 6px; border: 1px solid #ddd; border-radius: 10px; background: #fff; box-shadow: 0 8px 24px rgba(0,0,0,0.14); }
+    .cloud-account-menu.open { display: block; }
+    .cloud-menu-btn { width: 100%; margin: 0; padding: 9px 10px; border: none; border-radius: 7px; background: #fff; color: #2B303A; box-shadow: none; font-size: 13px; text-align: left; }
+    .cloud-menu-btn:hover { background: #FFF0EB; color: #F78E69; transform: none; box-shadow: none; }
+
     button { background: #F78E69; color: #fff; border: none; font-weight: 600; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(247, 142, 105, 0.2); }
     button:hover { background: #ff9f7d; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(247, 142, 105, 0.3); }
     button:active { transform: translateY(0); }
@@ -155,10 +175,44 @@
 
     #resultArea { margin-top: 15px; display: none; }
     textarea { width: 100%; height: 200px; font-size: 11px; padding: 5px; border: 1px solid #ccc; resize: vertical; }
+
+    /* Cloud Sync Onboarding Modal */
+    .onboarding-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 100; display: flex; align-items: center; justify-content: center; }
+    .onboarding-backdrop { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); }
+    .onboarding-card { position: relative; background: #fff; border-radius: 12px; padding: 24px; max-width: 320px; margin: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); text-align: center; }
+    .onboarding-icon { font-size: 40px; margin-bottom: 12px; }
+    .onboarding-card h2 { font-size: 18px; color: #2B303A; margin: 0 0 10px; font-weight: 600; }
+    .onboarding-card p { font-size: 13px; color: #555; margin: 0 0 14px; line-height: 1.5; }
+    .onboarding-features { list-style: none; padding: 0; margin: 0 0 18px; text-align: left; }
+    .onboarding-features li { font-size: 12px; color: #444; padding: 4px 0; padding-left: 18px; position: relative; }
+    .onboarding-features li:before { content: '✓'; position: absolute; left: 0; color: #28a745; font-weight: bold; }
+    .onboarding-actions { display: flex; flex-direction: column; gap: 8px; }
+    .cloud-primary-btn { background: #F78E69; color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; }
+    .cloud-primary-btn:hover { background: #ff9f7d; }
+    .cloud-secondary-btn { background: #fff; color: #666; border: 1px solid #ddd; padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; width: 100%; }
+    .cloud-secondary-btn:hover { background: #f5f5f5; }
   </style>
 </head>
 <body>
   <h1>PocketResume</h1>
+
+  <div id="cloudAccountCard" class="cloud-account-card" style="display: none;">
+    <div class="cloud-account-row">
+      <div class="cloud-account-copy">
+        <p id="cloudAccountTitle" class="cloud-account-title">Cloud Sync</p>
+        <p id="cloudAccountSubtitle" class="cloud-account-subtitle">Checking account...</p>
+        <span id="cloudPlanBadge" class="cloud-plan-badge inactive">Cloud Sync inactive</span>
+      </div>
+      <button id="cloudAvatarBtn" class="cloud-avatar-btn" type="button" aria-label="Cloud Sync account menu">
+        <img id="cloudAvatarImg" alt="">
+        <span id="cloudAvatarInitials" class="cloud-avatar-initials">?</span>
+      </button>
+    </div>
+    <div id="cloudAccountMenu" class="cloud-account-menu">
+      <button id="cloudMenuAuthBtn" class="cloud-menu-btn" type="button">Sign In</button>
+      <button id="cloudMenuPlansBtn" class="cloud-menu-btn" type="button">View Plans</button>
+    </div>
+  </div>
 
   <div class="control-group">
     <label for="resumeType">Resume Style</label>
@@ -207,8 +261,29 @@
   <button id="settingsBtn" class="secondary-btn">Settings</button>
 
   <div id="status"></div>
-  
+
+  <!-- Cloud Sync Onboarding Modal -->
+  <div id="cloudOnboardingModal" class="onboarding-modal" style="display: none;">
+    <div class="onboarding-backdrop"></div>
+    <div class="onboarding-card">
+      <div class="onboarding-icon">☁️</div>
+      <h2>Sync Your Resumes to the Cloud</h2>
+      <p>Access your professional profiles across all your devices, plus a future web app. Your data stays private and secure.</p>
+      <ul class="onboarding-features">
+        <li>Access resumes from any device</li>
+        <li>Automatic backup as you work</li>
+        <li>Future companion web app</li>
+        <li>100% optional — local storage still works</li>
+      </ul>
+      <div class="onboarding-actions">
+        <button id="cloudOnboardingSetupBtn" class="cloud-primary-btn">Set Up Cloud Sync</button>
+        <button id="cloudOnboardingDismissBtn" class="cloud-secondary-btn">Not Now</button>
+      </div>
+    </div>
+  </div>
+
   <script src="libs/jspdf.umd.min.js"></script>
+  <script src="cloud-sync.js"></script>
   <script src="resume-renderers.js"></script>
   <script src="popup.js"></script>
 </body>

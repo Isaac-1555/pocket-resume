@@ -11,6 +11,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   const providerHelperText = document.getElementById('providerHelperText');
   const setActiveProviderBtn = document.getElementById('setActiveProviderBtn');
   const providerIcons = document.querySelectorAll('.provider-icon-wrapper');
+  const cloudAuthStatus = document.getElementById('cloudAuthStatus');
+  const cloudSignInBtn = document.getElementById('cloudSignInBtn');
+  const cloudSignOutBtn = document.getElementById('cloudSignOutBtn');
+  const cloudUpgradeBtn = document.getElementById('cloudUpgradeBtn');
+  const cloudPushBtn = document.getElementById('cloudPushBtn');
+  const cloudRestoreBtn = document.getElementById('cloudRestoreBtn');
+  const cloudRestorePanel = document.getElementById('cloudRestorePanel');
+  const cloudRestorePreview = document.getElementById('cloudRestorePreview');
+  const cloudApplyRestoreBtn = document.getElementById('cloudApplyRestoreBtn');
+  const cloudCancelRestoreBtn = document.getElementById('cloudCancelRestoreBtn');
+  const cloudPricingPanel = document.getElementById('cloudPricingPanel');
+  const cloudPricingTable = document.getElementById('cloudPricingTable');
+  const cloudPricingFallback = document.getElementById('cloudPricingFallback');
+  const cloudClosePricingBtn = document.getElementById('cloudClosePricingBtn');
 
   let apiKeys = {
     google: '',
@@ -20,6 +34,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
   let activeProvider = 'google';
   let currentlyViewedProvider = 'google';
+  let cloudRestoreDraft = [];
 
   let resumes = [];
   let activeTabIndex = 0;
@@ -29,6 +44,49 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function generateId() {
     return 'r_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+  }
+
+  if (window.location.hash === '#cloud-pricing') {
+    setTimeout(showCloudPricingPanel, 300);
+  }
+
+  if (cloudUpgradeBtn) {
+    cloudUpgradeBtn.addEventListener('click', async () => {
+      await showCloudPricingPanel();
+    });
+  }
+
+
+  async function showCloudPricingPanel() {
+    try {
+      if (!window.CloudSync || !window.CloudSync.mountPricingTable || !cloudPricingPanel || !cloudPricingTable) {
+        showStatus('Pricing is not available in this extension build yet.', 'error', 5000);
+        return;
+      }
+      cloudPricingPanel.style.display = 'block';
+      cloudPricingPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (cloudPricingFallback) {
+        cloudPricingFallback.textContent = '';
+        cloudPricingFallback.style.display = 'none';
+      }
+      cloudPricingTable.innerHTML = '';
+      await window.CloudSync.mountPricingTable(cloudPricingTable);
+    } catch (error) {
+      if (cloudPricingFallback) {
+        cloudPricingFallback.textContent = `Could not load Clerk pricing. Confirm Billing is enabled and at least one user plan is public in Clerk. Details: ${error.message}`;
+        cloudPricingFallback.style.display = 'block';
+      }
+      showStatus('Could not load pricing. Check the message in the Cloud Sync panel.', 'error', 7000);
+    }
+  }
+  if (cloudClosePricingBtn) {
+    cloudClosePricingBtn.addEventListener('click', () => {
+      if (window.CloudSync && window.CloudSync.unmountPricingTable && cloudPricingTable) {
+        window.CloudSync.unmountPricingTable(cloudPricingTable);
+      }
+      if (cloudPricingTable) cloudPricingTable.innerHTML = '';
+      if (cloudPricingPanel) cloudPricingPanel.style.display = 'none';
+    });
   }
 
   function createResumeEntry(label, content) {
@@ -127,6 +185,71 @@ document.addEventListener('DOMContentLoaded', async () => {
       openaiApiKey: apiKeys.openai,
       anthropicApiKey: apiKeys.anthropic,
       resumes: getPersistedResumes()
+    };
+  }
+
+  async function updateCloudStatus() {
+    if (!cloudAuthStatus) return;
+    const configured = !!(window.CloudSync && window.CloudSync.isConfigured && window.CloudSync.isConfigured());
+    if (!configured) {
+      cloudAuthStatus.textContent = 'Cloud sync coming soon';
+      cloudAuthStatus.className = 'cloud-status-pill';
+      if (cloudSignInBtn) cloudSignInBtn.style.display = 'none';
+      if (cloudSignOutBtn) cloudSignOutBtn.style.display = 'none';
+      if (cloudUpgradeBtn) cloudUpgradeBtn.style.display = 'none';
+      if (cloudPushBtn) cloudPushBtn.style.display = 'none';
+      if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'none';
+      return;
+    }
+    if (cloudPushBtn) cloudPushBtn.style.display = 'inline-block';
+    if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'inline-block';
+
+    try {
+      if (window.CloudSync) {
+        await window.CloudSync.init();
+        const signedIn = await window.CloudSync.isSignedIn();
+        if (signedIn) {
+          const email = await window.CloudSync.getUserEmail();
+          const hasAccess = await window.CloudSync.hasCloudSyncAccess();
+          if (hasAccess) {
+            cloudAuthStatus.textContent = email ? `Cloud Sync active: ${email}` : 'Cloud Sync active';
+            cloudAuthStatus.className = 'cloud-status-pill synced';
+            if (cloudPushBtn) cloudPushBtn.style.display = 'inline-block';
+            if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'inline-block';
+            if (cloudUpgradeBtn) cloudUpgradeBtn.style.display = 'none';
+          } else {
+            cloudAuthStatus.textContent = 'Cloud Sync needs a paid plan';
+            cloudAuthStatus.className = 'cloud-status-pill error';
+            if (cloudPushBtn) cloudPushBtn.style.display = 'none';
+            if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'none';
+            if (cloudUpgradeBtn) cloudUpgradeBtn.style.display = 'inline-block';
+          }
+          if (cloudSignInBtn) cloudSignInBtn.style.display = 'none';
+          if (cloudSignOutBtn) cloudSignOutBtn.style.display = 'inline-block';
+        } else {
+          cloudAuthStatus.textContent = 'Configured, signed out';
+          cloudAuthStatus.className = 'cloud-status-pill';
+          if (cloudSignInBtn) cloudSignInBtn.style.display = 'inline-block';
+          if (cloudSignOutBtn) cloudSignOutBtn.style.display = 'none';
+          if (cloudUpgradeBtn) cloudUpgradeBtn.style.display = 'none';
+        }
+      }
+    } catch (error) {
+      cloudAuthStatus.textContent = 'Cloud sync error';
+      cloudAuthStatus.className = 'cloud-status-pill error';
+    }
+  }
+
+  function normalizeCloudResume(doc, index) {
+    return {
+      id: typeof doc.resumeId === 'string' && doc.resumeId ? doc.resumeId : generateId(),
+      label: doc.label || `Resume ${index + 1}`,
+      content: doc.content || '',
+      jsonContent: doc.jsonContent || '',
+      lastRefineBackup: '',
+      lastRefineAppliedAt: '',
+      _lastSavedContent: doc.content || '',
+      pendingRefine: null
     };
   }
 
@@ -264,6 +387,91 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   updateActiveProvider(activeProvider);
   updateViewedProvider(activeProvider);
+  updateCloudStatus();
+
+
+  if (cloudSignInBtn) {
+    cloudSignInBtn.addEventListener('click', async () => {
+      try {
+        if (!window.CloudSync) throw new Error('Cloud sync service failed to load.');
+        await window.CloudSync.signIn();
+      } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error', 6000);
+      }
+    });
+  }
+
+  if (cloudSignOutBtn) {
+    cloudSignOutBtn.addEventListener('click', async () => {
+      try {
+        if (window.CloudSync) await window.CloudSync.signOut();
+        await updateCloudStatus();
+      } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error', 4500);
+      }
+    });
+  }
+
+  if (cloudPushBtn) {
+    cloudPushBtn.addEventListener('click', async () => {
+      try {
+        saveCurrentTabToState();
+        await setLocalStorage(getSettingsPayload());
+        if (!window.CloudSync) throw new Error('Cloud sync service failed to load.');
+        showStatus('Pushing resumes to cloud...', 'loading', 0);
+        await window.CloudSync.init();
+        await window.CloudSync.pushAllResumes(getPersistedResumes());
+        showStatus('Resumes pushed to cloud.', 'success', 5000);
+        await updateCloudStatus();
+      } catch (error) {
+        showStatus(`Cloud push failed: ${error.message}`, 'error', 7000);
+      }
+    });
+  }
+
+  if (cloudRestoreBtn) {
+    cloudRestoreBtn.addEventListener('click', async () => {
+      try {
+        if (!window.CloudSync) throw new Error('Cloud sync service failed to load.');
+        showStatus('Loading cloud resumes...', 'loading', 0);
+        await window.CloudSync.init();
+        const cloudDocs = await window.CloudSync.pullAllResumes();
+        cloudRestoreDraft = cloudDocs.map(normalizeCloudResume);
+        if (!cloudRestoreDraft.length) {
+          showStatus('No cloud resumes found.', 'info', 4000);
+          return;
+        }
+        cloudRestorePreview.value = JSON.stringify(cloudRestoreDraft.map(serializeResumeEntry), null, 2);
+        cloudRestorePanel.style.display = 'block';
+        showStatus('Review cloud resumes before replacing local data.', 'info', 5000);
+      } catch (error) {
+        showStatus(`Restore failed: ${error.message}`, 'error', 7000);
+      }
+    });
+  }
+
+  if (cloudApplyRestoreBtn) {
+    cloudApplyRestoreBtn.addEventListener('click', async () => {
+      if (!cloudRestoreDraft.length) return;
+      if (!confirm('Replace local resumes with cloud resumes? This changes local storage.')) return;
+      resumes = cloudRestoreDraft.map((resume, index) => normalizeResumeEntry(resume, index)).slice(0, 3);
+      activeTabIndex = 0;
+      await setLocalStorage({ resumes: getPersistedResumes() });
+      cloudRestorePanel.style.display = 'none';
+      cloudRestoreDraft = [];
+      renderTabBar();
+      renderTabContent();
+      showStatus('Local resumes replaced with cloud data.', 'success', 5000);
+    });
+  }
+
+  if (cloudCancelRestoreBtn) {
+    cloudCancelRestoreBtn.addEventListener('click', () => {
+      cloudRestoreDraft = [];
+      cloudRestorePanel.style.display = 'none';
+      cloudRestorePreview.value = '';
+    });
+  }
 
   if (data.resumes && data.resumes.length > 0) {
     resumes = data.resumes.map((resume, index) => normalizeResumeEntry(resume, index));

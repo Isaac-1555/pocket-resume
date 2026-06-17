@@ -1,4 +1,15 @@
 // background.js
+import './cloud-sync.js';
+
+// Auto-push local resume changes when user has enabled cloud sync and is signed in.
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local' || !changes.resumes || !globalThis.CloudSync) return;
+  const nextResumes = changes.resumes.newValue;
+  if (!Array.isArray(nextResumes)) return;
+  globalThis.CloudSync.init()
+    .then(() => globalThis.CloudSync.onLocalResumesChanged(nextResumes))
+    .catch((error) => console.error('[CloudSync] Auto-sync failed:', error));
+});
 
 // --- Pipeline Utilities ---
 function normalizeResumeStyle(selectedStyle) {

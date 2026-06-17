@@ -1,5 +1,13 @@
 {
   "dependencies": {
+    "@clerk/chrome-extension": "^3.1.35",
+    "convex": "^1.41.0",
     "jspdf": "^4.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  },
+  "scripts": {
+    "build:clerk": "esbuild src/cloud-sync.js --bundle --outfile=cloud-sync.js --format=iife --platform=browser --target=es2022"
   }
 }

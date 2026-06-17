@@ -6,6 +6,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusDiv = document.getElementById('status');
   const resumeSelectorDiv = document.getElementById('resumeSelector');
   const coverLetterToggle = document.getElementById('coverLetterToggle');
+  const cloudAccountCard = document.getElementById('cloudAccountCard');
+  const cloudAccountTitle = document.getElementById('cloudAccountTitle');
+  const cloudAccountSubtitle = document.getElementById('cloudAccountSubtitle');
+  const cloudPlanBadge = document.getElementById('cloudPlanBadge');
+  const cloudAvatarBtn = document.getElementById('cloudAvatarBtn');
+  const cloudAvatarImg = document.getElementById('cloudAvatarImg');
+  const cloudAvatarInitials = document.getElementById('cloudAvatarInitials');
+  const cloudAccountMenu = document.getElementById('cloudAccountMenu');
+  const cloudMenuAuthBtn = document.getElementById('cloudMenuAuthBtn');
+  const cloudMenuPlansBtn = document.getElementById('cloudMenuPlansBtn');
 
   // --- Cover Letter Toggle ---
   chrome.storage.local.get(['coverLetterEnabled'], (data) => {
@@ -18,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Resume selector state ---
   let loadedResumes = [];
   let selectedResumeId = null;
+  let cloudSignedIn = false;
 
   // Custom Select Logic
   const customSelect = document.querySelector('.custom-select');
@@ -38,6 +49,116 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'professional';
     }
   }
+
+  async function updateCloudAccountState() {
+    if (!cloudAccountCard || !window.CloudSync || !window.CloudSync.isConfigured || !window.CloudSync.isConfigured()) {
+      if (cloudAccountCard) cloudAccountCard.style.display = 'none';
+      return;
+    }
+
+    cloudAccountCard.style.display = 'block';
+    cloudAccountCard.classList.add('inactive');
+    if (cloudPlanBadge) {
+      cloudPlanBadge.textContent = 'Checking Cloud Sync';
+      cloudPlanBadge.className = 'cloud-plan-badge inactive';
+    }
+
+    try {
+      await window.CloudSync.init();
+      cloudSignedIn = await window.CloudSync.isSignedIn();
+      const hasAccess = cloudSignedIn ? await window.CloudSync.hasCloudSyncAccess() : false;
+      const profile = cloudSignedIn && window.CloudSync.getUserProfile ? await window.CloudSync.getUserProfile() : null;
+
+      if (cloudSignedIn) {
+        cloudAccountTitle.textContent = profile?.name || 'Signed in';
+        cloudAccountSubtitle.textContent = profile?.email || 'Cloud account connected';
+        cloudMenuAuthBtn.textContent = 'Sign Out';
+        setCloudAvatar(profile);
+      } else {
+        cloudAccountTitle.textContent = 'Cloud Sync';
+        cloudAccountSubtitle.textContent = 'Sign in to sync across devices';
+        cloudMenuAuthBtn.textContent = 'Sign In';
+        setCloudAvatar(null);
+      }
+
+      if (hasAccess) {
+        cloudAccountCard.classList.remove('inactive');
+        cloudPlanBadge.textContent = 'Cloud Sync active';
+        cloudPlanBadge.className = 'cloud-plan-badge';
+      } else if (cloudSignedIn) {
+        cloudAccountCard.classList.add('inactive');
+        cloudPlanBadge.textContent = 'Plan required';
+        cloudPlanBadge.className = 'cloud-plan-badge inactive';
+      } else {
+        cloudAccountCard.classList.add('inactive');
+        cloudPlanBadge.textContent = 'Signed out';
+        cloudPlanBadge.className = 'cloud-plan-badge inactive';
+      }
+    } catch (error) {
+      cloudAccountTitle.textContent = 'Cloud Sync';
+      cloudAccountSubtitle.textContent = 'Could not load account state';
+      cloudPlanBadge.textContent = 'Unavailable';
+      cloudPlanBadge.className = 'cloud-plan-badge inactive';
+      cloudAccountCard.classList.add('inactive');
+    }
+  }
+
+  function setCloudAvatar(profile) {
+    if (!cloudAvatarImg || !cloudAvatarInitials) return;
+    if (profile?.imageUrl) {
+      cloudAvatarImg.src = profile.imageUrl;
+      cloudAvatarImg.style.display = 'block';
+      cloudAvatarInitials.style.display = 'none';
+      return;
+    }
+    cloudAvatarImg.removeAttribute('src');
+    cloudAvatarImg.style.display = 'none';
+    cloudAvatarInitials.style.display = 'inline';
+    const source = profile?.name || profile?.email || 'Cloud Sync';
+    cloudAvatarInitials.textContent = source.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || '?';
+  }
+
+  function openPlansPage() {
+    chrome.tabs.create({ url: chrome.runtime.getURL('options.html#cloud-pricing') });
+  }
+
+  if (cloudAvatarBtn && cloudAccountMenu) {
+    cloudAvatarBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      cloudAccountMenu.classList.toggle('open');
+    });
+    window.addEventListener('click', (event) => {
+      if (!cloudAccountCard.contains(event.target)) {
+        cloudAccountMenu.classList.remove('open');
+      }
+    });
+  }
+
+  if (cloudMenuAuthBtn) {
+    cloudMenuAuthBtn.addEventListener('click', async () => {
+      cloudAccountMenu.classList.remove('open');
+      try {
+        if (!window.CloudSync) return;
+        if (cloudSignedIn) {
+          await window.CloudSync.signOut();
+        } else {
+          await window.CloudSync.signIn();
+        }
+        setTimeout(updateCloudAccountState, 500);
+      } catch (error) {
+        showStatus(error.message || 'Cloud account action failed.', 'error');
+      }
+    });
+  }
+
+  if (cloudMenuPlansBtn) {
+    cloudMenuPlansBtn.addEventListener('click', () => {
+      cloudAccountMenu.classList.remove('open');
+      openPlansPage();
+    });
+  }
+
+  updateCloudAccountState();
 
   function getResumeStyleConfig(selectedStyle) {
     switch (normalizeResumeStyle(selectedStyle)) {
@@ -691,5 +812,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // Save
     const clFilename = `CoverLetter_${(data.applicant_name || 'Generated').replace(/\s+/g, '_')}.pdf`;
     doc.save(clFilename);
+  }
+
+  // --- Cloud Sync Onboarding ---
+  const modal = document.getElementById('cloudOnboardingModal');
+  const setupBtn = document.getElementById('cloudOnboardingSetupBtn');
+  const dismissBtn = document.getElementById('cloudOnboardingDismissBtn');
+
+  if (modal && setupBtn && dismissBtn && window.CloudSync) {
+    window.CloudSync.shouldShowOnboarding().then((show) => {
+      if (show) {
+        modal.style.display = 'flex';
+      }
+    });
+
+    setupBtn.addEventListener('click', () => {
+      modal.style.display = 'none';
+      chrome.runtime.openOptionsPage();
+    });
+
+    dismissBtn.addEventListener('click', () => {
+      modal.style.display = 'none';
+      if (window.CloudSync) {
+        window.CloudSync.dismissOnboarding();
+      }
+    });
   }
 });
