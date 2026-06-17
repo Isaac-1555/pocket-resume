@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "PocketResume",
   "version": "5.8",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArvIM+94g9OV+D6VtgJkEdjlfAeTFCqXE/+HPb7mo7tub3anKQY4OW3nJbF7tGseWI0fz5cSjln2Oivhg/L85f/hiWcgRKkozpAc51V8Uu9Vna/9xYuAKlW7lUNulrRZvuXuwNDEQNWyrgLSY69dc/eaeP9lZ20XJwyecwd4thztfEfE5yVR6Izb1NAiiikWayHxVmC+3P156DIiOPwKkx90R9EZIrN+IECN2WA/8sy6Ix85ZQ8bSdcbfgOTGpAynI5bYjp2yt3EdhCg7YKslQ1GGFCfKdeaV7E7eA1N7i4tTMO1I1zhnZAFZohbpInl1NHewOvdlEwe7DK8LS9q2+wIDAQAB",
   "description": "Generate tailored resumes from job descriptions using Gemini AI.",
   "permissions": [
     "storage",
@@ -14,7 +15,8 @@
     "https://openrouter.ai/*",
     "https://generativelanguage.googleapis.com/*",
     "https://*.convex.cloud/*",
-    "https://*.clerk.accounts.dev/*"
+    "https://*.clerk.accounts.dev/*",
+    "https://clerk.pocket-resume.xyz/*"
   ],
   "action": {
     "default_popup": "popup.html",

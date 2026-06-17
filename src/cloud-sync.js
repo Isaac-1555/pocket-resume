@@ -16,7 +16,7 @@
   // App-owned cloud config.
   // Replace these with your Clerk publishable key and Convex deployment URL before release.
   const CLOUD_CONFIG = {
-    clerkPublishableKey: 'pk_live_Y2xlcmsucG9ja2V0cmVzdW1lLmNvbSQ',
+    clerkPublishableKey: 'pk_live_Y2xlcmsucG9ja2V0LXJlc3VtZS54eXok',
     convexUrl: 'https://prestigious-vulture-441.convex.cloud',
     requiredPlan: 'cloud_sync',
   };
@@ -97,8 +97,28 @@
     return CLOUD_CONFIG.convexUrl || null;
   }
 
+  function buildAuthInfo() {
+    return {
+      fetchAccessToken: async () => {
+        if (!clerkClient || !clerkClient.session) return null;
+        try {
+          const token = await clerkClient.session.getToken({ template: 'convex' });
+          console.log('[CloudSync] Clerk token fetch result:', token ? 'Got Token' : 'Null Token');
+          return token;
+        } catch (err) {
+          console.error('[CloudSync] Failed to fetch Clerk token:', err);
+          return null;
+        }
+      },
+      isAuthenticated: () => !!(clerkClient && clerkClient.user),
+    };
+  }
+
   async function initClerk() {
-    if (clerkClient) return clerkClient;
+    if (clerkClient) {
+      if (!authInfo) authInfo = buildAuthInfo();
+      return clerkClient;
+    }
 
     const publishableKey = await getClerkPublishableKey();
     if (!publishableKey) {
@@ -112,7 +132,9 @@
         ? await import('@clerk/chrome-extension/background')
         : await import('@clerk/chrome-extension/client');
 
-      clerkClient = await clerkModule.createClerkClient({ publishableKey });
+      clerkClient = await clerkModule.createClerkClient({ 
+        publishableKey
+      });
 
       if (typeof clerkClient.load === 'function') {
         await clerkClient.load({
@@ -123,18 +145,7 @@
         });
       }
 
-      // Build authInfo for ConvexClient
-      authInfo = {
-        fetchAccessToken: async () => {
-          if (!clerkClient || !clerkClient.session) return null;
-          try {
-            return await clerkClient.session.getToken({ template: 'convex' });
-          } catch (err) {
-            return null;
-          }
-        },
-        isAuthenticated: () => !!(clerkClient && clerkClient.user),
-      };
+      authInfo = buildAuthInfo();
 
       console.log('[CloudSync] Clerk initialized');
       return clerkClient;
@@ -151,6 +162,11 @@
     const url = await getConvexUrl();
     if (!url) {
       console.log('[CloudSync] No Convex URL configured');
+      return null;
+    }
+
+    if (!authInfo) {
+      console.log('[CloudSync] Auth info not ready, deferring Convex init');
       return null;
     }
 
@@ -174,12 +190,11 @@
   // --- Public API ---
 
   async function init() {
-    if (isInitialized && clerkClient && convexClient) return;
+    if (convexClient) return;
     const clerk = await initClerk();
     if (clerk) {
       await initConvex();
     }
-    isInitialized = !!(clerkClient || convexClient);
   }
 
   async function isSignedIn() {

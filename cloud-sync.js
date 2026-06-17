@@ -3403,7 +3403,7 @@ For more information contact us at ${a10}`);
         function aX(e10) {
           throw Error(`${a$} Missing publicKey. When calling 'navigator.credentials.${e10}()' it is required to pass a publicKey object.`);
         }
-        let a1 = (e10) => Promise.reject(Error("Captcha not supported in this environment")), a22 = (e10) => {
+        let a1 = (e10) => Promise.resolve({}), a22 = (e10) => {
           let a10 = e10.__internal_environment, t10 = a10 ? a10.displayConfig.captchaProvider : "turnstile", r10 = e10.__internal_getOption?.("nonce");
           return { captchaSiteKey: a10 ? a10.displayConfig.captchaPublicKey : null, captchaWidgetType: a10 ? a10.displayConfig.captchaWidgetType : null, captchaProvider: t10, captchaPublicKeyInvisible: a10 ? a10.displayConfig.captchaPublicKeyInvisible : null, canUseCaptcha: a10 ? a10.userSettings.signUp.captcha_enabled && e10.isStandardBrowser : null, nonce: r10 || void 0 };
         };
@@ -3414,7 +3414,7 @@ For more information contact us at ${a10}`);
           }
           async invisible(e10) {
             let { captchaSiteKey: a10, canUseCaptcha: t10, captchaPublicKeyInvisible: r10, nonce: i10 } = a22(this.clerk);
-            return t10 && a10 && r10 ? { ...await a1({ action: e10?.action, captchaProvider: "turnstile", invisibleSiteKey: r10, nonce: e10?.nonce || i10 || void 0, siteKey: r10, widgetType: "invisible" }).catch((e11) => e11.captchaError ? { captchaError: e11.captchaError } : { captchaError: e11?.message || e11 || "unexpected_captcha_error" }), captchaAction: e10?.action } : { captchaError: "captcha_unavailable", captchaAction: e10?.action };
+            return t10 && a10 && r10 ? { ...await a1({ action: e10?.action, captchaProvider: "turnstile", invisibleSiteKey: r10, nonce: e10?.nonce || i10 || void 0, siteKey: r10, widgetType: "invisible" }).catch((e11) => e11.captchaError ? { captchaError: e11.captchaError } : { captchaError: e11?.message || e11 || "unexpected_captcha_error" }), captchaAction: e10?.action } : { captchaAction: e10?.action };
           }
           async managedOrInvisible(e10) {
             let { captchaSiteKey: a10, canUseCaptcha: t10, captchaWidgetType: r10, captchaProvider: i10, captchaPublicKeyInvisible: n3, nonce: s3 } = a22(this.clerk);
@@ -3422,7 +3422,7 @@ For more information contact us at ${a10}`);
               let t11 = await a1({ captchaProvider: i10, invisibleSiteKey: n3, nonce: s3 || void 0, siteKey: a10, widgetType: r10, ...e10 }).catch((a11) => a11.captchaError ? { captchaError: a11.captchaError } : e10?.action === "verify" ? { captchaError: a11?.message || a11 || "unexpected_captcha_error" } : void 0);
               return e10?.action === "verify" ? { ...t11, captchaAction: "verify" } : t11;
             }
-            return e10?.action === "verify" ? { captchaError: "captcha_unavailable", captchaAction: e10?.action } : {};
+            return e10?.action === "verify" ? { captchaAction: e10?.action } : {};
           }
           async managedInModal(e10) {
             if ("u" < typeof document) throw new _3("Captcha is not supported in non-browser environments", { code: "captcha_unavailable" });
@@ -135771,7 +135771,7 @@ ${warning}`);
       cloudOnboardingDismissedVersion: "cloudOnboardingDismissedVersion"
     };
     const CLOUD_CONFIG = {
-      clerkPublishableKey: "pk_live_Y2xlcmsucG9ja2V0cmVzdW1lLmNvbSQ",
+      clerkPublishableKey: "pk_live_Y2xlcmsucG9ja2V0LXJlc3VtZS54eXok",
       convexUrl: "https://prestigious-vulture-441.convex.cloud",
       requiredPlan: "cloud_sync"
     };
@@ -135836,8 +135836,27 @@ ${warning}`);
     async function getConvexUrl() {
       return CLOUD_CONFIG.convexUrl || null;
     }
+    function buildAuthInfo() {
+      return {
+        fetchAccessToken: async () => {
+          if (!clerkClient || !clerkClient.session) return null;
+          try {
+            const token2 = await clerkClient.session.getToken({ template: "convex" });
+            console.log("[CloudSync] Clerk token fetch result:", token2 ? "Got Token" : "Null Token");
+            return token2;
+          } catch (err) {
+            console.error("[CloudSync] Failed to fetch Clerk token:", err);
+            return null;
+          }
+        },
+        isAuthenticated: () => !!(clerkClient && clerkClient.user)
+      };
+    }
     async function initClerk() {
-      if (clerkClient) return clerkClient;
+      if (clerkClient) {
+        if (!authInfo) authInfo = buildAuthInfo();
+        return clerkClient;
+      }
       const publishableKey = await getClerkPublishableKey();
       if (!publishableKey) {
         console.log("[CloudSync] No Clerk publishable key configured");
@@ -135846,7 +135865,9 @@ ${warning}`);
       try {
         const isServiceWorker = typeof document === "undefined";
         const clerkModule = isServiceWorker ? await Promise.resolve().then(() => (init_background(), background_exports)) : await Promise.resolve().then(() => (init_client(), client_exports));
-        clerkClient = await clerkModule.createClerkClient({ publishableKey });
+        clerkClient = await clerkModule.createClerkClient({
+          publishableKey
+        });
         if (typeof clerkClient.load === "function") {
           await clerkClient.load({
             afterSignOutUrl: POPUP_URL,
@@ -135855,17 +135876,7 @@ ${warning}`);
             allowedRedirectProtocols: ["chrome-extension:"]
           });
         }
-        authInfo = {
-          fetchAccessToken: async () => {
-            if (!clerkClient || !clerkClient.session) return null;
-            try {
-              return await clerkClient.session.getToken({ template: "convex" });
-            } catch (err) {
-              return null;
-            }
-          },
-          isAuthenticated: () => !!(clerkClient && clerkClient.user)
-        };
+        authInfo = buildAuthInfo();
         console.log("[CloudSync] Clerk initialized");
         return clerkClient;
       } catch (err) {
@@ -135878,6 +135889,10 @@ ${warning}`);
       const url = await getConvexUrl();
       if (!url) {
         console.log("[CloudSync] No Convex URL configured");
+        return null;
+      }
+      if (!authInfo) {
+        console.log("[CloudSync] Auth info not ready, deferring Convex init");
         return null;
       }
       convexUrl = url;
@@ -135896,12 +135911,11 @@ ${warning}`);
       }
     }
     async function init() {
-      if (isInitialized && clerkClient && convexClient) return;
+      if (convexClient) return;
       const clerk2 = await initClerk();
       if (clerk2) {
         await initConvex();
       }
-      isInitialized = !!(clerkClient || convexClient);
     }
     async function isSignedIn() {
       await init();
