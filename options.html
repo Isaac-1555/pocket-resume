@@ -3,9 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <style>
-    /* ============================
-       Design System Tokens
-       ============================ */
     :root {
       --bg: #07020D;
       --font: #FFFDED;
@@ -29,34 +26,33 @@
       --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
 
-    /* ============================
-       Global / Background
-       ============================ */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     body {
-      padding: 40px;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 24px;
       font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      max-width: 800px;
-      margin: 0 auto;
       background: var(--bg);
       color: var(--font);
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
-      position: relative;
-      overflow-x: hidden;
     }
 
-    /* ============================
-       Headers
-       ============================ */
     h1 {
-      font-size: 28px;
-      color: var(--font);
+      font-size: 22px;
       font-weight: 700;
-      letter-spacing: -0.5px;
-      margin: 0 0 30px 0;
-      padding-bottom: 15px;
+      letter-spacing: -0.3px;
+      margin: 0 0 16px 0;
+      padding-bottom: 12px;
       position: relative;
-      z-index: 1;
+      flex-shrink: 0;
     }
 
     h1::after {
@@ -64,39 +60,72 @@
       position: absolute;
       bottom: 0;
       left: 0;
-      width: 48px;
-      height: 3px;
+      width: 36px;
+      height: 2px;
       background: var(--primary);
       border-radius: 2px;
     }
 
-    /* ============================
-       Labels
-       ============================ */
-    label {
-      display: block;
-      margin-top: 25px;
-      margin-bottom: 10px;
-      font-weight: 600;
-      color: var(--font);
-      font-size: 14px;
-      position: relative;
-      z-index: 1;
+    .main {
+      flex: 1;
+      display: flex;
+      gap: 20px;
+      overflow: hidden;
+      min-height: 0;
     }
 
-    /* ============================
-       Text Inputs & Textareas
-       ============================ */
+    .left-panel {
+      width: 300px;
+      min-width: 300px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      padding-right: 4px;
+      flex-shrink: 0;
+    }
+
+    .left-panel > label {
+      display: block;
+      font-weight: 600;
+      font-size: 12px;
+      color: rgba(255, 253, 237, 0.7);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--glass-border);
+      margin: 2px 0;
+      flex-shrink: 0;
+    }
+
+    .right-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      color: var(--font);
+      font-size: 12px;
+    }
+
     input[type="text"],
     input[type="password"],
     textarea {
       width: 100%;
-      padding: 15px;
-      margin-top: 5px;
+      padding: 10px 12px;
       box-sizing: border-box;
       border: 1px solid var(--glass-border);
       border-radius: var(--radius-sm);
-      font-size: 14px;
+      font-size: 13px;
       background: var(--glass-bg);
       backdrop-filter: var(--glass-blur);
       -webkit-backdrop-filter: var(--glass-blur);
@@ -111,7 +140,7 @@
     textarea:focus {
       outline: none;
       border-color: rgba(255, 134, 0, 0.5);
-      box-shadow: 0 0 0 3px rgba(255, 134, 0, 0.1), var(--glass-inner-shadow);
+      box-shadow: 0 0 0 2px rgba(255, 134, 0, 0.1), var(--glass-inner-shadow);
     }
 
     input[type="text"]::placeholder,
@@ -121,16 +150,15 @@
     }
 
     textarea {
-      height: 400px;
+      flex: 1;
+      min-height: 80px;
+      resize: none;
       line-height: 1.5;
+      font-size: 13px;
     }
 
-    /* ============================
-       Buttons
-       ============================ */
     button {
-      margin-top: 30px;
-      padding: 12px 30px;
+      padding: 8px 18px;
       background: rgba(255, 134, 0, 0.15);
       backdrop-filter: var(--glass-blur);
       -webkit-backdrop-filter: var(--glass-blur);
@@ -138,18 +166,19 @@
       border: 1px solid rgba(255, 134, 0, 0.3);
       border-radius: var(--radius-sm);
       cursor: pointer;
-      font-size: 16px;
+      font-size: 13px;
       font-weight: 600;
       font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
       transition: all 0.2s var(--ease-out);
       box-shadow: var(--glass-shadow), var(--glass-inner-shadow);
+      flex-shrink: 0;
     }
 
     button:hover {
       background: rgba(255, 134, 0, 0.25);
       border-color: rgba(255, 134, 0, 0.5);
       transform: translateY(-1px);
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), var(--glass-inner-shadow);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), var(--glass-inner-shadow);
     }
 
     button:active {
@@ -165,31 +194,23 @@
       box-shadow: none;
     }
 
-    /* ============================
-       API Key Input / Show
-       ============================ */
     .api-key-wrapper {
       display: flex;
-      gap: 10px;
+      gap: 6px;
       align-items: center;
-      position: relative;
-      z-index: 1;
     }
 
     .api-key-wrapper input {
-      margin-top: 0;
+      flex: 1;
     }
 
     .api-key-wrapper button {
-      margin-top: 0;
-      padding: 14px 20px;
+      padding: 10px 14px;
       background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      color: rgba(255, 253, 237, 0.6);
       border: 1px solid var(--glass-border);
-      box-shadow: var(--glass-inner-shadow);
+      color: rgba(255, 253, 237, 0.6);
       white-space: nowrap;
+      box-shadow: var(--glass-inner-shadow);
     }
 
     .api-key-wrapper button:hover {
@@ -199,24 +220,16 @@
       box-shadow: var(--glass-inner-shadow);
     }
 
-    /* ============================
-       Provider Icons
-       ============================ */
     .provider-icons {
       display: flex;
-      gap: 16px;
-      margin-top: 15px;
-      margin-bottom: 25px;
-      justify-content: flex-start;
+      gap: 8px;
       align-items: center;
-      position: relative;
-      z-index: 1;
     }
 
     .provider-icon-wrapper {
-      width: 64px;
-      height: 64px;
-      border-radius: var(--radius-md);
+      width: 42px;
+      height: 42px;
+      border-radius: var(--radius-sm);
       border: 1px solid var(--glass-border);
       display: flex;
       justify-content: center;
@@ -231,8 +244,8 @@
     }
 
     .provider-icon-wrapper svg {
-      width: 36px;
-      height: 36px;
+      width: 24px;
+      height: 24px;
       transition: all 0.2s;
       opacity: 0.5;
       filter: grayscale(100%);
@@ -240,7 +253,7 @@
 
     .provider-icon-wrapper:hover {
       background: var(--glass-hover);
-      transform: translateY(-2px);
+      transform: translateY(-1px);
       border-color: rgba(255, 134, 0, 0.3);
     }
 
@@ -252,7 +265,7 @@
     .provider-icon-wrapper.active-view {
       border-color: rgba(255, 134, 0, 0.5);
       background: rgba(255, 134, 0, 0.06);
-      box-shadow: 0 0 0 3px rgba(255, 134, 0, 0.1), var(--glass-inner-shadow);
+      box-shadow: 0 0 0 2px rgba(255, 134, 0, 0.1), var(--glass-inner-shadow);
     }
 
     .provider-icon-wrapper.active-view svg {
@@ -262,18 +275,18 @@
 
     .active-badge {
       position: absolute;
-      top: -6px;
-      right: -6px;
-      width: 20px;
-      height: 20px;
+      top: -4px;
+      right: -4px;
+      width: 16px;
+      height: 16px;
       background: var(--primary);
       color: #fff;
       border-radius: 50%;
-      font-size: 12px;
+      font-size: 10px;
       display: flex;
       justify-content: center;
       align-items: center;
-      box-shadow: 0 2px 8px rgba(255, 134, 0, 0.4);
+      box-shadow: 0 2px 6px rgba(255, 134, 0, 0.4);
       opacity: 0;
       transform: scale(0);
       transition: all 0.25s var(--ease-spring);
@@ -290,23 +303,18 @@
     }
 
     .set-active-btn {
-      margin-top: 15px;
-      padding: 10px 20px;
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      color: var(--primary);
-      border: 1px solid rgba(255, 134, 0, 0.3);
+      padding: 6px 14px;
+      font-size: 12px;
+      background: rgba(255, 134, 0, 0.1);
       border-radius: var(--radius-sm);
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 600;
       box-shadow: var(--glass-inner-shadow);
     }
 
     .set-active-btn:hover {
-      background: rgba(255, 134, 0, 0.15);
-      border-color: rgba(255, 134, 0, 0.5);
+      background: rgba(255, 134, 0, 0.18);
+      border-color: rgba(255, 134, 0, 0.4);
+      transform: none;
+      box-shadow: var(--glass-inner-shadow);
     }
 
     .set-active-btn:disabled {
@@ -316,28 +324,27 @@
       cursor: not-allowed;
     }
 
-    .api-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-top: 25px;
-      margin-bottom: 10px;
-      position: relative;
-      z-index: 1;
+    #providerHelperText {
+      display: block;
+      font-size: 11px;
+      color: rgba(255, 253, 237, 0.45);
+      line-height: 1.4;
     }
 
-    .api-header label {
-      margin: 0;
+    #providerHelperText a {
+      color: var(--primary);
+      text-decoration: none;
     }
 
-    /* ============================
-       Status Messages
-       ============================ */
+    #providerHelperText a:hover {
+      text-decoration: underline;
+    }
+
     .status {
-      margin-top: 15px;
-      padding: 10px 14px;
+      padding: 8px 12px;
       border-radius: var(--radius-sm);
       font-weight: 500;
+      font-size: 12px;
       display: none;
       border: 1px solid var(--glass-border);
       background: var(--glass-bg);
@@ -345,8 +352,6 @@
       -webkit-backdrop-filter: var(--glass-blur);
       color: var(--font);
       box-shadow: var(--glass-inner-shadow);
-      position: relative;
-      z-index: 1;
     }
 
     .status.success {
@@ -368,189 +373,125 @@
       color: var(--primary);
     }
 
-    /* ============================
-       Small & Links
-       ============================ */
-    small {
-      display: block;
-      margin-top: 8px;
-      color: rgba(255, 253, 237, 0.5);
-      font-size: 13px;
-      position: relative;
-      z-index: 1;
-    }
-
-    a {
-      color: var(--primary);
-      text-decoration: none;
-    }
-
-    a:hover {
-      text-decoration: underline;
-    }
-
-    /* ============================
-       Resume Section
-       ============================ */
-    .resume-section {
-      margin-top: 25px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .resume-section > label {
-      margin-top: 0;
-      margin-bottom: 12px;
-    }
-
-    /* ============================
-       Resume Tabs
-       ============================ */
-    .tab-bar {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      margin-bottom: 0;
-      flex-wrap: wrap;
-    }
-
-    .tab-btn {
-      padding: 8px 16px;
-      border: 1px solid var(--glass-border);
-      border-bottom: none;
-      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-      background: rgba(255, 255, 255, 0.04);
-      color: rgba(255, 253, 237, 0.5);
+    #save {
+      width: 100%;
+      padding: 10px;
       font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s var(--ease-out);
-      position: relative;
-      bottom: -1px;
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     }
 
-    .tab-btn:hover {
-      background: rgba(255, 255, 255, 0.06);
-      color: var(--font);
-    }
-
-    .tab-btn.active {
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      color: var(--primary);
-      border-color: var(--glass-border);
-      border-bottom: 1px solid var(--bg);
-      font-weight: 600;
-    }
-
-    .add-tab-btn {
-      padding: 6px 14px;
-      border: 1px dashed rgba(255, 255, 255, 0.2);
-      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-      background: transparent;
-      color: rgba(255, 253, 237, 0.4);
-      font-size: 18px;
-      cursor: pointer;
-      transition: all 0.2s var(--ease-out);
-      position: relative;
-      bottom: -1px;
-      line-height: 1;
-      margin-top: 0;
-    }
-
-    .add-tab-btn:hover {
-      border-color: rgba(255, 134, 0, 0.4);
-      color: var(--primary);
-      background: rgba(255, 134, 0, 0.06);
-    }
-
-    .tab-content-area {
-      border: 1px solid var(--glass-border);
-      border-radius: 0 var(--radius-sm) var(--radius-sm) var(--radius-sm);
-      padding: 20px;
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      box-shadow: var(--glass-inner-shadow);
-    }
-
-    .tab-content-area .resume-label-row {
+    /* ============================
+       Mode Toggle (left panel)
+       ============================ */
+    .mode-toggle {
       display: flex;
-      gap: 10px;
-      align-items: center;
-      margin-bottom: 12px;
+      background: var(--glass-bg);
+      border-radius: var(--radius-sm);
+      padding: 2px;
+      border: 1px solid var(--glass-border);
     }
 
-    .tab-content-area .resume-label-input {
+    .mode-toggle .mode-btn {
       flex: 1;
-      padding: 10px 14px;
-      border: 1px solid var(--glass-border);
-      border-radius: 6px;
-      font-size: 14px;
+      padding: 6px 10px;
+      border: none;
+      background: transparent;
+      color: rgba(255, 253, 237, 0.45);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: calc(var(--radius-sm) - 2px);
+      transition: all 0.2s;
+      text-align: center;
+      white-space: nowrap;
+      box-shadow: none;
+      margin: 0;
+    }
+
+    .mode-toggle .mode-btn:hover {
       background: rgba(255, 255, 255, 0.04);
       color: var(--font);
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      transition: border-color 0.2s var(--ease-out);
-      margin-top: 0;
-    }
-
-    .tab-content-area .resume-label-input:focus {
-      outline: none;
-      border-color: rgba(255, 134, 0, 0.5);
-    }
-
-    .tab-content-area textarea {
-      height: 350px;
-      margin-top: 0;
-    }
-
-    .delete-tab-btn {
-      padding: 8px 14px;
-      border: 1px solid rgba(255, 69, 58, 0.2);
-      border-radius: 6px;
-      background: rgba(255, 69, 58, 0.06);
-      color: #FF453A;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s var(--ease-out);
-      margin-top: 0;
-      box-shadow: none;
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    }
-
-    .delete-tab-btn:hover {
-      background: rgba(255, 69, 58, 0.12);
-      border-color: rgba(255, 69, 58, 0.4);
       transform: none;
       box-shadow: none;
     }
 
+    .mode-toggle .mode-btn.active {
+      background: var(--glass-hover);
+      color: var(--font);
+    }
+
     /* ============================
-       Resume Actions
+       Cloud Sync (collapsible)
        ============================ */
-    .resume-actions,
-    .review-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      align-items: center;
-      margin-top: 14px;
-    }
-
-    .resume-actions button,
-    .review-actions button {
-      margin-top: 0;
-    }
-
-    .secondary-action-btn,
-    .ghost-btn {
-      padding: 10px 18px;
-      font-size: 14px;
+    .cloud-sync-details {
+      border: 1px solid var(--glass-border);
       border-radius: var(--radius-sm);
-      box-shadow: none;
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      box-shadow: var(--glass-inner-shadow);
+      font-size: 12px;
+    }
+
+    .cloud-sync-details summary {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--font);
+      font-size: 12px;
+    }
+
+    .cloud-sync-details[open] summary {
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .cloud-sync-body {
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .cloud-status-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: var(--radius-full);
+      background: rgba(255, 255, 255, 0.04);
+      color: rgba(255, 253, 237, 0.5);
+      border: 1px solid var(--glass-border);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .cloud-status-pill.synced {
+      border-color: rgba(48, 209, 88, 0.3);
+      background: rgba(48, 209, 88, 0.08);
+      color: #30D158;
+    }
+
+    .cloud-status-pill.syncing {
+      border-color: rgba(255, 134, 0, 0.3);
+      background: rgba(255, 134, 0, 0.08);
+      color: var(--primary);
+    }
+
+    .cloud-status-pill.error {
+      border-color: rgba(255, 69, 58, 0.3);
+      background: rgba(255, 69, 58, 0.08);
+      color: #FF453A;
+    }
+
+    .cloud-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .cloud-actions button {
+      padding: 5px 10px;
+      font-size: 11px;
+      margin: 0;
     }
 
     .secondary-action-btn {
@@ -583,35 +524,290 @@
       box-shadow: none;
     }
 
-    .resume-help {
-      margin-top: 10px;
-      font-size: 12px;
-      line-height: 1.5;
-      color: rgba(255, 253, 237, 0.45);
-    }
-
-    /* ============================
-       Review Panel
-       ============================ */
-    .review-panel {
-      margin-top: 18px;
-      padding: 18px;
+    .cloud-restore-panel {
+      padding: 10px;
       border: 1px solid rgba(255, 134, 0, 0.15);
       border-radius: var(--radius-sm);
       background: rgba(255, 134, 0, 0.04);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
+      display: none;
     }
 
-    .review-panel h3 {
-      margin: 0 0 8px;
-      font-size: 17px;
+    .cloud-restore-panel textarea {
+      height: 120px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+    }
+
+    .cloud-pricing-panel {
+      padding: 10px;
+      border: 1px solid rgba(255, 134, 0, 0.15);
+      border-radius: var(--radius-sm);
+      background: rgba(255, 134, 0, 0.04);
+      display: none;
+    }
+
+    .cloud-pricing-panel-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .cloud-pricing-panel-header h3 {
+      margin: 0;
+      font-size: 13px;
+      color: var(--font);
+    }
+
+    .cloud-pricing-panel-header p {
+      margin: 2px 0 0;
+      font-size: 11px;
+      color: rgba(255, 253, 237, 0.55);
+    }
+
+    .cloud-pricing-table {
+      min-height: 120px;
+    }
+
+    .cloud-pricing-fallback {
+      padding: 8px;
+      border: 1px solid rgba(255, 69, 58, 0.3);
+      border-radius: var(--radius-sm);
+      background: rgba(255, 69, 58, 0.08);
+      color: #FF453A;
+      font-size: 11px;
+      display: none;
+    }
+
+    .cloud-restore-panel p {
+      margin: 0 0 6px;
+      color: rgba(255, 253, 237, 0.6);
+      font-size: 11px;
+    }
+
+    /* ============================
+       Right Panel - Resume Tabs
+       ============================ */
+    .tab-bar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      padding: 6px 14px;
+      border: 1px solid var(--glass-border);
+      border-bottom: none;
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+      background: rgba(255, 255, 255, 0.04);
+      color: rgba(255, 253, 237, 0.5);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s var(--ease-out);
+      position: relative;
+      bottom: -1px;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+
+    .tab-btn:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--font);
+    }
+
+    .tab-btn.active {
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      color: var(--primary);
+      border-color: var(--glass-border);
+      border-bottom: 1px solid var(--bg);
+      font-weight: 600;
+    }
+
+    .add-tab-btn {
+      padding: 4px 12px;
+      border: 1px dashed rgba(255, 255, 255, 0.2);
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+      background: transparent;
+      color: rgba(255, 253, 237, 0.4);
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.2s var(--ease-out);
+      position: relative;
+      bottom: -1px;
+      line-height: 1;
+      margin: 0;
+    }
+
+    .add-tab-btn:hover {
+      border-color: rgba(255, 134, 0, 0.4);
+      color: var(--primary);
+      background: rgba(255, 134, 0, 0.06);
+    }
+
+    .tab-content-area {
+      border: 1px solid var(--glass-border);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) var(--radius-sm);
+      padding: 14px;
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      box-shadow: var(--glass-inner-shadow);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .resume-label-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .resume-label-input {
+      flex: 1;
+      padding: 7px 10px;
+      border: 1px solid var(--glass-border);
+      border-radius: 6px;
+      font-size: 13px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--font);
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      transition: border-color 0.2s var(--ease-out);
+    }
+
+    .resume-label-input:focus {
+      outline: none;
+      border-color: rgba(255, 134, 0, 0.5);
+    }
+
+    .delete-tab-btn {
+      padding: 6px 12px;
+      border: 1px solid rgba(255, 69, 58, 0.2);
+      border-radius: 6px;
+      background: rgba(255, 69, 58, 0.06);
+      color: #FF453A;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s var(--ease-out);
+      box-shadow: none;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      margin: 0;
+    }
+
+    .delete-tab-btn:hover {
+      background: rgba(255, 69, 58, 0.12);
+      border-color: rgba(255, 69, 58, 0.4);
+      transform: none;
+      box-shadow: none;
+    }
+
+    .editor-sub-tabs {
+      display: flex;
+      gap: 0;
+      flex-shrink: 0;
+    }
+
+    .editor-sub-tab {
+      padding: 5px 14px;
+      border: 1px solid var(--glass-border);
+      background: transparent;
+      color: rgba(255, 253, 237, 0.4);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin: 0;
+      box-shadow: none;
+    }
+
+    .editor-sub-tab:first-child {
+      border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+    }
+
+    .editor-sub-tab:last-child {
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    }
+
+    .editor-sub-tab + .editor-sub-tab {
+      border-left: none;
+    }
+
+    .editor-sub-tab:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--font);
+      transform: none;
+      box-shadow: none;
+    }
+
+    .editor-sub-tab.active {
+      background: var(--glass-hover);
+      color: var(--primary);
+      border-color: var(--glass-border);
+    }
+
+    .resume-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .resume-actions button {
+      margin: 0;
+    }
+
+    .resume-help {
+      font-size: 11px;
+      line-height: 1.4;
+      color: rgba(255, 253, 237, 0.45);
+      flex-shrink: 0;
+    }
+
+    /* ============================
+       Modal Overlay
+       ============================ */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-content {
+      background: #0f0a18;
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      width: 90vw;
+      max-width: 820px;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+    }
+
+    .modal-content h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
       color: var(--font);
     }
 
     .review-note {
-      margin: 0 0 14px;
-      font-size: 13px;
+      margin: 0 0 12px;
+      font-size: 12px;
       line-height: 1.5;
       color: rgba(255, 253, 237, 0.6);
     }
@@ -623,13 +819,13 @@
 
     .review-meta-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 14px;
-      margin-bottom: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
     }
 
     .review-card {
-      padding: 12px 14px;
+      padding: 10px 12px;
       border: 1px solid rgba(255, 134, 0, 0.12);
       border-radius: var(--radius-sm);
       background: var(--glass-bg);
@@ -638,45 +834,46 @@
     }
 
     .review-card h4 {
-      margin: 0 0 8px;
-      font-size: 13px;
+      margin: 0 0 6px;
+      font-size: 12px;
       color: var(--font);
     }
 
     .review-card ul {
       margin: 0;
-      padding-left: 18px;
+      padding-left: 16px;
       color: rgba(255, 253, 237, 0.6);
-      font-size: 12px;
+      font-size: 11px;
       line-height: 1.5;
     }
 
     .review-card li + li {
-      margin-top: 4px;
+      margin-top: 3px;
     }
 
     .review-preview-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 14px;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
     }
 
     .review-preview-column label {
       display: block;
-      margin: 0 0 6px;
-      font-size: 13px;
+      margin: 0 0 4px;
+      font-size: 12px;
       font-weight: 600;
       color: var(--font);
     }
 
     .review-preview-textarea {
       width: 100%;
-      height: 220px;
-      padding: 12px;
+      height: 200px;
+      padding: 10px;
       border: 1px solid var(--glass-border);
       border-radius: var(--radius-sm);
       box-sizing: border-box;
-      font-size: 12px;
+      font-size: 11px;
       line-height: 1.5;
       resize: vertical;
       background: rgba(255, 255, 255, 0.04);
@@ -688,253 +885,113 @@
       color: rgba(255, 253, 237, 0.7);
     }
 
-    /* ============================
-       Advanced JSON Section
-       ============================ */
-    .advanced-json-section {
-      margin-top: 18px;
-      padding: 14px;
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-sm);
-      background: rgba(255, 255, 255, 0.03);
-    }
-
-    .advanced-json-section summary {
-      cursor: pointer;
-      font-weight: 600;
-      color: var(--font);
-    }
-
-    .advanced-json-section textarea {
-      height: 260px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 12px;
-    }
-
-    .advanced-note {
-      margin: 10px 0 12px;
-      color: rgba(255, 253, 237, 0.5);
-      font-size: 12px;
-      line-height: 1.5;
-    }
-
-    /* ============================
-       Cloud Sync Section
-       ============================ */
-    .cloud-sync-section {
-      margin-top: 28px;
-      padding: 20px;
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-md);
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      box-shadow: var(--glass-inner-shadow);
-      position: relative;
-      z-index: 1;
-    }
-
-    .cloud-sync-section h2 {
-      margin: 0 0 8px;
-      font-size: 20px;
-      color: var(--font);
-    }
-
-    .cloud-sync-section p {
-      margin: 0 0 12px;
-      color: rgba(255, 253, 237, 0.55);
-      font-size: 13px;
-      line-height: 1.5;
-    }
-
-    .cloud-actions {
+    .review-actions {
       display: flex;
-      flex-wrap: wrap;
       gap: 10px;
-      margin-top: 14px;
       align-items: center;
     }
 
-    .cloud-actions button {
-      margin-top: 0;
-      padding: 10px 16px;
-      font-size: 14px;
-    }
-
-    .cloud-status-pill {
-      display: inline-flex;
-      align-items: center;
-      padding: 5px 10px;
-      border-radius: var(--radius-full);
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      color: rgba(255, 253, 237, 0.5);
-      border: 1px solid var(--glass-border);
-      font-size: 12px;
-      font-weight: 600;
-    }
-
-    .cloud-status-pill.synced {
-      border-color: rgba(48, 209, 88, 0.3);
-      background: rgba(48, 209, 88, 0.08);
-      color: #30D158;
-    }
-
-    .cloud-status-pill.syncing {
-      border-color: rgba(255, 134, 0, 0.3);
-      background: rgba(255, 134, 0, 0.08);
-      color: var(--primary);
-    }
-
-    .cloud-status-pill.error {
-      border-color: rgba(255, 69, 58, 0.3);
-      background: rgba(255, 69, 58, 0.08);
-      color: #FF453A;
-    }
-
-    .cloud-restore-panel {
-      margin-top: 14px;
-      padding: 14px;
-      border: 1px solid rgba(255, 134, 0, 0.15);
-      border-radius: var(--radius-sm);
-      background: rgba(255, 134, 0, 0.04);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      display: none;
-    }
-
-    .cloud-restore-panel textarea {
-      height: 180px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 12px;
-    }
-
-    .cloud-pricing-panel {
-      margin-top: 14px;
-      padding: 16px;
-      border: 1px solid rgba(255, 134, 0, 0.15);
-      border-radius: var(--radius-sm);
-      background: rgba(255, 134, 0, 0.04);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      display: none;
-    }
-
-    .cloud-pricing-panel-header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
-    .cloud-pricing-panel-header h3 {
-      margin: 0 0 4px;
-      font-size: 17px;
-      color: var(--font);
-    }
-
-    .cloud-pricing-panel-header p {
+    .review-actions button {
       margin: 0;
-    }
-
-    .cloud-pricing-table {
-      min-height: 180px;
-    }
-
-    .cloud-pricing-fallback {
-      padding: 12px;
-      border: 1px solid rgba(255, 69, 58, 0.3);
-      border-radius: var(--radius-sm);
-      background: rgba(255, 69, 58, 0.08);
-      color: #FF453A;
-      display: none;
     }
   </style>
 </head>
 <body>
   <h1>PocketResume Settings</h1>
-  
-  <div class="api-header">
-    <label>AI Provider Selection</label>
-  </div>
 
-  <div class="cloud-sync-section">
-    <h2>Cloud Sync</h2>
-    <p>Optional online backup for your resumes. Local storage still works if you never sign in.</p>
-    <div class="cloud-actions">
-      <span id="cloudAuthStatus" class="cloud-status-pill">Cloud sync unavailable</span>
-      <button type="button" id="cloudSignInBtn" class="secondary-action-btn">Sign In</button>
-      <button type="button" id="cloudSignOutBtn" class="ghost-btn" style="display: none;">Sign Out</button>
-      <button type="button" id="cloudUpgradeBtn" class="secondary-action-btn" style="display: none;">View Plans</button>
-      <button type="button" id="cloudPushBtn" class="secondary-action-btn">Push Local to Cloud</button>
-      <button type="button" id="cloudRestoreBtn" class="ghost-btn">Restore from Cloud</button>
-    </div>
-    <div id="cloudPricingPanel" class="cloud-pricing-panel">
-      <div class="cloud-pricing-panel-header">
-        <div>
-          <h3>Choose a Cloud Sync plan</h3>
-          <p>Subscribe to enable encrypted online resume backup and restore across devices.</p>
+  <div class="main">
+    <!-- LEFT PANEL -->
+    <div class="left-panel">
+      <label>AI Provider</label>
+      <div class="provider-icons">
+        <div class="provider-icon-wrapper" data-provider="openai" title="OpenAI">
+          <svg xmlns="http://www.w3.org/2000/svg" width="256" height="260" preserveAspectRatio="xMidYMid" viewBox="0 0 256 260" fill="#fff"><path d="M239.184 106.203a64.716 64.716 0 0 0-5.576-53.103C219.452 28.459 191 15.784 163.213 21.74A65.586 65.586 0 0 0 52.096 45.22a64.716 64.716 0 0 0-43.23 31.36c-14.31 24.602-11.061 55.634 8.033 76.74a64.665 64.665 0 0 0 5.525 53.102c14.174 24.65 42.644 37.324 70.446 31.36a64.72 64.72 0 0 0 48.754 21.744c28.481.025 53.714-18.361 62.414-45.481a64.767 64.767 0 0 0 43.229-31.36c14.137-24.558 10.875-55.423-8.083-76.483Zm-97.56 136.338a48.397 48.397 0 0 1-31.105-11.255l1.535-.87 51.67-29.825a8.595 8.595 0 0 0 4.247-7.367v-72.85l21.845 12.636c.218.111.37.32.409.563v60.367c-.056 26.818-21.783 48.545-48.601 48.601Zm-104.466-44.61a48.345 48.345 0 0 1-5.781-32.589l1.534.921 51.722 29.826a8.339 8.339 0 0 0 8.441 0l63.181-36.425v25.221a.87.87 0 0 1-.358.665l-52.335 30.184c-23.257 13.398-52.97 5.431-66.404-17.803ZM23.549 85.38a48.499 48.499 0 0 1 25.58-21.333v61.39a8.288 8.288 0 0 0 4.195 7.316l62.874 36.272-21.845 12.636a.819.819 0 0 1-.767 0L41.353 151.53c-23.211-13.454-31.171-43.144-17.804-66.405v.256Zm179.466 41.695-63.08-36.63L161.73 77.86a.819.819 0 0 1 .768 0l52.233 30.184a48.6 48.6 0 0 1-7.316 87.635v-61.391a8.544 8.544 0 0 0-4.4-7.213Zm21.742-32.69-1.535-.922-51.619-30.081a8.39 8.39 0 0 0-8.492 0L99.98 99.808V74.587a.716.716 0 0 1 .307-.665l52.233-30.133a48.652 48.652 0 0 1 72.236 50.391v.205ZM88.061 139.097l-21.845-12.585a.87.87 0 0 1-.41-.614V65.685a48.652 48.652 0 0 1 79.757-37.346l-1.535.87-51.67 29.825a8.595 8.595 0 0 0-4.246 7.367l-.051 72.697Zm11.868-25.58 28.138-16.217 28.188 16.218v32.434l-28.086 16.218-28.188-16.218-.052-32.434Z"/></svg>
+          <div class="active-badge">&#10003;</div>
         </div>
-        <button type="button" id="cloudClosePricingBtn" class="ghost-btn">Close</button>
+        <div class="provider-icon-wrapper" data-provider="anthropic" title="Anthropic">
+          <svg fill="#fff" fill-rule="evenodd" style="flex:none;line-height:1" viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><title>Anthropic</title><path d="M13.827 3.52h3.603L24 20h-3.603l-6.57-16.48zm-7.258 0h3.767L16.906 20h-3.674l-1.343-3.461H5.017l-1.344 3.46H0L6.57 3.522zm4.132 9.959L8.453 7.687 6.205 13.48H10.7z"></path></svg>
+          <div class="active-badge">&#10003;</div>
+        </div>
+        <div class="provider-icon-wrapper" data-provider="google" title="Google Gemini">
+          <svg viewBox="0 0 296 298" xmlns="http://www.w3.org/2000/svg" width="296" height="298" fill="none"><mask id="a" width="296" height="298" x="0" y="0" maskUnits="userSpaceOnUse" style="mask-type:alpha"><path fill="#3186FF" d="M141.201 4.886c2.282-6.17 11.042-6.071 13.184.148l5.985 17.37a184.004 184.004 0 0 0 111.257 113.049l19.304 6.997c6.143 2.227 6.156 10.91.02 13.155l-19.35 7.082a184.001 184.001 0 0 0-109.495 109.385l-7.573 20.629c-2.241 6.105-10.869 6.121-13.133.025l-7.908-21.296a184 184 0 0 0-109.02-108.658l-19.698-7.239c-6.102-2.243-6.118-10.867-.025-13.132l20.083-7.467A183.998 183.998 0 0 0 133.291 26.28l7.91-21.394Z"/></mask><g mask="url(#a)"><g filter="url(#b)"><ellipse cx="163" cy="149" fill="#3689FF" rx="196" ry="159"/></g><g filter="url(#c)"><ellipse cx="33.5" cy="142.5" fill="#F6C013" rx="68.5" ry="72.5"/></g><g filter="url(#d)"><ellipse cx="19.5" cy="148.5" fill="#F6C013" rx="68.5" ry="72.5"/></g><g filter="url(#e)"><path fill="#FA4340" d="M194 10.5C172 82.5 65.5 134.333 22.5 135L144-66l50 76.5Z"/></g><g filter="url(#f)"><path fill="#FA4340" d="M190.5-12.5C168.5 59.5 62 111.333 19 112L140.5-89l50 76.5Z"/></g><g filter="url(#g)"><path fill="#14BB69" d="M194.5 279.5C172.5 207.5 66 155.667 23 155l121.5 201 50-76.5Z"/></g><g filter="url(#h)"><path fill="#14BB69" d="M196.5 320.5C174.5 248.5 68 196.667 25 196l121.5 201 50-76.5Z"/></g></g><defs><filter id="b" width="464" height="390" x="-69" y="-46" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_69_17998" stdDeviation="18"/></filter><filter id="c" width="265" height="273" x="-99" y="6" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_69_17998" stdDeviation="32"/></filter><filter id="d" width="265" height="273" x="-113" y="12" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_69_17998" stdDeviation="32"/></filter><filter id="e" width="299.5" height="329" x="-41.5" y="-130" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_69_17998" stdDeviation="32"/></filter><filter id="f" width="299.5" height="329" x="-45" y="-153" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_69_17998" stdDeviation="32"/></filter><filter id="g" width="299.5" height="329" x="-41" y="91" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_69_17998" stdDeviation="32"/></filter><filter id="h" width="299.5" height="329" x="-39" y="132" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_69_17998" stdDeviation="32"/></filter></defs></svg>
+          <div class="active-badge">&#10003;</div>
+        </div>
+        <div class="provider-icon-wrapper" data-provider="openrouter" title="OpenRouter">
+          <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" fill="#fff" stroke="#fff"><g clip-path="url(#clip0_205_3)"><path d="M3 248.945C18 248.945 76 236 106 219C136 202 136 202 198 158C276.497 102.293 332 120.945 423 120.945" stroke-width="90"/><path d="M511 121.5L357.25 210.268L357.25 32.7324L511 121.5Z"/><path d="M0 249C15 249 73 261.945 103 278.945C133 295.945 133 295.945 195 339.945C273.497 395.652 329 377 420 377" stroke-width="90"/><path d="M508 376.445L354.25 287.678L354.25 465.213L508 376.445Z"/></g></svg>
+          <div class="active-badge">&#10003;</div>
+        </div>
       </div>
-      <div id="cloudPricingFallback" class="cloud-pricing-fallback"></div>
-      <div id="cloudPricingTable" class="cloud-pricing-table"></div>
-    </div>
-    <div id="cloudRestorePanel" class="cloud-restore-panel">
-      <p>Cloud resumes found. Review below, then replace local resumes if correct.</p>
-      <textarea id="cloudRestorePreview" readonly></textarea>
-      <div class="cloud-actions">
-        <button type="button" id="cloudApplyRestoreBtn" class="secondary-action-btn">Replace Local with Cloud</button>
-        <button type="button" id="cloudCancelRestoreBtn" class="ghost-btn">Cancel</button>
+
+      <label id="apiKeyLabel" for="apiKey">API Key:</label>
+      <div class="api-key-wrapper">
+        <input type="password" id="apiKey" placeholder="Enter API Key">
+        <button type="button" id="toggleApiKey">Show</button>
       </div>
+      <button type="button" id="setActiveProviderBtn" class="set-active-btn" style="display: none;">Set as Active Provider</button>
+      <small id="providerHelperText"></small>
+
+      <div class="divider"></div>
+
+      <details class="cloud-sync-details" id="cloudSyncDetails">
+        <summary>Cloud Sync</summary>
+        <div class="cloud-sync-body">
+          <span id="cloudAuthStatus" class="cloud-status-pill">Cloud sync unavailable</span>
+          <div class="cloud-actions">
+            <button type="button" id="cloudSignInBtn" class="secondary-action-btn">Sign In</button>
+            <button type="button" id="cloudSignOutBtn" class="ghost-btn" style="display: none;">Sign Out</button>
+            <button type="button" id="cloudUpgradeBtn" class="secondary-action-btn" style="display: none;">View Plans</button>
+            <button type="button" id="cloudPushBtn" class="secondary-action-btn">Push Local to Cloud</button>
+            <button type="button" id="cloudRestoreBtn" class="ghost-btn">Restore from Cloud</button>
+          </div>
+          <div id="cloudPricingPanel" class="cloud-pricing-panel">
+            <div class="cloud-pricing-panel-header">
+              <div>
+                <h3>Choose a Cloud Sync plan</h3>
+                <p>Subscribe to enable encrypted online resume backup and restore across devices.</p>
+              </div>
+              <button type="button" id="cloudClosePricingBtn" class="ghost-btn">Close</button>
+            </div>
+            <div id="cloudPricingFallback" class="cloud-pricing-fallback"></div>
+            <div id="cloudPricingTable" class="cloud-pricing-table"></div>
+          </div>
+          <div id="cloudRestorePanel" class="cloud-restore-panel">
+            <p>Cloud resumes found. Review below, then replace local resumes if correct.</p>
+            <textarea id="cloudRestorePreview" readonly></textarea>
+            <div class="cloud-actions">
+              <button type="button" id="cloudApplyRestoreBtn" class="secondary-action-btn">Replace Local with Cloud</button>
+              <button type="button" id="cloudCancelRestoreBtn" class="ghost-btn">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <div class="divider"></div>
+
+      <label>Editor Mode</label>
+      <div class="mode-toggle" id="modeToggle">
+        <button type="button" class="mode-btn active" data-mode="resume">Resume Content</button>
+        <button type="button" class="mode-btn" data-mode="json">Extracted JSON</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <button id="save">Save Settings</button>
+      <div id="status" class="status"></div>
     </div>
-  </div>
-  
-  <div class="provider-icons">
-    <div class="provider-icon-wrapper" data-provider="openai" title="OpenAI">
-      <svg xmlns="http://www.w3.org/2000/svg" width="256" height="260" preserveAspectRatio="xMidYMid" viewBox="0 0 256 260" fill="#fff"><path d="M239.184 106.203a64.716 64.716 0 0 0-5.576-53.103C219.452 28.459 191 15.784 163.213 21.74A65.586 65.586 0 0 0 52.096 45.22a64.716 64.716 0 0 0-43.23 31.36c-14.31 24.602-11.061 55.634 8.033 76.74a64.665 64.665 0 0 0 5.525 53.102c14.174 24.65 42.644 37.324 70.446 31.36a64.72 64.72 0 0 0 48.754 21.744c28.481.025 53.714-18.361 62.414-45.481a64.767 64.767 0 0 0 43.229-31.36c14.137-24.558 10.875-55.423-8.083-76.483Zm-97.56 136.338a48.397 48.397 0 0 1-31.105-11.255l1.535-.87 51.67-29.825a8.595 8.595 0 0 0 4.247-7.367v-72.85l21.845 12.636c.218.111.37.32.409.563v60.367c-.056 26.818-21.783 48.545-48.601 48.601Zm-104.466-44.61a48.345 48.345 0 0 1-5.781-32.589l1.534.921 51.722 29.826a8.339 8.339 0 0 0 8.441 0l63.181-36.425v25.221a.87.87 0 0 1-.358.665l-52.335 30.184c-23.257 13.398-52.97 5.431-66.404-17.803ZM23.549 85.38a48.499 48.499 0 0 1 25.58-21.333v61.39a8.288 8.288 0 0 0 4.195 7.316l62.874 36.272-21.845 12.636a.819.819 0 0 1-.767 0L41.353 151.53c-23.211-13.454-31.171-43.144-17.804-66.405v.256Zm179.466 41.695-63.08-36.63L161.73 77.86a.819.819 0 0 1 .768 0l52.233 30.184a48.6 48.6 0 0 1-7.316 87.635v-61.391a8.544 8.544 0 0 0-4.4-7.213Zm21.742-32.69-1.535-.922-51.619-30.081a8.39 8.39 0 0 0-8.492 0L99.98 99.808V74.587a.716.716 0 0 1 .307-.665l52.233-30.133a48.652 48.652 0 0 1 72.236 50.391v.205ZM88.061 139.097l-21.845-12.585a.87.87 0 0 1-.41-.614V65.685a48.652 48.652 0 0 1 79.757-37.346l-1.535.87-51.67 29.825a8.595 8.595 0 0 0-4.246 7.367l-.051 72.697Zm11.868-25.58 28.138-16.217 28.188 16.218v32.434l-28.086 16.218-28.188-16.218-.052-32.434Z"/></svg>
-      <div class="active-badge">&#10003;</div>
-    </div>
-    <div class="provider-icon-wrapper" data-provider="anthropic" title="Anthropic">
-      <svg fill="#fff" fill-rule="evenodd" style="flex:none;line-height:1" viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><title>Anthropic</title><path d="M13.827 3.52h3.603L24 20h-3.603l-6.57-16.48zm-7.258 0h3.767L16.906 20h-3.674l-1.343-3.461H5.017l-1.344 3.46H0L6.57 3.522zm4.132 9.959L8.453 7.687 6.205 13.48H10.7z"></path></svg>
-      <div class="active-badge">&#10003;</div>
-    </div>
-    <div class="provider-icon-wrapper" data-provider="google" title="Google Gemini">
-      <svg viewBox="0 0 296 298" xmlns="http://www.w3.org/2000/svg" width="296" height="298" fill="none"><mask id="a" width="296" height="298" x="0" y="0" maskUnits="userSpaceOnUse" style="mask-type:alpha"><path fill="#3186FF" d="M141.201 4.886c2.282-6.17 11.042-6.071 13.184.148l5.985 17.37a184.004 184.004 0 0 0 111.257 113.049l19.304 6.997c6.143 2.227 6.156 10.91.02 13.155l-19.35 7.082a184.001 184.001 0 0 0-109.495 109.385l-7.573 20.629c-2.241 6.105-10.869 6.121-13.133.025l-7.908-21.296a184 184 0 0 0-109.02-108.658l-19.698-7.239c-6.102-2.243-6.118-10.867-.025-13.132l20.083-7.467A183.998 183.998 0 0 0 133.291 26.28l7.91-21.394Z"/></mask><g mask="url(#a)"><g filter="url(#b)"><ellipse cx="163" cy="149" fill="#3689FF" rx="196" ry="159"/></g><g filter="url(#c)"><ellipse cx="33.5" cy="142.5" fill="#F6C013" rx="68.5" ry="72.5"/></g><g filter="url(#d)"><ellipse cx="19.5" cy="148.5" fill="#F6C013" rx="68.5" ry="72.5"/></g><g filter="url(#e)"><path fill="#FA4340" d="M194 10.5C172 82.5 65.5 134.333 22.5 135L144-66l50 76.5Z"/></g><g filter="url(#f)"><path fill="#FA4340" d="M190.5-12.5C168.5 59.5 62 111.333 19 112L140.5-89l50 76.5Z"/></g><g filter="url(#g)"><path fill="#14BB69" d="M194.5 279.5C172.5 207.5 66 155.667 23 155l121.5 201 50-76.5Z"/></g><g filter="url(#h)"><path fill="#14BB69" d="M196.5 320.5C174.5 248.5 68 196.667 25 196l121.5 201 50-76.5Z"/></g></g><defs><filter id="b" width="464" height="390" x="-69" y="-46" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_69_17998" stdDeviation="18"/></filter><filter id="c" width="265" height="273" x="-99" y="6" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_69_17998" stdDeviation="32"/></filter><filter id="d" width="265" height="273" x="-113" y="12" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_69_17998" stdDeviation="32"/></filter><filter id="e" width="299.5" height="329" x="-41.5" y="-130" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_69_17998" stdDeviation="32"/></filter><filter id="f" width="299.5" height="329" x="-45" y="-153" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_69_17998" stdDeviation="32"/></filter><filter id="g" width="299.5" height="329" x="-41" y="91" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_69_17998" stdDeviation="32"/></filter><filter id="h" width="299.5" height="329" x="-39" y="132" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_69_17998" stdDeviation="32"/></filter></defs></svg>
-      <div class="active-badge">&#10003;</div>
-    </div>
-    <div class="provider-icon-wrapper" data-provider="openrouter" title="OpenRouter">
-      <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" fill="#fff" stroke="#fff"><g clip-path="url(#clip0_205_3)"><path d="M3 248.945C18 248.945 76 236 106 219C136 202 136 202 198 158C276.497 102.293 332 120.945 423 120.945" stroke-width="90"/><path d="M511 121.5L357.25 210.268L357.25 32.7324L511 121.5Z"/><path d="M0 249C15 249 73 261.945 103 278.945C133 295.945 133 295.945 195 339.945C273.497 395.652 329 377 420 377" stroke-width="90"/><path d="M508 376.445L354.25 287.678L354.25 465.213L508 376.445Z"/></g></svg>
-      <div class="active-badge">&#10003;</div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+      <div class="tab-bar" id="tabBar"></div>
+      <div class="tab-content-area" id="tabContentArea"></div>
     </div>
   </div>
 
-  <label id="apiKeyLabel" for="apiKey">API Key:</label>
-  <div class="api-key-wrapper">
-    <input type="password" id="apiKey" placeholder="Enter API Key">
-    <button type="button" id="toggleApiKey">Show</button>
-  </div>
-  <button type="button" id="setActiveProviderBtn" class="set-active-btn" style="display: none;">Set as Active Provider</button>
-  
-  <small id="providerHelperText" style="margin-top: 15px; margin-bottom: 25px;"></small>
-
-  <div class="resume-section">
-    <label>Your Resumes / Professional Profiles:</label>
-    <small style="margin-top: -8px; margin-bottom: 12px;">Add up to 3 different resumes tailored to different roles.</small>
-    <div class="tab-bar" id="tabBar">
-      <!-- Tabs rendered dynamically by options.js -->
-    </div>
-    <div class="tab-content-area" id="tabContentArea">
-      <!-- Active tab content rendered dynamically by options.js -->
-    </div>
+  <!-- MODAL OVERLAY -->
+  <div id="refineModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" id="refineModalContent"></div>
   </div>
 
-  <button id="save">Save Settings</button>
-  <div id="status" class="status"></div>
   <script src="cloud-sync.js"></script>
-
   <script src="options.js"></script>
 </body>
 </html>

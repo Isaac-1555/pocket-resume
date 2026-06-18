@@ -1,4 +1,3 @@
-// options.js
 document.addEventListener('DOMContentLoaded', async () => {
   const apiKeyInput = document.getElementById('apiKey');
   const toggleApiKeyButton = document.getElementById('toggleApiKey');
@@ -25,6 +24,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const cloudPricingTable = document.getElementById('cloudPricingTable');
   const cloudPricingFallback = document.getElementById('cloudPricingFallback');
   const cloudClosePricingBtn = document.getElementById('cloudClosePricingBtn');
+  const cloudSyncDetails = document.getElementById('cloudSyncDetails');
+  const modeToggle = document.getElementById('modeToggle');
+  const refineModal = document.getElementById('refineModal');
+  const refineModalContent = document.getElementById('refineModalContent');
 
   let apiKeys = {
     google: '',
@@ -41,6 +44,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let refiningResumeId = null;
   let extractingResumeId = null;
   let statusTimeoutId = null;
+  let editorMode = 'resume';
 
   function generateId() {
     return 'r_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
@@ -52,10 +56,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (cloudUpgradeBtn) {
     cloudUpgradeBtn.addEventListener('click', async () => {
+      if (cloudSyncDetails) cloudSyncDetails.open = true;
       await showCloudPricingPanel();
     });
   }
-
 
   async function showCloudPricingPanel() {
     try {
@@ -63,8 +67,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         showStatus('Pricing is not available in this extension build yet.', 'error', 5000);
         return;
       }
+      if (cloudSyncDetails) cloudSyncDetails.open = true;
       cloudPricingPanel.style.display = 'block';
-      cloudPricingPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
       if (cloudPricingFallback) {
         cloudPricingFallback.textContent = '';
         cloudPricingFallback.style.display = 'none';
@@ -140,11 +144,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       clearTimeout(statusTimeoutId);
       statusTimeoutId = null;
     }
-
     statusDiv.textContent = text;
     statusDiv.className = `status ${type}`;
     statusDiv.style.display = 'block';
-
     if (autoHideMs > 0) {
       statusTimeoutId = setTimeout(() => {
         statusDiv.style.display = 'none';
@@ -268,12 +270,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!resume?.pendingRefine) {
       return { applied: false, stale: false };
     }
-
     if (resume.content !== resume.pendingRefine.source) {
       resume.pendingRefine = null;
       return { applied: false, stale: true };
     }
-
     resume.lastRefineBackup = resume.content;
     resume.lastRefineAppliedAt = new Date().toISOString();
     resume.content = resume.pendingRefine.refinedText;
@@ -297,11 +297,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           sourceText: resume.content
         }
       });
-
       if (!response || response.status !== 'success' || !response.data) {
         throw new Error(response?.message || 'Unknown extraction error');
       }
-
       resume.jsonContent = formatExtractedJson(response.data);
       await setLocalStorage({ resumes: getPersistedResumes() });
       resume._lastSavedContent = resume.content;
@@ -323,27 +321,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   const updateViewedProvider = (provider) => {
-    // Save current input value to the previously viewed provider's state before switching
     if (currentlyViewedProvider) {
       apiKeys[currentlyViewedProvider] = apiKeyInput.value.trim();
     }
-    
     currentlyViewedProvider = provider;
     apiKeyInput.value = apiKeys[provider] || '';
-    
     providerIcons.forEach(icon => {
       icon.classList.toggle('active-view', icon.dataset.provider === provider);
     });
-    
     const names = {
       google: 'Google Gemini',
       openrouter: 'OpenRouter',
       openai: 'OpenAI',
       anthropic: 'Anthropic'
     };
-    
     apiKeyLabel.textContent = `${names[provider]} API Key:`;
-    
     const helperTexts = {
       google: 'Get your Google key from <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>',
       openrouter: 'Get your OpenRouter key from <a href="https://openrouter.ai/keys" target="_blank">OpenRouter</a>',
@@ -351,7 +343,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       anthropic: 'Get your Anthropic key from <a href="https://console.anthropic.com/settings/keys" target="_blank">Anthropic Console</a>'
     };
     providerHelperText.innerHTML = helperTexts[provider];
-    
     setActiveProviderBtn.style.display = provider === activeProvider ? 'none' : 'inline-block';
   };
 
@@ -372,7 +363,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setActiveProviderBtn.addEventListener('click', () => {
     updateActiveProvider(currentlyViewedProvider);
   });
-  
+
   apiKeyInput.addEventListener('input', () => {
     apiKeys[currentlyViewedProvider] = apiKeyInput.value.trim();
   });
@@ -384,11 +375,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (data.openrouterApiKey) apiKeys.openrouter = data.openrouterApiKey;
   if (data.openaiApiKey) apiKeys.openai = data.openaiApiKey;
   if (data.anthropicApiKey) apiKeys.anthropic = data.anthropicApiKey;
-  
+
   updateActiveProvider(activeProvider);
   updateViewedProvider(activeProvider);
   updateCloudStatus();
-
 
   if (cloudSignInBtn) {
     cloudSignInBtn.addEventListener('click', async () => {
@@ -441,6 +431,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           showStatus('No cloud resumes found.', 'info', 4000);
           return;
         }
+        if (cloudSyncDetails) cloudSyncDetails.open = true;
         cloudRestorePreview.value = JSON.stringify(cloudRestoreDraft.map(serializeResumeEntry), null, 2);
         cloudRestorePanel.style.display = 'block';
         showStatus('Review cloud resumes before replacing local data.', 'info', 5000);
@@ -488,22 +479,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function saveCurrentTabToState() {
-    const labelInput = document.getElementById('resumeLabelInput');
-    const contentTextarea = document.getElementById('resumeContentTextarea');
-    const jsonTextarea = document.getElementById('resumeJsonTextarea');
     const resume = getActiveResume();
-
-    if (labelInput && contentTextarea && resume) {
+    const labelInput = document.getElementById('resumeLabelInput');
+    if (labelInput && resume) {
       resume.label = labelInput.value.trim() || `Resume ${activeTabIndex + 1}`;
+    }
+    const contentTextarea = document.getElementById('resumeContentTextarea');
+    if (contentTextarea) {
       resume.content = contentTextarea.value;
-      if (jsonTextarea) {
-        resume.jsonContent = jsonTextarea.value;
-      }
+    }
+    const jsonTextarea = document.getElementById('resumeJsonTextarea');
+    if (jsonTextarea) {
+      resume.jsonContent = jsonTextarea.value;
     }
   }
 
-  function renderReviewPanel(resume) {
-    if (!resume.pendingRefine) return '';
+  function setEditorMode(mode) {
+    saveCurrentTabToState();
+    editorMode = mode;
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    renderTabContent();
+  }
+
+  modeToggle.addEventListener('click', (e) => {
+    const btn = e.target.closest('.mode-btn');
+    if (!btn) return;
+    const mode = btn.dataset.mode;
+    if (mode === editorMode) return;
+    setEditorMode(mode);
+  });
+
+  function showRefineModal(resume) {
+    if (!resume?.pendingRefine) return;
 
     const sourceChanged = resume.pendingRefine.source !== resume.content;
     const warnings = Array.isArray(resume.pendingRefine.warnings) ? resume.pendingRefine.warnings : [];
@@ -521,35 +528,64 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
     }
 
-    return `
-      <div class="review-panel">
-        <h3>Review refined resume</h3>
-        <p class="review-note${sourceChanged ? ' warning' : ''}">
-          ${sourceChanged
-            ? 'The source text changed after this draft was generated. Run Refine Resume again before applying it.'
-            : 'Apply this draft to replace the current resume text. Undo will stay available after you apply it.'}
-        </p>
-        <div class="review-meta-grid">
-          ${renderListCard('Change summary', changeSummary)}
-          ${renderListCard('Warnings', warnings)}
+    refineModalContent.innerHTML = `
+      <h3>Review refined resume</h3>
+      <p class="review-note${sourceChanged ? ' warning' : ''}">
+        ${sourceChanged
+          ? 'The source text changed after this draft was generated. Run Refine Resume again before applying it.'
+          : 'Apply this draft to replace the current resume text. Undo will stay available after you apply it.'}
+      </p>
+      <div class="review-meta-grid">
+        ${renderListCard('Change summary', changeSummary)}
+        ${renderListCard('Warnings', warnings)}
+      </div>
+      <div class="review-preview-grid">
+        <div class="review-preview-column">
+          <label>Current resume</label>
+          <textarea class="review-preview-textarea" readonly>${escapeHtml(resume.pendingRefine.source)}</textarea>
         </div>
-        <div class="review-preview-grid">
-          <div class="review-preview-column">
-            <label for="reviewCurrentResume">Current resume</label>
-            <textarea id="reviewCurrentResume" class="review-preview-textarea" readonly>${escapeHtml(resume.pendingRefine.source)}</textarea>
-          </div>
-          <div class="review-preview-column">
-            <label for="reviewProposedResume">Proposed refined version</label>
-            <textarea id="reviewProposedResume" class="review-preview-textarea" readonly>${escapeHtml(resume.pendingRefine.refinedText)}</textarea>
-          </div>
-        </div>
-        <div class="review-actions">
-          <button type="button" id="applyRefineBtn" ${sourceChanged ? 'disabled' : ''}>Apply Refined Resume</button>
-          <button type="button" class="ghost-btn" id="cancelRefineBtn">Cancel</button>
+        <div class="review-preview-column">
+          <label>Proposed refined version</label>
+          <textarea class="review-preview-textarea" readonly>${escapeHtml(resume.pendingRefine.refinedText)}</textarea>
         </div>
       </div>
+      <div class="review-actions">
+        <button type="button" class="secondary-action-btn" id="applyRefineBtn" ${sourceChanged ? 'disabled' : ''}>Apply Refined Resume</button>
+        <button type="button" class="ghost-btn" id="cancelRefineBtn">Cancel</button>
+      </div>
     `;
+
+    refineModal.style.display = 'flex';
+
+    document.getElementById('applyRefineBtn').addEventListener('click', () => {
+      closeRefineModal();
+      handleApplyRefine();
+    });
+
+    document.getElementById('cancelRefineBtn').addEventListener('click', () => {
+      closeRefineModal();
+      handleCancelRefine();
+    });
   }
+
+  function closeRefineModal() {
+    refineModal.style.display = 'none';
+    refineModalContent.innerHTML = '';
+  }
+
+  refineModal.addEventListener('click', (e) => {
+    if (e.target === refineModal) {
+      closeRefineModal();
+      handleCancelRefine();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && refineModal.style.display === 'flex') {
+      closeRefineModal();
+      handleCancelRefine();
+    }
+  });
 
   function renderTabBar() {
     tabBar.innerHTML = '';
@@ -591,31 +627,46 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const isRefining = refiningResumeId === resume.id;
     const isExtracting = extractingResumeId === resume.id;
+    const mode = editorMode;
 
-    tabContentArea.innerHTML = `
+    const labelRow = `
       <div class="resume-label-row">
         <input type="text" id="resumeLabelInput" class="resume-label-input"
                placeholder="Label (e.g. Project Manager)" value="${escapeAttr(resume.label)}" maxlength="40">
         ${resumes.length > 1 ? '<button type="button" class="delete-tab-btn" id="deleteTabBtn">Delete</button>' : ''}
       </div>
-      <label style="margin-top: 15px; display: block; font-weight: 600;">Raw Resume</label>
-      <textarea id="resumeContentTextarea"
-                placeholder="Paste your resume content for this profile here. The AI will use this to generate tailored resumes.">${escapeHtml(resume.content)}</textarea>
-      
-      <div class="resume-actions">
-        <button type="button" class="secondary-action-btn" id="refineResumeBtn" ${isRefining ? 'disabled' : ''}>${isRefining ? 'Refining' : 'Refine Resume'}</button>
-        ${resume.lastRefineBackup ? '<button type="button" class="ghost-btn" id="undoRefineBtn">Undo Last Refine</button>' : ''}
-      </div>
-      <small class="resume-help">Creates a single cross-style master resume: clearer structure, better sectioning, and safer wording for all supported layouts without inventing new facts.</small>
-      ${renderReviewPanel(resume)}
-      <details class="advanced-json-section" ${isExtracting ? 'open' : ''}>
-        <summary>Advanced JSON profile</summary>
-        <p class="advanced-note">Save extracts this automatically. Use this only to inspect or retry the structured profile.</p>
-        <button type="button" class="secondary-action-btn" id="extractJsonBtn" ${isExtracting ? 'disabled' : ''}>${isExtracting ? 'Extracting JSON...' : 'Extract JSON'}</button>
-        <label style="margin-top: 15px; display: block; font-weight: 600;">Extracted JSON Profile</label>
-        <textarea id="resumeJsonTextarea" placeholder="Save settings to generate structured profile data, or click Extract JSON to retry manually.">${escapeHtml(resume.jsonContent)}</textarea>
-      </details>
     `;
+
+    const subTabs = `
+      <div class="editor-sub-tabs">
+        <button type="button" class="editor-sub-tab${mode === 'resume' ? ' active' : ''}" data-mode="resume">Resume Content</button>
+        <button type="button" class="editor-sub-tab${mode === 'json' ? ' active' : ''}" data-mode="json">JSON Profile</button>
+      </div>
+    `;
+
+    let editorHTML = '';
+    if (mode === 'resume') {
+      editorHTML = `
+        <textarea id="resumeContentTextarea"
+                  placeholder="Paste your resume content for this profile here. The AI will use this to generate tailored resumes.">${escapeHtml(resume.content)}</textarea>
+        <div class="resume-actions">
+          <button type="button" class="secondary-action-btn" id="refineResumeBtn" ${isRefining ? 'disabled' : ''}>${isRefining ? 'Refining...' : 'Refine Resume'}</button>
+          ${resume.lastRefineBackup ? '<button type="button" class="ghost-btn" id="undoRefineBtn">Undo Last Refine</button>' : ''}
+        </div>
+        <small class="resume-help">Creates a single cross-style master resume: clearer structure, better sectioning, and safer wording for all supported layouts without inventing new facts.</small>
+      `;
+    } else {
+      editorHTML = `
+        <textarea id="resumeJsonTextarea"
+                  placeholder="Structured JSON profile data. Click Extract JSON to generate from your resume content, or edit manually.">${escapeHtml(resume.jsonContent)}</textarea>
+        <div class="resume-actions">
+          <button type="button" class="secondary-action-btn" id="extractJsonBtn" ${isExtracting ? 'disabled' : ''}>${isExtracting ? 'Extracting JSON...' : 'Extract JSON'}</button>
+        </div>
+        <small class="resume-help">Save settings to generate structured profile data, or click Extract JSON to retry manually.</small>
+      `;
+    }
+
+    tabContentArea.innerHTML = labelRow + subTabs + editorHTML;
 
     const labelInput = document.getElementById('resumeLabelInput');
     labelInput.addEventListener('input', () => {
@@ -638,6 +689,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
+    document.querySelectorAll('.editor-sub-tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.mode;
+        if (mode === editorMode) return;
+        setEditorMode(mode);
+      });
+    });
+
     const refineResumeBtn = document.getElementById('refineResumeBtn');
     if (refineResumeBtn) {
       refineResumeBtn.addEventListener('click', handleRefineResume);
@@ -652,22 +711,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (undoRefineBtn) {
       undoRefineBtn.addEventListener('click', handleUndoRefine);
     }
-
-    const applyRefineBtn = document.getElementById('applyRefineBtn');
-    if (applyRefineBtn) {
-      applyRefineBtn.addEventListener('click', handleApplyRefine);
-    }
-
-    const cancelRefineBtn = document.getElementById('cancelRefineBtn');
-    if (cancelRefineBtn) {
-      cancelRefineBtn.addEventListener('click', handleCancelRefine);
-    }
   }
 
   function handleCancelRefine() {
     const resume = getActiveResume();
     if (!resume?.pendingRefine) return;
-
     resume.pendingRefine = null;
     renderTabContent();
     showStatus('Refinement draft discarded.', 'info');
@@ -691,9 +739,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveCurrentTabToState();
     const resume = getActiveResume();
     if (!resume?.lastRefineBackup) return;
-
     if (!confirm('Undo will replace the current resume text with the pre-refine version. Continue?')) return;
-
     resume.pendingRefine = null;
     resume.content = resume.lastRefineBackup;
     resume.lastRefineBackup = '';
@@ -707,12 +753,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveCurrentTabToState();
     const resume = getActiveResume();
     if (!resume) return;
-
     if (!resume.content.trim()) {
       showStatus('Add some resume content before extracting JSON.', 'error', 3500);
       return;
     }
-
     try {
       await extractJsonForResume(resume);
       showStatus('JSON profile extracted and saved successfully.', 'success', 5000);
@@ -725,7 +769,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveCurrentTabToState();
     const resume = getActiveResume();
     if (!resume) return;
-
     if (!resume.content.trim()) {
       showStatus('Add some resume content before refining it.', 'error', 3500);
       return;
@@ -764,7 +807,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
 
       renderTabContent();
-      showStatus('Review the refined draft below. Apply it to replace the current resume text.', 'success', 5000);
+      showRefineModal(resume);
+      showStatus('Review the refined draft in the dialog.', 'success', 5000);
     });
   }
 
@@ -781,8 +825,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   saveButton.addEventListener('click', async () => {
     saveCurrentTabToState();
-    
-    // Ensure the current input value is captured if it was typed without blurring
     apiKeys[currentlyViewedProvider] = apiKeyInput.value.trim();
     const resume = getActiveResume();
     const contentChanged = !!resume && resume.content !== resume._lastSavedContent;
