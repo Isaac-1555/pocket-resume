@@ -3403,7 +3403,7 @@ For more information contact us at ${a10}`);
         function aX(e10) {
           throw Error(`${a$} Missing publicKey. When calling 'navigator.credentials.${e10}()' it is required to pass a publicKey object.`);
         }
-        let a1 = (e10) => Promise.resolve({}), a22 = (e10) => {
+        let a1 = (e10) => Promise.reject(Error("Captcha not supported in this environment")), a22 = (e10) => {
           let a10 = e10.__internal_environment, t10 = a10 ? a10.displayConfig.captchaProvider : "turnstile", r10 = e10.__internal_getOption?.("nonce");
           return { captchaSiteKey: a10 ? a10.displayConfig.captchaPublicKey : null, captchaWidgetType: a10 ? a10.displayConfig.captchaWidgetType : null, captchaProvider: t10, captchaPublicKeyInvisible: a10 ? a10.displayConfig.captchaPublicKeyInvisible : null, canUseCaptcha: a10 ? a10.userSettings.signUp.captcha_enabled && e10.isStandardBrowser : null, nonce: r10 || void 0 };
         };
@@ -3414,7 +3414,7 @@ For more information contact us at ${a10}`);
           }
           async invisible(e10) {
             let { captchaSiteKey: a10, canUseCaptcha: t10, captchaPublicKeyInvisible: r10, nonce: i10 } = a22(this.clerk);
-            return t10 && a10 && r10 ? { ...await a1({ action: e10?.action, captchaProvider: "turnstile", invisibleSiteKey: r10, nonce: e10?.nonce || i10 || void 0, siteKey: r10, widgetType: "invisible" }).catch((e11) => e11.captchaError ? { captchaError: e11.captchaError } : { captchaError: e11?.message || e11 || "unexpected_captcha_error" }), captchaAction: e10?.action } : { captchaAction: e10?.action };
+            return t10 && a10 && r10 ? { ...await a1({ action: e10?.action, captchaProvider: "turnstile", invisibleSiteKey: r10, nonce: e10?.nonce || i10 || void 0, siteKey: r10, widgetType: "invisible" }).catch((e11) => e11.captchaError ? { captchaError: e11.captchaError } : { captchaError: e11?.message || e11 || "unexpected_captcha_error" }), captchaAction: e10?.action } : { captchaError: "captcha_unavailable", captchaAction: e10?.action };
           }
           async managedOrInvisible(e10) {
             let { captchaSiteKey: a10, canUseCaptcha: t10, captchaWidgetType: r10, captchaProvider: i10, captchaPublicKeyInvisible: n3, nonce: s3 } = a22(this.clerk);
@@ -3422,7 +3422,7 @@ For more information contact us at ${a10}`);
               let t11 = await a1({ captchaProvider: i10, invisibleSiteKey: n3, nonce: s3 || void 0, siteKey: a10, widgetType: r10, ...e10 }).catch((a11) => a11.captchaError ? { captchaError: a11.captchaError } : e10?.action === "verify" ? { captchaError: a11?.message || a11 || "unexpected_captcha_error" } : void 0);
               return e10?.action === "verify" ? { ...t11, captchaAction: "verify" } : t11;
             }
-            return e10?.action === "verify" ? { captchaAction: e10?.action } : {};
+            return e10?.action === "verify" ? { captchaError: "captcha_unavailable", captchaAction: e10?.action } : {};
           }
           async managedInModal(e10) {
             if ("u" < typeof document) throw new _3("Captcha is not supported in non-browser environments", { code: "captcha_unavailable" });
@@ -135980,12 +135980,27 @@ ${warning}`);
       }
     }
     async function pushAllResumes(resumes) {
-      if (!resumes || resumes.length === 0) return;
+      if (!convexClient) {
+        console.log("[CloudSync] Not initialized, skipping push");
+        return;
+      }
+      if (!await hasCloudSyncAccess()) {
+        throw new Error("Cloud Sync requires an active plan.");
+      }
       syncInProgress = true;
       notifySyncStatus("syncing");
       try {
-        for (const resume of resumes) {
-          await pushResume(resume);
+        const localIds = new Set((resumes || []).map((r2) => r2.id));
+        const cloudResumes = await convexClient.query("resumes:list", {});
+        const orphanIds = cloudResumes.map((r2) => r2.resumeId).filter((id) => !localIds.has(id));
+        for (const id of orphanIds) {
+          await convexClient.mutation("resumes:remove", { resumeId: id });
+          console.log("[CloudSync] Deleted orphan cloud resume:", id);
+        }
+        if (resumes && resumes.length > 0) {
+          for (const resume of resumes) {
+            await pushResume(resume);
+          }
         }
         notifySyncStatus("synced");
       } catch (err) {

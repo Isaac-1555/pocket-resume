@@ -272,14 +272,36 @@
   }
 
   async function pushAllResumes(resumes) {
-    if (!resumes || resumes.length === 0) return;
+    if (!convexClient) {
+      console.log('[CloudSync] Not initialized, skipping push');
+      return;
+    }
+    if (!(await hasCloudSyncAccess())) {
+      throw new Error('Cloud Sync requires an active plan.');
+    }
+
     syncInProgress = true;
     notifySyncStatus('syncing');
 
     try {
-      for (const resume of resumes) {
-        await pushResume(resume);
+      const localIds = new Set((resumes || []).map(r => r.id));
+
+      const cloudResumes = await convexClient.query('resumes:list', {});
+      const orphanIds = cloudResumes
+        .map(r => r.resumeId)
+        .filter(id => !localIds.has(id));
+
+      for (const id of orphanIds) {
+        await convexClient.mutation('resumes:remove', { resumeId: id });
+        console.log('[CloudSync] Deleted orphan cloud resume:', id);
       }
+
+      if (resumes && resumes.length > 0) {
+        for (const resume of resumes) {
+          await pushResume(resume);
+        }
+      }
+
       notifySyncStatus('synced');
     } catch (err) {
       console.error('[CloudSync] Batch push failed:', err);
