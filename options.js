@@ -321,7 +321,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   const updateViewedProvider = (provider) => {
-    if (currentlyViewedProvider) {
+    if (currentlyViewedProvider && currentlyViewedProvider !== provider) {
       apiKeys[currentlyViewedProvider] = apiKeyInput.value.trim();
     }
     currentlyViewedProvider = provider;
