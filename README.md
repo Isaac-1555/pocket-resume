@@ -1,81 +1,73 @@
 # PocketResume
 
-PocketResume is a Chrome extension that leverages AI (Google Gemini, OpenAI, Anthropic, or OpenRouter) to generate tailored resumes and cover letters based on job descriptions directly from your browser. It analyzes the job posting on your active tab and rewrites your resume to highlight relevant skills and experiences, helping you stand out to recruiters and ATS systems.
+AI-powered Chrome extension that generates tailored resumes and cover letters from any job description. Paste your master profile once — PocketResume rewrites it for every application.
 
 ## Features
 
-- **AI-Powered Generation:** Generates resumes tailored to the specific job description on your active tab. Supports multiple AI providers: Google Gemini, OpenAI (`gpt-4o-mini`), Anthropic (`claude-3-5-haiku-20241022`), and OpenRouter.
-- **Cover Letter Generation:** Optionally generates a professional, single-page cover letter (250-400 words) alongside your resume with a single click.
-- **Contextual Understanding:** Extracts text from the job description page for accurate tailoring.
-- **Multiple Layouts & Styles:** Choose from "Professional", "FAANG", "Double Sided", or "Academic CV" resume styles. The cover letter tone adapts to match.
-- **PDF Export:** Automatically formats and exports the generated resume (and cover letter) as clean, professional PDFs.
-- **State Persistence:** Your selected resume style and cover letter preference are saved across sessions.
-- **Privacy Focused:** Your API keys and profile data are stored locally on your device.
-- **Customizable Profile:** Save up to 3 master profiles/resumes once and let the AI adapt them for every application.
+- **6 Resume Layouts** — Professional, FAANG, Basic, Jake (double-sided), Deedy (double-column), and Academic CV
+- **4 AI Providers** — Google Gemini (`gemini-2.5-flash`), OpenAI (`gpt-4o-mini`), Anthropic (`claude-3-5-haiku`), OpenRouter
+- **Cover Letters** — Optional, single-page cover letter generated alongside your resume
+- **PDF Export** — Clean, print-ready PDFs via jsPDF for every layout
+- **Refine Resume** — AI polishes your master resume with change summary + warnings, side-by-side review before applying
+- **Extract JSON** — Converts freeform resume text into structured JSON profile
+- **Multi-Profile** — Save up to 3 master profiles and switch between them
+- **Cloud Sync** — Optional Clerk + Convex cloud sync across devices
+- **Privacy First** — API keys and profile data stored locally (cloud sync optional)
 
 ## Installation
 
-Since this extension is not yet in the Chrome Web Store, you need to install it manually:
+Not on the Chrome Web Store — load unpacked:
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/yourusername/pocketresume.git
-    cd pocketresume
-    ```
+```bash
+git clone https://github.com/Isaac-1555/pocket-resume.git
+cd pocket-resume
+npm install    # only needed for jsPDF dependency
+```
 
-2.  **Install Dependencies:**
-    ```bash
-    npm install
-    ```
-    *Note: This project uses `npm` to manage dependencies like `jspdf`.*
+1. Open `chrome://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked** → select the `PocketResume` directory
 
-3.  **Load into Chrome:**
-    1.  Open Chrome and navigate to `chrome://extensions`.
-    2.  Enable **Developer mode** in the top right corner.
-    3.  Click **Load unpacked** in the top left.
-    4.  Select the `PocketResume` directory (the folder containing `manifest.json`).
+## Setup
 
-## Configuration
-
-Before generating resumes, you need to set up your API key and profile:
-
-1.  Click the **PocketResume** extension icon in your toolbar.
-2.  Click the **Settings** (gear) icon, or right-click the extension icon and select **Options**.
-3.  **AI Provider Selection:** 
-    -   Click the icon of your preferred AI provider (OpenAI, Anthropic, Google Gemini, or OpenRouter).
-    -   Enter the API key for that provider.
-    -   Click "Set as Active Provider".
-4.  **User Profile:** 
-    -   Paste your master resume or a detailed professional summary into the resume text area.
-    -   Include your work history, education, skills, and projects. The more detail you provide here, the better the AI can tailor the result.
-5.  **Cover Letter Toggle:**
-    -   Enable or disable the "Generate Cover Letter" toggle to automatically generate a cover letter alongside your resume.
-6.  Click **Save**. PocketResume will save your profile and extract the structured JSON profile automatically when needed.
+1. Click the extension icon → gear icon (Settings)
+2. Select AI provider → paste API key → "Set as Active Provider"
+3. Paste your master resume into the profile text area → **Save**
+4. (Optional) Enable Cover Letter toggle, configure cloud sync
 
 ## Usage
 
-1.  Navigate to a job posting (e.g., LinkedIn, Indeed, company career page).
-2.  Click the **PocketResume** extension icon.
-3.  Select your desired resume style from the dropdown:
-    -   **FAANG:** Dense, metrics-heavy, technical skills first. Ideal for big tech.
-    -   **Professional:** Clean, balanced whitespace, standard corporate format.
-    -   **Double Sided:** Dense two-column layout with compact side content.
-    -   **Academic CV:** Multi-page academic/research CV format.
-4.  Click **Generate Resume**.
-5.  Wait for the AI to analyze the page and your profile (approx. 10-20 seconds for resume only, 20-40 seconds if cover letter is enabled).
-6.  The extension will automatically download the tailored resume as a PDF. If the cover letter toggle is enabled in Settings, a separate cover letter PDF will also be downloaded.
+1. Navigate to any job posting (LinkedIn, Indeed, company pages)
+2. Click PocketResume icon → choose resume style
+3. Click **Generate Resume**
+4. PDF downloads automatically
 
 ## Tech Stack
 
-- **Frontend:** HTML, CSS, JavaScript (Vanilla)
-- **AI Models:** Multiple providers supported (Gemini, OpenAI GPT-4o-mini, Anthropic Claude 3.5 Haiku, OpenRouter)
-- **PDF Generation:** jsPDF
-- **Chrome APIs:** Scripting, Storage, Tabs, ActiveTab
+- **Runtime:** Vanilla HTML/CSS/JS, Manifest V3
+- **PDF:** jsPDF
+- **AI:** Gemini, GPT-4o-mini, Claude 3.5 Haiku, OpenRouter
+- **Cloud:** Clerk auth, Convex realtime DB
+- **No bundler, no build step**
 
-## Contributing
+## Development
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+```bash
+# Install jsPDF dependency
+npm ci
+
+# Update vendored jsPDF
+npm install jspdf@latest
+cp node_modules/jspdf/dist/jspdf.umd.min.js libs/jspdf.umd.min.js
+```
+
+Edit source files directly, reload the extension in `chrome://extensions`.
+
+Debug targets:
+- **Service Worker:** extension card → "Service Worker" (Inspect)
+- **Popup:** right-click popup → Inspect
+- **Content Script:** target page's DevTools
 
 ## License
 
-This project is open source.
+Open source.
