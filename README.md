@@ -4,7 +4,7 @@ AI-powered Chrome extension that generates tailored resumes and cover letters fr
 
 ## Features
 
-- **6 Resume Layouts** — Professional, FAANG, Basic, Jake (double-sided), Deedy (double-column), and Academic CV
+- **4 Resume Layouts** — Professional, FAANG, Deedy (double-sided, dense two-column), and Academic CV
 - **4 AI Providers** — Google Gemini (`gemini-2.5-flash`), OpenAI (`gpt-4o-mini`), Anthropic (`claude-3-5-haiku`), OpenRouter
 - **Cover Letters** — Optional, single-page cover letter generated alongside your resume
 - **PDF Export** — Clean, print-ready PDFs via jsPDF for every layout
