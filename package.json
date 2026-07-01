@@ -8,6 +8,7 @@
     "esbuild": "^0.28.1"
   },
   "scripts": {
-    "build:clerk": "esbuild src/cloud-sync.js --bundle --outfile=cloud-sync.js --format=iife --platform=browser --target=es2022"
+    "build:clerk": "node scripts/build-clerk.mjs",
+    "clean": "rm -f cloud-sync.js && rm -rf convex/_generated"
   }
 }

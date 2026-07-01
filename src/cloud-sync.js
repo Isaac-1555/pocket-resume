@@ -13,11 +13,9 @@
     cloudOnboardingDismissedVersion: 'cloudOnboardingDismissedVersion',
   };
 
-  // App-owned cloud config.
-  // Replace these with your Clerk publishable key and Convex deployment URL before release.
   const CLOUD_CONFIG = {
-    clerkPublishableKey: 'pk_live_Y2xlcmsucG9ja2V0LXJlc3VtZS54eXok',
-    convexUrl: 'https://prestigious-vulture-441.convex.cloud',
+    clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY || '',
+    convexUrl: process.env.CONVEX_URL || '',
     requiredPlan: 'cloud_sync',
   };
 

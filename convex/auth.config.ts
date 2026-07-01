@@ -1,12 +1,19 @@
 import { AuthConfig } from 'convex/server';
 
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `${name} is required. Set it in .env.local (see .env.example) or via the Convex dashboard.`
+    );
+  }
+  return value;
+}
+
 export default {
   providers: [
     {
-      // Replace with your Clerk Frontend API URL
-      // e.g. https://my-app-123.clerk.accounts.dev
-      // Set CLERK_FRONTEND_API_URL env var or replace directly
-      domain: process.env.CLERK_FRONTEND_API_URL || 'https://touched-flamingo-72.clerk.accounts.dev',
+      domain: requireEnv('CLERK_FRONTEND_API_URL'),
       applicationID: 'convex',
     },
   ],

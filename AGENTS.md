@@ -1,20 +1,26 @@
 # AGENTS.md
 
-This file provides guidance to AI agents when working with code in this repository.
+This file provides guidance to AI coding agents and human contributors when working on this repository. It is intentionally public so contributors and AI tools can share a common operating manual.
 
 ## What this repo is
-PocketResume is a **Chrome Extension (Manifest V3)** built with **vanilla HTML/CSS/JS**. No bundler/build pipeline; edit source files and reload unpacked extension in Chrome.
+
+PocketResume is a **Chrome Extension (Manifest V3)** built with **vanilla HTML/CSS/JS**. No bundler / build pipeline for app code; the only build step is `esbuild` for the cloud-sync bundle. Edit source files, reload the unpacked extension in Chrome.
 
 Key runtime entrypoints (declared in `manifest.json`):
-- **Background service worker**: `background.js` (pipeline orchestration + AI API calls)
-- **Content script**: `content.js` (extracts page text)
-- **Popup UI**: `popup.html` + `popup.js` (user actions + PDF generation for PocketResume layouts)
-- **Options page**: `options.html` + `options.js` (API keys + multiple resumes + toggles)
-- **Resume renderers**: `resume-renderers.js` (Jake, Deedy, Academic CV PDF layouts)
+
+- **Background service worker**: `background.js` — pipeline orchestration + AI API calls
+- **Content script**: `content.js` — extracts page text from the active tab
+- **Popup UI**: `popup.html` + `popup.js` — user actions + PDF generation for PocketResume layouts
+- **Options page**: `options.html` + `options.js` — API keys + multiple resumes + toggles
+- **Resume renderers**: `resume-renderers.js` — Jake, Deedy, Academic CV PDF layouts
+- **Cloud sync (optional)**: `src/cloud-sync.js` (source) → `cloud-sync.js` (bundle, gitignored)
+- **Convex backend (optional)**: `convex/` — auth config + resume schema/functions
 
 ## Common commands
+
 ### Install JS deps
-The extension runs without Node at runtime, but the repo uses npm to manage dependencies (and update vendored jsPDF build).
+
+The extension runs without Node at runtime, but the repo uses npm to manage dependencies (and to bundle `cloud-sync.js` + update the vendored jsPDF build).
 
 ```sh
 npm ci
@@ -22,8 +28,19 @@ npm ci
 npm install
 ```
 
-### Update vendored jsPDF bundle
-`popup.html` loads jsPDF from `libs/jspdf.umd.min.js` (vendored). If you bump `jspdf`, copy built artifact into `libs/`.
+### Build cloud-sync bundle
+
+`src/cloud-sync.js` is bundled by esbuild into `cloud-sync.js` at the repo root (gitignored). Required env vars (`CLERK_PUBLISHABLE_KEY`, `CONVEX_URL`) are injected at build time. See `.env.example` and `package.json` → `scripts/build-clerk.mjs`.
+
+```sh
+cp .env.example .env.local
+# fill in your own Clerk + Convex values
+npm run build:clerk
+```
+
+### Update vendored jsPDF
+
+`popup.html` loads jsPDF from `libs/jspdf.umd.min.js` (vendored). If you bump `jspdf`, copy the built artifact into `libs/`.
 
 ```sh
 npm install jspdf@latest
@@ -31,87 +48,181 @@ cp node_modules/jspdf/dist/jspdf.umd.min.js libs/jspdf.umd.min.js
 ```
 
 ### Run / debug in Chrome
+
 No dev server.
-- Load as unpacked extension: `chrome://extensions` → Developer mode → **Load unpacked** → select repo root.
-- After edits, use **Reload** on extension card.
-- Debugging:
-  - **Service worker**: extension card → **Service worker** (Inspect)
-  - **Popup**: right-click popup → Inspect
-  - **Content script**: target page's DevTools console
+
+- Load as unpacked extension: `chrome://extensions` → Developer mode → **Load unpacked** → select repo root
+- After edits, click **Reload** on the extension card
+
+Debugging:
+
+- **Service Worker**: extension card → **Service worker** (Inspect)
+- **Popup**: right-click popup → Inspect
+- **Content Script**: target page's DevTools console
+
+### Convex backend (optional)
+
+```sh
+npx convex dev
+```
+
+Requires `CONVEX_DEPLOYMENT` in `.env.local`. Generated code goes to `convex/_generated/` (gitignored).
 
 ### Tests / lint
-None configured. No test runner or linter.
+
+None configured. No test runner or linter. Validate by hand: load unpacked, generate a resume with a real API key, inspect the PDF + the service worker console.
 
 ## High-level architecture
 
 ### Generation pipeline (main user flow)
+
 1. **User clicks "Generate" in popup** (`popup.js`).
 2. Popup calls `chrome.runtime.sendMessage({ type: 'START_GENERATION', payload: { tabId, resumeStyle, resumeId } })`.
 3. **Background service worker** (`background.js`) handles `START_GENERATION`:
    - Reads settings from `chrome.storage.local` (API key per provider, resumes, cover letter toggle).
    - Requests page content from content script via `GET_PAGE_CONTENT`. Falls back to injecting `content.js` via `chrome.scripting.executeScript(...)`.
-   - Calls AI provider:
-     - `callGemini(...)` generates resume as **strict JSON text**.
-     - If enabled, `callGeminiCoverLetter(...)` generates cover letter as **strict JSON text**.
+   - Calls the active AI provider:
+     - Resume generation as **strict JSON text** (no markdown fences)
+     - If cover letter is enabled, a second call generates the cover letter as **strict JSON text**
 4. Background replies: `{ status: 'success', data: <resumeJsonString>, coverLetterData: <coverLetterJsonString|null> }`.
 5. Popup:
    - Strips accidental Markdown fences.
    - `JSON.parse(...)` the model output.
-   - Generates/downloads PDFs via jsPDF:
-     - PocketResume layouts (basic/professional/faang): `generatePDF(...)` in `popup.js`.
-     - Alternative layouts (jake/deedy/academic-cv): `window.ResumeRenderers.generateResumePDF(...)` in `resume-renderers.js`.
-   - Cover letter: `generateCoverLetterPDF(...)` in `popup.js`.
+   - Generates / downloads PDFs via jsPDF:
+     - PocketResume layouts (basic / professional / faang): `generatePDF(...)` in `popup.js`
+     - Alternative layouts (jake / deedy / academic-cv): `window.ResumeRenderers.generateResumePDF(...)` in `resume-renderers.js`
+   - Cover letter: `generateCoverLetterPDF(...)` in `popup.js`
 
 ### Resume refinement flow
-1. User clicks "Refine Resume" on options page (`options.js`).
+
+1. User clicks "Refine Resume" on the options page (`options.js`).
 2. Options sends `REFINE_RESUME` to background with source text.
-3. Background calls `callGeminiResumeRefinement(...)` — rewrites source into cross-style master resume (no job description tailoring).
-4. Options shows side-by-side review panel with change summary and warnings.
-5. User can Apply (replaces source text) or Cancel. Undo restores last pre-refine backup.
+3. Background calls the provider's `*ResumeRefinement(...)` function — rewrites source into a cross-style master resume (no job-description tailoring).
+4. Options shows a side-by-side review panel with change summary and warnings.
+5. User can Apply (replaces source text) or Cancel. Undo restores the last pre-refine backup.
 
 ### Resume JSON extraction flow
-1. User clicks "Extract JSON" on options page.
-2. Options sends `EXTRACT_RESUME_JSON` to background with source text.
-3. Background calls `callGeminiResumeExtraction(...)` — extracts structured JSON profile from raw text.
-4. JSON is saved as `jsonContent` on the resume entry and persisted. Used as `jsonContent` in generation pipeline.
 
-## Resume styles & layout mapping (`getResumeStyleConfig` in background.js)
-| UI Style | promptStyle | layout | PDF Renderer |
-|---|---|---|---|
-| basic | basic | pocketresume | popup.js `generatePDF` |
-| professional | professional | pocketresume | popup.js `generatePDF` |
-| faang | faang | pocketresume | popup.js `generatePDF` |
-| jake | faang | jake | resume-renderers.js `renderJakeLayout` |
-| deedy | faang | deedy | resume-renderers.js `renderDeedyLayout` |
-| academic-cv | academic-cv | academic-cv | resume-renderers.js `renderAcademicCvLayout` |
+1. User clicks "Extract JSON" on the options page.
+2. Options sends `EXTRACT_RESUME_JSON` to background with source text.
+3. Background calls the provider's `*ResumeExtraction(...)` function — extracts structured JSON profile from raw text.
+4. JSON is saved as `jsonContent` on the resume entry and persisted. Used as `jsonContent` in the generation pipeline.
+
+## Resume styles & layout mapping
+
+Configured by `getResumeStyleConfig(...)` in `background.js`:
+
+| UI Style     | promptStyle  | layout       | PDF Renderer                                                       |
+| ------------ | ------------ | ------------ | ------------------------------------------------------------------ |
+| basic        | basic        | pocketresume | `popup.js` → `generatePDF`                                         |
+| professional | professional | pocketresume | `popup.js` → `generatePDF`                                         |
+| faang        | faang        | pocketresume | `popup.js` → `generatePDF`                                         |
+| jake         | faang        | jake         | `resume-renderers.js` → `renderJakeLayout`                         |
+| deedy        | faang        | deedy        | `resume-renderers.js` → `renderDeedyLayout`                        |
+| academic-cv  | academic-cv  | academic-cv  | `resume-renderers.js` → `renderAcademicCvLayout`                   |
 
 ## Settings + persistence
-Settings stored in `chrome.storage.local`, managed in `options.js`.
+
+Settings are stored in `chrome.storage.local`, managed in `options.js`.
 
 Important keys:
-- `apiProvider`: "google" | "openrouter" | "openai" | "anthropic"
+
+- `apiProvider`: `"google" | "openrouter" | "openai" | "anthropic"`
 - `geminiApiKey` / `openrouterApiKey` / `openaiApiKey` / `anthropicApiKey`: string
 - `resumes`: array of `{ id, label, content, jsonContent, lastRefineBackup, lastRefineAppliedAt }` (up to 3)
-- `selectedResumeId`: which resume is active in popup
-- `resumeType`: "basic" | "professional" | "faang" | "jake" | "deedy" | "academic-cv"
+- `selectedResumeId`: which resume is active in the popup
+- `resumeType`: `"basic" | "professional" | "faang" | "jake" | "deedy" | "academic-cv"`
 - `coverLetterEnabled`: boolean
+- `cloudSyncStatus`: `"idle" | "syncing" | "synced" | "error"` (cloud-sync feature only)
 
 Legacy migration: `userProfile` → `resumes[0].content`
 
 ## AI provider support
+
 Four providers supported, selected via `apiProvider`:
+
 - **Google Gemini**: model `gemini-2.5-flash`, API key from Google AI Studio
 - **OpenAI**: model `gpt-4o-mini`, API key from OpenAI Platform
 - **Anthropic**: model `claude-3-5-haiku-20241022`, API key from Anthropic Console
 - **OpenRouter**: model `openai/gpt-oss-120b:free`, API key from OpenRouter
 
-Each has matching `callGemini*` variants for all 3 pipelines (generation, cover letter, extraction, refinement).
+Each provider has matching `callGemini*` / `callOpenAI*` / `callAnthropic*` / `callOpenRouter*` variants for all 4 pipelines: generation, cover letter, extraction, refinement. Naming is historical — the function is selected at runtime based on `apiProvider`.
+
+## Cloud sync (optional feature)
+
+When enabled, resumes sync across devices via [Clerk](https://clerk.com) (auth) + [Convex](https://convex.dev) (backend).
+
+Architecture:
+
+- `src/cloud-sync.js` — IIFE source, bundled by esbuild → `cloud-sync.js` (gitignored)
+- `convex/auth.config.ts` — Clerk → Convex auth wiring; requires `CLERK_FRONTEND_API_URL` env var
+- `convex/schema.ts` — `resumes` table shape
+- `convex/resumes.ts` — `list`, `upsert`, `remove` queries/mutations
+
+Credentials are **never** hardcoded. The build step injects `CLERK_PUBLISHABLE_KEY` and `CONVEX_URL` from `.env.local` into the bundle. Contributors must set up their own Clerk + Convex accounts.
+
+## File layout
+
+```
+PocketResume/
+├── manifest.json            # Manifest V3 entrypoint wiring
+├── background.js            # Service worker: pipeline + AI calls
+├── content.js               # Content script: page text extraction
+├── popup.html / popup.js    # Popup UI + PocketResume PDF generation
+├── options.html / options.js# Settings: API keys, resumes, toggles
+├── resume-renderers.js      # Jake / Deedy / Academic CV PDF layouts
+├── src/cloud-sync.js        # Cloud sync source (bundled → cloud-sync.js)
+├── cloud-sync.js            # [generated, gitignored] esbuild bundle
+├── convex/                  # Convex backend
+│   ├── auth.config.ts
+│   ├── schema.ts
+│   ├── resumes.ts
+│   └── _generated/          # [generated, gitignored]
+├── libs/jspdf.umd.min.js    # Vendored jsPDF
+├── scripts/build-clerk.mjs  # Build script for cloud-sync bundle
+├── .env.example             # Template for .env.local
+├── AGENTS.md                # This file
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
+├── SECURITY.md
+├── LICENSE
+└── package.json             # Build scripts only (no runtime deps)
+```
 
 ## Where to make common product changes
-- **Change AI model, prompts, or JSON schema**: `background.js` (`callGemini`, `callGeminiCoverLetter`, `callGeminiResumeExtraction`, `callGeminiResumeRefinement`).
-- **Change what we extract from page**: `content.js` (`extractPageText`) and truncation in `background.js` line 818.
+
+- **Change AI model, prompts, or JSON schema**: `background.js` (`callGemini*` / `callOpenAI*` / `callAnthropic*` / `callOpenRouter*`). Update the style config table above if the schema or layout mapping changes.
+- **Change what we extract from a page**: `content.js` (`extractPageText`) and the truncation logic in `background.js`.
 - **Change PocketResume PDF layout**: `popup.js` (`generatePDF` / `generateCoverLetterPDF`).
-- **Change Jake/Deedy/Academic CV PDF layouts**: `resume-renderers.js` (`renderJakeLayout` / `renderDeedyLayout` / `renderAcademicCvLayout`).
+- **Change Jake / Deedy / Academic CV PDF layouts**: `resume-renderers.js` (`renderJakeLayout` / `renderDeedyLayout` / `renderAcademicCvLayout`).
 - **Change settings UI / resume management**: `options.js` / `options.html`.
 - **Change popup UI**: `popup.html` / `popup.js`.
 - **Change permissions or extension wiring**: `manifest.json`.
+- **Change cloud sync behavior**: `src/cloud-sync.js` (then `npm run build:clerk`).
+- **Change Convex schema or functions**: `convex/schema.ts`, `convex/resumes.ts`, `convex/auth.config.ts` (then `npx convex dev`).
+
+## Coding conventions
+
+- 4-space indentation across all JS / TS files (matches `background.js`).
+- Vanilla ES2022 JS, no TypeScript outside the `convex/` backend.
+- **No new comments in source files** unless behavior is non-obvious. The codebase intentionally ships minimal comments.
+- Match the style of the file you're editing — read surrounding context first.
+- Use `chrome.storage.local` for persistence; do not introduce new global state.
+
+## Common pitfalls
+
+- **JSON-only AI output** is a hard requirement. The popup parser will fail if the model returns markdown fences. If you change a prompt, validate with a real API call.
+- **Manifest `key` field is intentionally absent.** Chrome assigns a fresh extension ID on first load. Do not re-add it (it would lock all contributors to one ID).
+- **`host_permissions`** in `manifest.json` includes the Clerk + Convex domains contributors will need to override. Update both the manifest and this file if you add a new provider.
+- **Chrome extension service workers can be killed** between messages. Do not store in-memory state across calls — read from `chrome.storage.local` each time.
+- **Content script CSP**: avoid inline scripts / eval in `content.js`. The page's CSP applies.
+- **Do not commit** `cloud-sync.js` (build artifact), `convex/_generated/`, or anything from `.env.local`. See `.gitignore`.
+
+## Privacy posture
+
+PocketResume is privacy-first by default. See `privacy-policy.md` for the full policy. The Chrome extension:
+
+- Stores everything in `chrome.storage.local` unless the user explicitly enables cloud sync
+- Sends data only to the AI provider the user has selected
+- Requires the user to supply their own API key
+- Does not include telemetry, analytics, or third-party tracking

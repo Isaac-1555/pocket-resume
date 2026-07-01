@@ -3,6 +3,20 @@ node_modules/
 
 # Build output
 dist/
+cloud-sync.js
+
+# Convex build output
+convex/_generated/
+
+# Local env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
 
 # IDE
 .idea/
@@ -14,12 +28,11 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Local env
-.env.local
-
-# Logs
-*.log
-npm-debug.log*
-
 # TypeScript build info
 *.tsbuildinfo
+
+# Coverage
+coverage/
+
+# Local model artifacts (if any)
+models/
