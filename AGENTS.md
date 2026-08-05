@@ -84,14 +84,15 @@ None configured. No test runner or linter. Validate by hand: load unpacked, gene
    - Calls the active AI provider:
      - Resume generation as **strict JSON text** (no markdown fences)
      - If cover letter is enabled, a second call generates the cover letter as **strict JSON text**
-4. Background replies: `{ status: 'success', data: <resumeJsonString>, coverLetterData: <coverLetterJsonString|null> }`.
-5. Popup:
+4. Background replies: `{ status: 'success', data: <resumeJsonString>, coverLetterData: <coverLetterJsonString|null> }` or `{ status: 'error', message: <string> }`.
+5. Popup (success):
    - Strips accidental Markdown fences.
    - `JSON.parse(...)` the model output.
    - Generates / downloads PDFs via jsPDF:
      - PocketResume layouts (basic / professional / faang): `generatePDF(...)` in `popup.js`
      - Alternative layouts (jake / deedy / academic-cv): `window.ResumeRenderers.generateResumePDF(...)` in `resume-renderers.js`
    - Cover letter: `generateCoverLetterPDF(...)` in `popup.js`
+6. Popup (error): `setError()` stores the raw message, maps it to a short human-readable string via `mapErrorMessage(...)`, and persists the red `data-status="error"` state until the popup closes or Generate is clicked again. It also reveals the "?" button (`#errorInfoBtn`), which opens the error modal (`#errorModal`) with the mapped message plus a Copy Details button for the full raw error.
 
 ### Resume refinement flow
 
@@ -197,6 +198,7 @@ PocketResume/
 - **Change Jake / Deedy / Academic CV PDF layouts**: `resume-renderers.js` (`renderJakeLayout` / `renderDeedyLayout` / `renderAcademicCvLayout`).
 - **Change settings UI / resume management**: `options.js` / `options.html`.
 - **Change popup UI**: `popup.html` / `popup.js`.
+- **Change popup error messages / mapping**: `popup.js` (`setError` / `mapErrorMessage`). The keyword-based map turns long provider errors into short friendly strings; un-matched messages truncate to ~200 chars.
 - **Change permissions or extension wiring**: `manifest.json`.
 - **Change cloud sync behavior**: `src/cloud-sync.js` (then `npm run build:clerk`).
 - **Change Convex schema or functions**: `convex/schema.ts`, `convex/resumes.ts`, `convex/auth.config.ts` (then `npx convex dev`).

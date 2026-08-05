@@ -11,6 +11,7 @@
 - **4 Resume Layouts** — Professional, FAANG, Deedy (double-sided, dense two-column), Academic CV
 - **4 AI Providers** — Google Gemini (`gemini-2.5-flash`), OpenAI (`gpt-4o-mini`), Anthropic (`claude-3-5-haiku`), OpenRouter
 - **Cover Letters** — Optional, single-page cover letter generated alongside your resume
+- **Clear Error Reporting** — Generation failures keep the popup red until you close it or retry; a "?" button opens a human-readable error message with copyable raw details
 - **PDF Export** — Clean, print-ready PDFs via jsPDF for every layout
 - **Refine Resume** — AI polishes your master resume with change summary + warnings, side-by-side review before applying
 - **Extract JSON** — Converts freeform resume text into structured JSON profile
@@ -46,6 +47,8 @@ npm install
 2. Click PocketResume icon → choose resume style
 3. Click **Generate Resume**
 4. PDF downloads automatically
+
+If generation fails, the popup stays red — click the **?** button (top right) to see a readable error message with the option to copy the full raw details. The error clears when you close the popup or click **Generate Resume** again.
 
 ## Configuration
 
