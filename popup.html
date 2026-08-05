@@ -72,6 +72,10 @@
       }
     }
 
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
     /* ============================
        Base / Background
        ============================ */
@@ -96,11 +100,43 @@
        Header
        ============================ */
     .app-header {
+      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 6px;
       margin-bottom: 18px;
+    }
+
+    .error-info-btn {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      border: 1px solid rgba(255, 107, 94, 0.4);
+      border-radius: 50%;
+      background: rgba(217, 56, 44, 0.12);
+      color: var(--accent-start);
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1;
+      cursor: pointer;
+      transition: all var(--ease);
+      z-index: 5;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .error-info-btn:hover {
+      border-color: rgba(255, 107, 94, 0.7);
+      background: rgba(217, 56, 44, 0.2);
+    }
+
+    .error-info-btn:active {
+      transform: scale(0.94);
     }
 
     .logo-mark {
@@ -684,6 +720,10 @@
       filter: none;
     }
 
+    body[data-status="generating"] #generateBtn svg {
+      animation: spin 1s linear infinite;
+    }
+
     /* ============================
        Settings Row
        ============================ */
@@ -834,6 +874,12 @@
       line-height: 1.5;
     }
 
+    .error-message {
+      max-height: 180px;
+      overflow-y: auto;
+      word-break: break-word;
+    }
+
     .onboarding-features {
       list-style: none;
       padding: 0;
@@ -925,6 +971,7 @@
     </div>
     <h1>PocketResume</h1>
     <p class="app-subtitle">One Click. One Tailored Resume.</p>
+    <button id="errorInfoBtn" class="error-info-btn" type="button" aria-label="Show error details">?</button>
   </header>
 
   <div id="cloudAccountCard" class="cloud-account-card" style="display: none;">
@@ -1024,6 +1071,22 @@
       <div class="onboarding-actions">
         <button id="cloudOnboardingSetupBtn" class="cloud-primary-btn">Set Up Cloud Sync</button>
         <button id="cloudOnboardingDismissBtn" class="cloud-secondary-btn">Not Now</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Details Modal -->
+  <div id="errorModal" class="onboarding-modal" style="display: none;">
+    <div id="errorBackdrop" class="onboarding-backdrop"></div>
+    <div class="onboarding-card">
+      <div class="onboarding-icon" aria-hidden="true">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+      </div>
+      <h2>Something went wrong</h2>
+      <p id="errorMessageText" class="error-message"></p>
+      <div class="onboarding-actions">
+        <button id="errorCopyBtn" class="cloud-secondary-btn">Copy Details</button>
+        <button id="errorCloseBtn" class="cloud-primary-btn">Got it</button>
       </div>
     </div>
   </div>

@@ -16,6 +16,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const cloudMenuAuthBtn = document.getElementById('cloudMenuAuthBtn');
   const cloudMenuPlansBtn = document.getElementById('cloudMenuPlansBtn');
   const cloudSignInBtn = document.getElementById('cloudSignInBtn');
+  const errorInfoBtn = document.getElementById('errorInfoBtn');
+  const errorModal = document.getElementById('errorModal');
+  const errorBackdrop = document.getElementById('errorBackdrop');
+  const errorMessageText = document.getElementById('errorMessageText');
+  const errorCopyBtn = document.getElementById('errorCopyBtn');
+  const errorCloseBtn = document.getElementById('errorCloseBtn');
 
   // --- Cover Letter Toggle ---
   chrome.storage.local.get(['coverLetterEnabled'], (data) => {
@@ -153,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         setTimeout(updateCloudAccountState, 500);
       } catch (error) {
-        setStatus('error');
+        setError(error?.message || 'Cloud sync error. Please try again.');
       }
     });
   }
@@ -248,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (provider === 'anthropic' && data.anthropicApiKey) hasApiKey = true;
 
     if (!hasApiKey || !hasResumes) {
-      setStatus('error', true);
+      setError(!hasApiKey ? 'No API key set. Open Settings to add one.' : 'No resume content found. Open Settings to add your resume.');
       generateBtn.disabled = true;
     }
 
@@ -323,6 +329,10 @@ document.addEventListener('DOMContentLoaded', () => {
   generateBtn.addEventListener('click', async () => {
     // UI Reset
     generateBtn.disabled = true;
+    lastError = '';
+    lastErrorRaw = '';
+    if (errorInfoBtn) errorInfoBtn.style.display = 'none';
+    closeErrorModal();
     const selectedStyle = normalizeResumeStyle(resumeType.value || 'professional');
     resumeType.value = selectedStyle;
     const styleConfig = getResumeStyleConfig(selectedStyle);
@@ -343,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, (response) => {
       
       if (chrome.runtime.lastError) {
-        setStatus('error');
+        setError(chrome.runtime.lastError.message || 'Could not reach the background service. Please try again.');
         generateBtn.disabled = false;
         return;
       }
@@ -383,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (clError) {
               console.error("Cover Letter JSON Parse Error:", clError);
               console.log("Raw CL Data:", response.coverLetterData);
-              setStatus('error');
+              setError(clError.message || 'Cover letter generation failed. Please try again.');
             }
           } else {
             setStatus('success');
@@ -391,16 +401,18 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
           console.error("JSON Parse Error:", e);
           console.log("Raw Data:", response.data);
-          setStatus('error');
+          setError(e.message || 'Could not read the generated resume. Please try again.');
         }
       } else {
-        setStatus('error');
+        setError(response?.message || 'Something went wrong. Please try again.');
       }
       generateBtn.disabled = false;
     });
   });
 
   let statusTimer = null;
+  let lastError = '';
+  let lastErrorRaw = '';
 
   function setStatus(state, persist = false) {
     document.body.dataset.status = state;
@@ -408,11 +420,88 @@ document.addEventListener('DOMContentLoaded', () => {
       clearTimeout(statusTimer);
       statusTimer = null;
     }
-    if (persist || state === 'generating') return;
+    if (persist || state === 'generating' || state === 'error') return;
     statusTimer = setTimeout(() => {
       document.body.dataset.status = 'idle';
       statusTimer = null;
     }, 4000);
+  }
+
+  function mapErrorMessage(raw) {
+    const msg = (raw || '').trim();
+    if (!msg) return 'Something went wrong. Please try again.';
+    const lower = msg.toLowerCase();
+
+    if (/api key|apikey|set your api|enter.*api/i.test(lower)) {
+      return 'No API key set. Open Settings to add one.';
+    }
+    if (/resume\/profile content|add your resume|userprofile|profile content/i.test(lower)) {
+      return 'No resume content found. Open Settings to add your resume.';
+    }
+    if (/invalid.*key|401|403|unauthorized|forbidden|not valid|authentication/i.test(lower)) {
+      return 'Invalid or unauthorized API key. Check your key in Settings.';
+    }
+    if (/429|rate limit|quota|exhausted|too many requests/i.test(lower)) {
+      return 'Rate limit reached. Try again in a moment.';
+    }
+    if (/failed to fetch|network|cors|fetch failed|connection|timeout|unable to connect/i.test(lower)) {
+      return 'Network error. Check your connection and try again.';
+    }
+    if (/parse|invalid json|unexpected token|json/i.test(lower)) {
+      return 'Model returned invalid data. Please try again.';
+    }
+    if (/500|502|503|504|server error|overloaded|bad gateway|internal/i.test(lower)) {
+      return 'Provider is having issues. Try again later.';
+    }
+    if (/safety|blocked|finishreason/i.test(lower)) {
+      return 'Model refused the request due to content safety filters.';
+    }
+
+    if (msg.length > 200) {
+      return msg.slice(0, 200) + '\u2026';
+    }
+    return msg;
+  }
+
+  function setError(message) {
+    lastErrorRaw = message || '';
+    lastError = mapErrorMessage(message);
+    if (errorInfoBtn) errorInfoBtn.style.display = 'flex';
+    setStatus('error');
+  }
+
+  function openErrorModal() {
+    if (!errorModal || !lastError) return;
+    if (errorMessageText) errorMessageText.textContent = lastError;
+    errorModal.style.display = 'flex';
+  }
+
+  function closeErrorModal() {
+    if (errorModal) errorModal.style.display = 'none';
+  }
+
+  if (errorInfoBtn && errorModal) {
+    errorInfoBtn.addEventListener('click', () => {
+      if (lastError) openErrorModal();
+    });
+    if (errorBackdrop) errorBackdrop.addEventListener('click', closeErrorModal);
+    if (errorCloseBtn) errorCloseBtn.addEventListener('click', closeErrorModal);
+    if (errorCopyBtn) {
+      errorCopyBtn.addEventListener('click', async () => {
+        const text = lastErrorRaw || lastError;
+        try {
+          await navigator.clipboard.writeText(text);
+          const original = errorCopyBtn.textContent;
+          errorCopyBtn.textContent = 'Copied!';
+          setTimeout(() => { errorCopyBtn.textContent = original; }, 1500);
+        } catch (e) {
+          console.error('Copy failed:', e);
+        }
+      });
+    }
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeErrorModal();
+    });
   }
 
   function generatePDF(data, type) {
