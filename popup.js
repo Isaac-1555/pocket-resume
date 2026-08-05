@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const cloudAccountMenu = document.getElementById('cloudAccountMenu');
   const cloudMenuAuthBtn = document.getElementById('cloudMenuAuthBtn');
   const cloudMenuPlansBtn = document.getElementById('cloudMenuPlansBtn');
+  const cloudSignInBtn = document.getElementById('cloudSignInBtn');
 
   // --- Cover Letter Toggle ---
   chrome.storage.local.get(['coverLetterEnabled'], (data) => {
@@ -131,6 +132,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!cloudAccountCard.contains(event.target)) {
         cloudAccountMenu.classList.remove('open');
       }
+    });
+  }
+
+  if (cloudSignInBtn && cloudAccountMenu) {
+    cloudSignInBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      cloudAccountMenu.classList.toggle('open');
     });
   }
 
@@ -293,7 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.type = 'button';
       btn.className = 'resume-selector-btn' + (resume.id === selectedResumeId ? ' active' : '');
       btn.title = resume.label || `Resume ${index + 1}`;
-      btn.innerHTML = `<span class="rs-number">${index + 1}</span><span class="rs-label">${escapeHtml(resume.label || `Resume ${index + 1}`)}</span>`;
+      btn.innerHTML = `<span class="rs-number"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span><span class="rs-label">${escapeHtml(resume.label || `Resume ${index + 1}`)}</span>`;
       btn.addEventListener('click', () => {
         selectedResumeId = resume.id;
         chrome.storage.local.set({ selectedResumeId: resume.id });
