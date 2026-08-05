@@ -3,7 +3,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const generateBtn = document.getElementById('generateBtn');
   const settingsBtn = document.getElementById('settingsBtn');
   const resumeType = document.getElementById('resumeType');
-  const statusDiv = document.getElementById('status');
   const resumeSelectorDiv = document.getElementById('resumeSelector');
   const coverLetterToggle = document.getElementById('coverLetterToggle');
   const cloudAccountCard = document.getElementById('cloudAccountCard');
@@ -154,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         setTimeout(updateCloudAccountState, 500);
       } catch (error) {
-        showStatus(error.message || 'Cloud account action failed.', 'error');
+        setStatus('error');
       }
     });
   }
@@ -249,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (provider === 'anthropic' && data.anthropicApiKey) hasApiKey = true;
 
     if (!hasApiKey || !hasResumes) {
-      showStatus("Please configure your API Key and Profile in Settings first.", "error");
+      setStatus('error', true);
       generateBtn.disabled = true;
     }
 
@@ -328,15 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     resumeType.value = selectedStyle;
     const styleConfig = getResumeStyleConfig(selectedStyle);
 
-    // Check toggles to show appropriate status
-    const settings = await chrome.storage.local.get(['coverLetterEnabled']);
-    const coverLetterEnabled = !!settings.coverLetterEnabled;
-
-    if (coverLetterEnabled) {
-      showStatus("Generating resume and cover letter... This may take 20-40 seconds.", "loading");
-    } else {
-      showStatus("Capturing page and generating resume... This may take 10-20 seconds.", "loading");
-    }
+    setStatus('generating');
 
     // Get current tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -352,7 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, (response) => {
       
       if (chrome.runtime.lastError) {
-        showStatus("Error: " + chrome.runtime.lastError.message, "error");
+        setStatus('error');
         generateBtn.disabled = false;
         return;
       }
@@ -388,31 +379,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
               const coverLetterParsed = JSON.parse(rawCL);
               generateCoverLetterPDF(coverLetterParsed);
-              showStatus("Resume and cover letter downloaded successfully!", "success");
+              setStatus('success');
             } catch (clError) {
               console.error("Cover Letter JSON Parse Error:", clError);
               console.log("Raw CL Data:", response.coverLetterData);
-              showStatus("Resume downloaded. Cover letter parsing failed - please try again.", "error");
+              setStatus('error');
             }
           } else {
-            showStatus("Resume downloaded successfully!", "success");
+            setStatus('success');
           }
         } catch (e) {
           console.error("JSON Parse Error:", e);
           console.log("Raw Data:", response.data);
-          showStatus("Error parsing generated resume. Please try again.", "error");
+          setStatus('error');
         }
       } else {
-        showStatus("Error: " + (response ? response.message : "Unknown error"), "error");
+        setStatus('error');
       }
       generateBtn.disabled = false;
     });
   });
 
-  function showStatus(text, type) {
-    statusDiv.textContent = text;
-    statusDiv.className = type; // loading, error, success
-    statusDiv.style.display = 'block';
+  let statusTimer = null;
+
+  function setStatus(state, persist = false) {
+    document.body.dataset.status = state;
+    if (statusTimer) {
+      clearTimeout(statusTimer);
+      statusTimer = null;
+    }
+    if (persist || state === 'generating') return;
+    statusTimer = setTimeout(() => {
+      document.body.dataset.status = 'idle';
+      statusTimer = null;
+    }, 4000);
   }
 
   function generatePDF(data, type) {

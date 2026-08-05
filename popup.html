@@ -30,6 +30,49 @@
     }
 
     /* ============================
+       Status-Driven Accent States
+       (conveyed by color, no toast)
+       ============================ */
+    body[data-status="generating"] {
+      --accent-start: #4a9eff;
+      --accent-end: #1664d9;
+      --accent-gradient: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+      --cta-gradient: linear-gradient(135deg, #4a9eff, #1664d9);
+      --cta-text: #ffffff;
+      --cta-shadow: 0 10px 24px rgba(22, 100, 217, 0.45);
+      --selected-shadow: 0 4px 14px rgba(22, 100, 217, 0.25);
+    }
+
+    body[data-status="success"] {
+      --accent-start: #34d399;
+      --accent-end: #0ea371;
+      --accent-gradient: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+      --cta-gradient: linear-gradient(135deg, #34d399, #0ea371);
+      --cta-text: #06281c;
+      --cta-shadow: 0 10px 24px rgba(14, 163, 113, 0.4);
+      --selected-shadow: 0 4px 14px rgba(14, 163, 113, 0.22);
+    }
+
+    body[data-status="error"] {
+      --accent-start: #ff6b5e;
+      --accent-end: #d9382c;
+      --accent-gradient: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+      --cta-gradient: linear-gradient(135deg, #ff6b5e, #d9382c);
+      --cta-text: #ffffff;
+      --cta-shadow: 0 10px 24px rgba(217, 56, 44, 0.45);
+      --selected-shadow: 0 4px 14px rgba(217, 56, 44, 0.22);
+    }
+
+    @keyframes statusPulse {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(74, 158, 255, 0.5);
+      }
+      50% {
+        box-shadow: 0 0 0 12px rgba(74, 158, 255, 0);
+      }
+    }
+
+    /* ============================
        Base / Background
        ============================ */
     body {
@@ -69,6 +112,14 @@
       align-items: center;
       justify-content: center;
       box-shadow: 0 6px 16px rgba(201, 96, 28, 0.25);
+      overflow: hidden;
+    }
+
+    .logo-mark img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
     }
 
     h1 {
@@ -621,6 +672,18 @@
       transform: none;
     }
 
+    body[data-status="generating"] #generateBtn {
+      background: var(--cta-gradient);
+      color: var(--cta-text);
+      box-shadow: 0 0 0 0 rgba(74, 158, 255, 0.5);
+      cursor: wait;
+      animation: statusPulse 1.4s ease-out infinite;
+    }
+
+    body[data-status="generating"] #generateBtn:hover {
+      filter: none;
+    }
+
     /* ============================
        Settings Row
        ============================ */
@@ -656,41 +719,6 @@
     #settingsBtn .settings-chevron {
       margin-left: auto;
       display: flex;
-    }
-
-    /* ============================
-       Status Messages
-       ============================ */
-    #status {
-      margin-top: 14px;
-      padding: 10px 14px;
-      border-radius: var(--radius-md);
-      font-size: 12px;
-      display: none;
-      line-height: 1.4;
-      position: relative;
-      z-index: 1;
-      background: var(--card-bg);
-      border: 1px solid var(--border-soft);
-      color: var(--text-secondary);
-    }
-
-    #status.loading {
-      border-color: rgba(240, 160, 75, 0.35);
-      background: rgba(240, 160, 75, 0.08);
-      color: var(--accent-start);
-    }
-
-    #status.error {
-      border-color: rgba(255, 69, 58, 0.35);
-      background: rgba(255, 69, 58, 0.08);
-      color: #ff8a7e;
-    }
-
-    #status.success {
-      border-color: rgba(48, 209, 88, 0.35);
-      background: rgba(48, 209, 88, 0.08);
-      color: #6ee7a0;
     }
 
     /* ============================
@@ -890,10 +918,10 @@
     }
   </style>
 </head>
-<body>
+<body data-status="idle">
   <header class="app-header">
     <div class="logo-mark" aria-hidden="true">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a1210" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>
+      <img src="icon.png" alt="">
     </div>
     <h1>PocketResume</h1>
     <p class="app-subtitle">One Click. One Tailored Resume.</p>
@@ -977,8 +1005,6 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
     </span>
   </button>
-
-  <div id="status"></div>
 
   <!-- Cloud Sync Onboarding Modal -->
   <div id="cloudOnboardingModal" class="onboarding-modal" style="display: none;">
