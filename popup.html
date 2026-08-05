@@ -7,100 +7,205 @@
        Design System Tokens
        ============================ */
     :root {
-      --bg: #07020D;
-      --font: #FFFDED;
-      --primary: #FF8600;
-      --secondary: #A29F15;
+      --bg-gradient: linear-gradient(180deg, #181211 0%, #0d0908 100%);
+      --card-bg: #1c1512;
+      --border-soft: rgba(255, 255, 255, 0.07);
+      --border-soft-strong: rgba(255, 255, 255, 0.10);
+      --text-primary: #f5efe9;
+      --text-secondary: #f0e8e0;
+      --text-muted: #8a7d72;
+      --text-faint: #6f6459;
+      --accent-start: #f0a04b;
+      --accent-end: #c9601c;
+      --accent-gradient: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+      --cta-gradient: linear-gradient(135deg, #f4ac57, #d9691f);
+      --cta-text: #241205;
+      --cta-shadow: 0 10px 24px rgba(217, 105, 31, 0.35);
+      --selected-shadow: 0 4px 14px rgba(201, 96, 28, 0.18);
 
-      --glass-bg: rgba(255, 255, 255, 0.06);
-      --glass-border: rgba(255, 255, 255, 0.1);
-      --glass-hover: rgba(255, 255, 255, 0.1);
-      --glass-active: rgba(255, 134, 0, 0.15);
-      --glass-blur: blur(20px);
-      --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-      --glass-inner-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-
+      --card-hover: #241b17;
       --radius-sm: 8px;
       --radius-md: 12px;
-      --radius-lg: 16px;
-      --radius-full: 999px;
-
-      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-      --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      --ease: 150ms ease;
     }
 
     /* ============================
-       Global / Background
+       Status-Driven Accent States
+       (conveyed by color, no toast)
+       ============================ */
+    body[data-status="generating"] {
+      --accent-start: #4a9eff;
+      --accent-end: #1664d9;
+      --accent-gradient: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+      --cta-gradient: linear-gradient(135deg, #4a9eff, #1664d9);
+      --cta-text: #ffffff;
+      --cta-shadow: 0 10px 24px rgba(22, 100, 217, 0.45);
+      --selected-shadow: 0 4px 14px rgba(22, 100, 217, 0.25);
+    }
+
+    body[data-status="success"] {
+      --accent-start: #34d399;
+      --accent-end: #0ea371;
+      --accent-gradient: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+      --cta-gradient: linear-gradient(135deg, #34d399, #0ea371);
+      --cta-text: #06281c;
+      --cta-shadow: 0 10px 24px rgba(14, 163, 113, 0.4);
+      --selected-shadow: 0 4px 14px rgba(14, 163, 113, 0.22);
+    }
+
+    body[data-status="error"] {
+      --accent-start: #ff6b5e;
+      --accent-end: #d9382c;
+      --accent-gradient: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+      --cta-gradient: linear-gradient(135deg, #ff6b5e, #d9382c);
+      --cta-text: #ffffff;
+      --cta-shadow: 0 10px 24px rgba(217, 56, 44, 0.45);
+      --selected-shadow: 0 4px 14px rgba(217, 56, 44, 0.22);
+    }
+
+    @keyframes statusPulse {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(74, 158, 255, 0.5);
+      }
+      50% {
+        box-shadow: 0 0 0 12px rgba(74, 158, 255, 0);
+      }
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ============================
+       Base / Background
        ============================ */
     body {
       width: 360px;
-      padding: 20px;
+      padding: 22px 18px;
       margin: 0;
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--font);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+      background: var(--bg-gradient);
+      color: var(--text-primary);
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
-      position: relative;
+      border-radius: 20px;
       overflow-x: hidden;
     }
 
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background:
-        radial-gradient(ellipse 100% 80% at 30% 20%, rgba(255, 134, 0, 0.15), transparent 60%),
-        radial-gradient(ellipse 80% 100% at 70% 80%, rgba(162, 159, 21, 0.1), transparent 60%),
-        radial-gradient(ellipse 70% 70% at 50% 50%, rgba(120, 80, 200, 0.08), transparent 60%);
-      background-size: 200% 200%;
-      animation: bgShift 24s ease-in-out infinite alternate;
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    @keyframes bgShift {
-      0%   { background-position: 0% 0%; }
-      33%  { background-position: 100% 0%; }
-      66%  { background-position: 50% 100%; }
-      100% { background-position: 0% 0%; }
+    button {
+      font-family: inherit;
     }
 
     /* ============================
        Header
        ============================ */
-    h1 {
-      font-size: 22px;
-      margin: 0 0 20px 0;
-      color: var(--font);
-      text-align: center;
-      font-weight: 700;
-      letter-spacing: -0.3px;
+    .app-header {
       position: relative;
-      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 18px;
     }
 
-    h1::after {
-      content: '';
+    .error-info-btn {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      border: 1px solid rgba(255, 107, 94, 0.4);
+      border-radius: 50%;
+      background: rgba(217, 56, 44, 0.12);
+      color: var(--accent-start);
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1;
+      cursor: pointer;
+      transition: all var(--ease);
+      z-index: 5;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .error-info-btn:hover {
+      border-color: rgba(255, 107, 94, 0.7);
+      background: rgba(217, 56, 44, 0.2);
+    }
+
+    .error-info-btn:active {
+      transform: scale(0.94);
+    }
+
+    .logo-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: var(--accent-gradient);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 16px rgba(201, 96, 28, 0.25);
+      overflow: hidden;
+    }
+
+    .logo-mark img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
       display: block;
-      width: 32px;
-      height: 3px;
-      background: var(--primary);
-      border-radius: 2px;
-      margin: 8px auto 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 500;
+      letter-spacing: -0.2px;
+      color: var(--text-primary);
+    }
+
+    .app-subtitle {
+      margin: 0;
+      font-size: 12px;
+      color: var(--text-muted);
     }
 
     /* ============================
-       Labels
+       Shared Card Treatment
        ============================ */
-    label {
-      display: block;
+    .cloud-account-card,
+    .custom-select__trigger,
+    .toggle-group {
+      background: var(--card-bg);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-md);
+    }
+
+    /* ============================
+       Section Labels
+       ============================ */
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       margin-bottom: 8px;
-      font-weight: 600;
-      font-size: 12px;
-      color: rgba(255, 253, 237, 0.6);
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
+    }
+
+    .section-label svg {
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .section-label label {
+      display: block;
+      margin: 0;
+      font-weight: 500;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      letter-spacing: normal;
+      text-transform: none;
     }
 
     /* ============================
@@ -108,37 +213,24 @@
        ============================ */
     .cloud-account-card {
       position: relative;
-      margin-bottom: 16px;
-      padding: 12px;
-      border-radius: var(--radius-md);
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      border: 1px solid var(--glass-border);
-      box-shadow: var(--glass-shadow), var(--glass-inner-shadow);
-      overflow: visible;
-      z-index: 1;
+      margin-bottom: 12px;
+      padding: 12px 14px;
+      transition: all var(--ease);
     }
 
-    .cloud-account-card.inactive {
-      border-color: rgba(255, 255, 255, 0.05);
-      background: rgba(255, 255, 255, 0.03);
+    .cloud-account-card:hover {
+      border-color: var(--border-soft-strong);
+      background: var(--card-hover);
     }
 
-    .cloud-account-card.inactive::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      border-radius: var(--radius-md);
-      background: rgba(0, 0, 0, 0.3);
-      pointer-events: none;
-      z-index: 1;
+    .cloud-account-card.inactive .cloud-account-title {
+      color: var(--text-muted);
     }
 
     .cloud-account-row {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       position: relative;
       z-index: 2;
     }
@@ -146,71 +238,65 @@
     .cloud-account-copy {
       flex: 1;
       min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
 
     .cloud-account-title {
       margin: 0;
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--font);
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--text-secondary);
     }
 
     .cloud-account-subtitle {
-      margin: 2px 0 0;
-      font-size: 11px;
-      line-height: 1.35;
-      color: rgba(255, 253, 237, 0.5);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .cloud-account-card.inactive .cloud-account-title,
-    .cloud-account-card.inactive .cloud-account-subtitle {
-      color: rgba(255, 253, 237, 0.35);
+      margin: 0;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      display: none;
     }
 
     .cloud-plan-badge {
       display: inline-flex;
       align-items: center;
-      margin-top: 6px;
-      padding: 3px 8px;
-      border-radius: var(--radius-full);
-      background: rgba(48, 209, 88, 0.15);
-      color: #30D158;
-      font-size: 10px;
-      font-weight: 700;
+      gap: 6px;
+      font-size: 11.5px;
+      color: var(--text-muted);
     }
 
-    .cloud-plan-badge.inactive {
-      background: rgba(255, 255, 255, 0.05);
-      color: rgba(255, 253, 237, 0.35);
+    .cloud-plan-badge::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-faint);
     }
 
     .cloud-avatar-btn {
       flex: 0 0 auto;
-      width: 36px;
-      height: 36px;
+      width: 34px;
+      height: 34px;
       padding: 0;
-      border: 1px solid var(--glass-border);
+      border: 1px solid var(--border-soft-strong);
       border-radius: 50%;
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      color: var(--font);
+      background: linear-gradient(180deg, #241b17, #171110);
       display: flex;
       align-items: center;
       justify-content: center;
       overflow: hidden;
       cursor: pointer;
-      transition: all 0.2s var(--ease-out);
+      transition: all var(--ease);
       position: relative;
       z-index: 3;
     }
 
     .cloud-avatar-btn:hover {
-      border-color: rgba(255, 134, 0, 0.5);
-      transform: scale(1.05);
+      border-color: rgba(240, 160, 75, 0.5);
+    }
+
+    .cloud-avatar-btn:active {
+      transform: scale(0.98);
     }
 
     .cloud-avatar-btn img {
@@ -221,30 +307,50 @@
     }
 
     .cloud-avatar-initials {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--font);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .cloud-ghost-btn {
+      flex: 0 0 auto;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(240, 160, 75, 0.4);
+      background: transparent;
+      color: var(--accent-start);
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--ease);
+    }
+
+    .cloud-ghost-btn:hover {
+      border-color: rgba(240, 160, 75, 0.65);
+      background: rgba(240, 160, 75, 0.08);
+    }
+
+    .cloud-ghost-btn:active {
+      transform: scale(0.98);
     }
 
     .cloud-account-menu {
       position: absolute;
       top: 54px;
-      right: 10px;
+      right: 12px;
       z-index: 20;
       display: none;
-      width: 160px;
+      width: 168px;
       padding: 6px;
       border-radius: var(--radius-md);
-      background: rgba(7, 2, 13, 0.92);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      border: 1px solid var(--glass-border);
-      box-shadow: var(--glass-shadow);
+      background: #221a16;
+      border: 1px solid var(--border-soft-strong);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
     }
 
     .cloud-account-menu.open {
       display: block;
-      animation: menuIn 0.15s var(--ease-out);
+      animation: menuIn 150ms var(--ease);
     }
 
     @keyframes menuIn {
@@ -259,24 +365,24 @@
       border: none;
       border-radius: 7px;
       background: transparent;
-      color: var(--font);
+      color: var(--text-secondary);
       font-size: 13px;
       font-weight: 500;
       text-align: left;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: all var(--ease);
     }
 
     .cloud-menu-btn:hover {
-      background: rgba(255, 134, 0, 0.12);
-      color: var(--primary);
+      background: rgba(240, 160, 75, 0.1);
+      color: var(--accent-start);
     }
 
     /* ============================
        Control Group
        ============================ */
     .control-group {
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
 
     /* ============================
@@ -301,30 +407,42 @@
       align-items: center;
       justify-content: space-between;
       padding: 12px 14px;
-      font-size: 14px;
+      font-size: 13.5px;
       font-weight: 400;
-      color: var(--font);
+      color: var(--text-secondary);
       min-height: 44px;
       line-height: 20px;
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-sm);
       cursor: pointer;
-      transition: all 0.2s var(--ease-out);
-      box-shadow: var(--glass-inner-shadow);
+      transition: all var(--ease);
     }
 
     .custom-select__trigger:hover {
-      border-color: rgba(255, 134, 0, 0.4);
+      border-color: var(--border-soft-strong);
+      background: var(--card-hover);
     }
 
     .custom-select.open .custom-select__trigger {
-      border-color: rgba(255, 134, 0, 0.6);
+      border-color: rgba(240, 160, 75, 0.5);
       border-bottom-left-radius: 0;
       border-bottom-right-radius: 0;
-      background: rgba(255, 255, 255, 0.08);
+      background: var(--card-hover);
+    }
+
+    .arrow {
+      border: solid var(--text-muted);
+      border-width: 0 2px 2px 0;
+      display: inline-block;
+      padding: 3px;
+      transform: rotate(45deg);
+      transition: transform var(--ease);
+      margin-right: 2px;
+      margin-bottom: 2px;
+    }
+
+    .open .arrow {
+      transform: rotate(-135deg);
+      margin-bottom: -2px;
+      border-color: var(--accent-start);
     }
 
     .custom-options {
@@ -333,20 +451,18 @@
       top: 100%;
       left: 0;
       right: 0;
-      background: rgba(7, 2, 13, 0.92);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      border: 1px solid var(--glass-border);
+      background: var(--card-bg);
+      border: 1px solid var(--border-soft-strong);
       border-top: none;
-      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-      box-shadow: var(--glass-shadow);
+      border-radius: 0 0 var(--radius-md) var(--radius-md);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
       z-index: 10;
       overflow: hidden;
       transform: translateY(-8px);
-      transition: all 0.25s var(--ease-spring);
+      transition: all var(--ease);
     }
 
     .custom-select.open .custom-options {
@@ -360,48 +476,31 @@
       position: relative;
       display: block;
       padding: 10px 14px;
-      font-size: 14px;
+      font-size: 13.5px;
       font-weight: 400;
-      color: rgba(255, 253, 237, 0.65);
+      color: var(--text-muted);
       line-height: 20px;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: all var(--ease);
     }
 
     .custom-option:hover {
-      background: rgba(255, 134, 0, 0.1);
-      color: var(--font);
+      background: rgba(240, 160, 75, 0.08);
+      color: var(--text-secondary);
     }
 
     .custom-option.selected {
-      background: rgba(255, 134, 0, 0.08);
-      color: var(--primary);
-      font-weight: 600;
-    }
-
-    .arrow {
-      border: solid var(--font);
-      border-width: 0 2px 2px 0;
-      display: inline-block;
-      padding: 3px;
-      transform: rotate(45deg);
-      transition: transform 0.25s var(--ease-spring);
-      margin-right: 2px;
-      margin-bottom: 2px;
-    }
-
-    .open .arrow {
-      transform: rotate(-135deg);
-      margin-bottom: -2px;
-      border-color: var(--primary);
+      background: linear-gradient(135deg, rgba(240, 160, 75, 0.16), rgba(201, 96, 28, 0.08));
+      color: var(--accent-start);
+      font-weight: 500;
     }
 
     /* ============================
-       Resume Selector
+       Resume Selector (Segmented)
        ============================ */
     .resume-selector {
       display: flex;
-      gap: 8px;
+      gap: 12px;
       margin-bottom: 16px;
       position: relative;
       z-index: 1;
@@ -410,16 +509,14 @@
     .resume-selector-btn {
       flex: 1;
       padding: 10px 6px;
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-sm);
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      color: var(--font);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-md);
+      background: var(--card-bg);
+      color: var(--text-muted);
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s var(--ease-out);
+      transition: all var(--ease);
       text-align: center;
       white-space: nowrap;
       overflow: hidden;
@@ -430,24 +527,26 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      gap: 3px;
     }
 
     .resume-selector-btn:hover {
-      border-color: rgba(255, 134, 0, 0.4);
-      background: rgba(255, 134, 0, 0.06);
+      border-color: var(--border-soft-strong);
+      background: var(--card-hover);
     }
 
     .resume-selector-btn.active {
-      border-color: rgba(255, 134, 0, 0.6);
-      background: rgba(255, 134, 0, 0.12);
-      color: var(--primary);
-      font-weight: 600;
+      background: linear-gradient(135deg, rgba(240, 160, 75, 0.18), rgba(201, 96, 28, 0.10));
+      border: 1px solid rgba(240, 160, 75, 0.5);
+      box-shadow: var(--selected-shadow);
+      color: var(--accent-start);
     }
 
     .resume-selector-btn .rs-number {
-      display: block;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-size: 16px;
-      font-weight: 700;
       line-height: 1.2;
     }
 
@@ -455,70 +554,75 @@
       display: block;
       font-size: 10px;
       font-weight: 400;
-      color: rgba(255, 253, 237, 0.4);
-      margin-top: 2px;
+      color: var(--text-muted);
+      margin-top: 1px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      max-width: 100%;
     }
 
     .resume-selector-btn.active .rs-label {
-      color: rgba(255, 134, 0, 0.7);
+      color: rgba(240, 160, 75, 0.7);
     }
 
     .resume-selector-btn:hover .rs-label {
-      color: rgba(255, 253, 237, 0.6);
+      color: var(--text-secondary);
     }
 
     /* ============================
        Toggle Switch
        ============================ */
     .toggle-group {
-      margin-bottom: 16px;
+      margin-bottom: 12px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 12px;
       padding: 12px 14px;
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-sm);
-      transition: border-color 0.2s var(--ease-out);
-      box-shadow: var(--glass-inner-shadow);
+      transition: all var(--ease);
       position: relative;
       z-index: 1;
     }
 
     .toggle-group:hover {
-      border-color: rgba(255, 134, 0, 0.3);
+      border-color: var(--border-soft-strong);
+      background: var(--card-hover);
+    }
+
+    .toggle-icon {
+      display: flex;
+      flex-shrink: 0;
+      color: var(--text-muted);
     }
 
     .toggle-label {
+      flex: 1;
       display: flex;
       flex-direction: column;
       gap: 2px;
+      min-width: 0;
     }
 
     .toggle-label-text {
-      font-weight: 600;
-      font-size: 13px;
-      color: var(--font);
       margin: 0;
+      font-weight: 500;
+      font-size: 13.5px;
+      color: var(--text-secondary);
     }
 
     .toggle-label-desc {
-      font-size: 11px;
-      color: rgba(255, 253, 237, 0.5);
       margin: 0;
+      font-size: 11.5px;
+      color: var(--text-muted);
     }
 
     .toggle-switch {
       position: relative;
-      width: 42px;
-      height: 24px;
+      width: 38px;
+      height: 22px;
       flex-shrink: 0;
       margin-left: 12px;
+      cursor: pointer;
     }
 
     .toggle-switch input {
@@ -534,69 +638,61 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(255, 255, 255, 0.12);
-      border-radius: 24px;
-      transition: all 0.3s var(--ease-spring);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border: 1px solid var(--glass-border);
+      background: var(--card-bg);
+      border: 1px solid var(--border-soft-strong);
+      border-radius: 11px;
+      transition: all var(--ease);
     }
 
     .toggle-slider::before {
       content: "";
       position: absolute;
-      height: 18px;
-      width: 18px;
-      left: 2px;
-      bottom: 2px;
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
       background-color: #fff;
       border-radius: 50%;
-      transition: all 0.3s var(--ease-spring);
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+      transition: all var(--ease);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
     }
 
     .toggle-switch input:checked + .toggle-slider {
-      background: rgba(255, 134, 0, 0.6);
-      border-color: rgba(255, 134, 0, 0.4);
+      background: var(--accent-gradient);
+      border-color: transparent;
     }
 
     .toggle-switch input:checked + .toggle-slider::before {
-      transform: translateX(18px);
+      transform: translateX(16px);
     }
 
     /* ============================
-       Buttons
+       Primary CTA
        ============================ */
-    button {
+    #generateBtn {
       width: 100%;
-      padding: 12px;
+      padding: 14px;
       box-sizing: border-box;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--glass-border);
-      font-size: 14px;
-      font-weight: 600;
+      border: none;
+      border-radius: 14px;
+      background: var(--cta-gradient);
+      color: var(--cta-text);
+      box-shadow: var(--cta-shadow);
+      font-size: 14.5px;
+      font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s var(--ease-out);
+      transition: all var(--ease);
       position: relative;
       z-index: 1;
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    }
-
-    #generateBtn {
-      background: rgba(255, 134, 0, 0.15);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      color: var(--primary);
-      border-color: rgba(255, 134, 0, 0.3);
-      box-shadow: var(--glass-shadow), var(--glass-inner-shadow);
-      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 48px;
     }
 
     #generateBtn:hover {
-      background: rgba(255, 134, 0, 0.25);
-      border-color: rgba(255, 134, 0, 0.5);
-      transform: translateY(-1px);
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), var(--glass-inner-shadow);
+      filter: brightness(1.04);
     }
 
     #generateBtn:active {
@@ -604,66 +700,65 @@
     }
 
     #generateBtn:disabled {
-      background: rgba(255, 255, 255, 0.04);
-      color: rgba(255, 253, 237, 0.25);
-      border-color: var(--glass-border);
-      cursor: not-allowed;
-      transform: none;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-faint);
       box-shadow: none;
+      cursor: not-allowed;
+      filter: none;
+      transform: none;
     }
 
-    .secondary-btn {
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      color: rgba(255, 253, 237, 0.65);
-      border-color: var(--glass-border);
-      box-shadow: var(--glass-inner-shadow);
-      margin-top: 12px;
-      min-height: 44px;
+    body[data-status="generating"] #generateBtn {
+      background: var(--cta-gradient);
+      color: var(--cta-text);
+      box-shadow: 0 0 0 0 rgba(74, 158, 255, 0.5);
+      cursor: wait;
+      animation: statusPulse 1.4s ease-out infinite;
     }
 
-    .secondary-btn:hover {
-      background: var(--glass-hover);
-      color: var(--font);
-      transform: translateY(-1px);
+    body[data-status="generating"] #generateBtn:hover {
+      filter: none;
+    }
+
+    body[data-status="generating"] #generateBtn svg {
+      animation: spin 1s linear infinite;
     }
 
     /* ============================
-       Status Messages
+       Settings Row
        ============================ */
-    #status {
-      margin-top: 20px;
-      padding: 12px 14px;
-      border-radius: var(--radius-sm);
+    #settingsBtn {
+      width: 100%;
+      margin-top: 6px;
+      padding: 10px 12px;
+      box-sizing: border-box;
+      border: none;
+      border-radius: var(--radius-md);
+      background: transparent;
+      color: var(--text-muted);
       font-size: 13px;
-      display: none;
-      line-height: 1.4;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--ease);
       position: relative;
       z-index: 1;
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      border: 1px solid var(--glass-border);
-      box-shadow: var(--glass-inner-shadow);
-      color: var(--font);
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
-    #status.loading {
-      border-color: rgba(255, 134, 0, 0.3);
-      background: rgba(255, 134, 0, 0.08);
+    #settingsBtn:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-secondary);
     }
 
-    #status.error {
-      border-color: rgba(255, 69, 58, 0.3);
-      background: rgba(255, 69, 58, 0.08);
-      color: #FF453A;
+    #settingsBtn:active {
+      transform: scale(0.98);
     }
 
-    #status.success {
-      border-color: rgba(48, 209, 88, 0.3);
-      background: rgba(48, 209, 88, 0.08);
-      color: #30D158;
+    #settingsBtn .settings-chevron {
+      margin-left: auto;
+      display: flex;
     }
 
     /* ============================
@@ -680,26 +775,37 @@
       width: 100%;
       height: 200px;
       font-size: 11px;
-      padding: 0;
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-sm);
-      background: var(--glass-bg);
-      color: var(--font);
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      resize: vertical;
+      padding: 10px 12px;
       box-sizing: border-box;
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-md);
+      background: var(--card-bg);
+      color: var(--text-secondary);
+      font-family: inherit;
+      resize: vertical;
     }
 
     select {
-      background-color: var(--glass-bg);
-      color: var(--font);
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-sm);
+      background-color: var(--card-bg);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-md);
       width: 100%;
       padding: 12px;
       box-sizing: border-box;
-      font-size: 14px;
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 13.5px;
+      font-family: inherit;
+    }
+
+    /* ============================
+       Focus Visibility
+       ============================ */
+    button:focus-visible,
+    .custom-select__trigger:focus-visible,
+    .custom-option:focus-visible,
+    .resume-selector-btn:focus-visible {
+      outline: 2px solid var(--accent-start);
+      outline-offset: 2px;
     }
 
     /* ============================
@@ -723,24 +829,22 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0, 0, 0, 0.6);
+      background: rgba(13, 9, 8, 0.72);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
     }
 
     .onboarding-card {
       position: relative;
-      border-radius: var(--radius-lg);
+      border-radius: 16px;
       padding: 24px;
       max-width: 320px;
       margin: 16px;
-      background: rgba(20, 10, 30, 0.9);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      border: 1px solid var(--glass-border);
-      box-shadow: var(--glass-shadow);
+      background: var(--card-bg);
+      border: 1px solid var(--border-soft-strong);
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
       text-align: center;
-      animation: modalIn 0.3s var(--ease-spring);
+      animation: modalIn 300ms ease;
     }
 
     @keyframes modalIn {
@@ -749,22 +853,31 @@
     }
 
     .onboarding-icon {
-      font-size: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       margin-bottom: 12px;
+      color: var(--accent-start);
     }
 
     .onboarding-card h2 {
       font-size: 18px;
-      color: var(--font);
+      color: var(--text-primary);
       margin: 0 0 10px;
-      font-weight: 700;
+      font-weight: 500;
     }
 
     .onboarding-card p {
       font-size: 13px;
-      color: rgba(255, 253, 237, 0.55);
+      color: var(--text-muted);
       margin: 0 0 14px;
       line-height: 1.5;
+    }
+
+    .error-message {
+      max-height: 180px;
+      overflow-y: auto;
+      word-break: break-word;
     }
 
     .onboarding-features {
@@ -776,7 +889,7 @@
 
     .onboarding-features li {
       font-size: 12px;
-      color: rgba(255, 253, 237, 0.65);
+      color: var(--text-secondary);
       padding: 4px 0;
       padding-left: 18px;
       position: relative;
@@ -786,8 +899,8 @@
       content: '✓';
       position: absolute;
       left: 0;
-      color: var(--primary);
-      font-weight: bold;
+      color: var(--accent-start);
+      font-weight: 500;
     }
 
     .onboarding-actions {
@@ -797,60 +910,82 @@
     }
 
     .cloud-primary-btn {
-      background: rgba(255, 134, 0, 0.15);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      color: var(--primary);
-      border: 1px solid rgba(255, 134, 0, 0.3);
-      padding: 10px 16px;
-      border-radius: var(--radius-sm);
-      font-size: 14px;
-      font-weight: 600;
+      background: var(--cta-gradient);
+      color: var(--cta-text);
+      border: none;
+      padding: 11px 16px;
+      border-radius: var(--radius-md);
+      font-size: 13.5px;
+      font-weight: 500;
       cursor: pointer;
       width: 100%;
-      transition: all 0.2s var(--ease-out);
-      box-shadow: var(--glass-inner-shadow);
+      transition: all var(--ease);
+      box-shadow: var(--cta-shadow);
     }
 
     .cloud-primary-btn:hover {
-      background: rgba(255, 134, 0, 0.25);
-      border-color: rgba(255, 134, 0, 0.5);
+      filter: brightness(1.04);
+    }
+
+    .cloud-primary-btn:active {
+      transform: scale(0.98);
     }
 
     .cloud-secondary-btn {
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      color: rgba(255, 253, 237, 0.55);
-      border: 1px solid var(--glass-border);
-      padding: 8px 16px;
-      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border-soft-strong);
+      padding: 9px 16px;
+      border-radius: var(--radius-md);
       font-size: 13px;
+      font-weight: 500;
       cursor: pointer;
       width: 100%;
-      transition: all 0.2s var(--ease-out);
+      transition: all var(--ease);
     }
 
     .cloud-secondary-btn:hover {
-      background: var(--glass-hover);
-      color: var(--font);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-secondary);
+    }
+
+    .cloud-secondary-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* ============================
+       Reduced Motion
+       ============================ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0ms !important;
+        animation: none !important;
+      }
     }
   </style>
 </head>
-<body>
-  <h1>PocketResume</h1>
+<body data-status="idle">
+  <header class="app-header">
+    <div class="logo-mark" aria-hidden="true">
+      <img src="icon.png" alt="">
+    </div>
+    <h1>PocketResume</h1>
+    <p class="app-subtitle">One Click. One Tailored Resume.</p>
+    <button id="errorInfoBtn" class="error-info-btn" type="button" aria-label="Show error details">?</button>
+  </header>
 
   <div id="cloudAccountCard" class="cloud-account-card" style="display: none;">
     <div class="cloud-account-row">
+      <button id="cloudAvatarBtn" class="cloud-avatar-btn" type="button" aria-label="Cloud Sync account menu">
+        <img id="cloudAvatarImg" alt="">
+        <span id="cloudAvatarInitials" class="cloud-avatar-initials">?</span>
+      </button>
       <div class="cloud-account-copy">
         <p id="cloudAccountTitle" class="cloud-account-title">Cloud Sync</p>
         <p id="cloudAccountSubtitle" class="cloud-account-subtitle">Checking account...</p>
         <span id="cloudPlanBadge" class="cloud-plan-badge inactive">Cloud Sync inactive</span>
       </div>
-      <button id="cloudAvatarBtn" class="cloud-avatar-btn" type="button" aria-label="Cloud Sync account menu">
-        <img id="cloudAvatarImg" alt="">
-        <span id="cloudAvatarInitials" class="cloud-avatar-initials">?</span>
-      </button>
+      <button id="cloudSignInBtn" class="cloud-ghost-btn" type="button">Sign in</button>
     </div>
     <div id="cloudAccountMenu" class="cloud-account-menu">
       <button id="cloudMenuAuthBtn" class="cloud-menu-btn" type="button">Sign In</button>
@@ -859,8 +994,11 @@
   </div>
 
   <div class="control-group">
-    <label for="resumeType">Resume Style</label>
-    
+    <div class="section-label">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <label for="resumeType">Resume style</label>
+    </div>
+
     <select id="resumeType" style="display: none;">
       <option value="professional" selected>PocketResume — Professional (Corporate Standard)</option>
       <option value="faang">PocketResume — FAANG (Impact-Driven)</option>
@@ -870,7 +1008,7 @@
 
     <div class="custom-select-wrapper">
         <div class="custom-select">
-            <div class="custom-select__trigger">
+            <div class="custom-select__trigger" tabindex="0">
                 <span id="customSelectText">Professional (Corporate Standard)</span>
                 <div class="arrow"></div>
             </div>
@@ -888,9 +1026,10 @@
     <!-- Rendered dynamically by popup.js -->
   </div>
 
-
-
   <div class="toggle-group">
+    <span class="toggle-icon" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m2 7 10 7 10-7"/></svg>
+    </span>
     <div class="toggle-label">
       <p class="toggle-label-text">Cover Letter</p>
       <p class="toggle-label-desc">Also generate a cover letter</p>
@@ -901,16 +1040,26 @@
     </label>
   </div>
 
-  <button id="generateBtn">Generate PDF Resume</button>
-  <button id="settingsBtn" class="secondary-btn">Settings</button>
+  <button id="generateBtn" type="button">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9z"/></svg>
+    <span>Generate PDF Resume</span>
+  </button>
 
-  <div id="status"></div>
+  <button id="settingsBtn" type="button">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <span>Settings</span>
+    <span class="settings-chevron" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+    </span>
+  </button>
 
   <!-- Cloud Sync Onboarding Modal -->
   <div id="cloudOnboardingModal" class="onboarding-modal" style="display: none;">
     <div class="onboarding-backdrop"></div>
     <div class="onboarding-card">
-      <div class="onboarding-icon">☁️</div>
+      <div class="onboarding-icon" aria-hidden="true">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+      </div>
       <h2>Sync Your Resumes to the Cloud</h2>
       <p>Access your professional profiles across all your devices, plus a future web app. Your data stays private and secure.</p>
       <ul class="onboarding-features">
@@ -922,6 +1071,22 @@
       <div class="onboarding-actions">
         <button id="cloudOnboardingSetupBtn" class="cloud-primary-btn">Set Up Cloud Sync</button>
         <button id="cloudOnboardingDismissBtn" class="cloud-secondary-btn">Not Now</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Details Modal -->
+  <div id="errorModal" class="onboarding-modal" style="display: none;">
+    <div id="errorBackdrop" class="onboarding-backdrop"></div>
+    <div class="onboarding-card">
+      <div class="onboarding-icon" aria-hidden="true">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+      </div>
+      <h2>Something went wrong</h2>
+      <p id="errorMessageText" class="error-message"></p>
+      <div class="onboarding-actions">
+        <button id="errorCopyBtn" class="cloud-secondary-btn">Copy Details</button>
+        <button id="errorCloseBtn" class="cloud-primary-btn">Got it</button>
       </div>
     </div>
   </div>

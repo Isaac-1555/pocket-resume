@@ -3,7 +3,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const generateBtn = document.getElementById('generateBtn');
   const settingsBtn = document.getElementById('settingsBtn');
   const resumeType = document.getElementById('resumeType');
-  const statusDiv = document.getElementById('status');
   const resumeSelectorDiv = document.getElementById('resumeSelector');
   const coverLetterToggle = document.getElementById('coverLetterToggle');
   const cloudAccountCard = document.getElementById('cloudAccountCard');
@@ -16,6 +15,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const cloudAccountMenu = document.getElementById('cloudAccountMenu');
   const cloudMenuAuthBtn = document.getElementById('cloudMenuAuthBtn');
   const cloudMenuPlansBtn = document.getElementById('cloudMenuPlansBtn');
+  const cloudSignInBtn = document.getElementById('cloudSignInBtn');
+  const errorInfoBtn = document.getElementById('errorInfoBtn');
+  const errorModal = document.getElementById('errorModal');
+  const errorBackdrop = document.getElementById('errorBackdrop');
+  const errorMessageText = document.getElementById('errorMessageText');
+  const errorCopyBtn = document.getElementById('errorCopyBtn');
+  const errorCloseBtn = document.getElementById('errorCloseBtn');
 
   // --- Cover Letter Toggle ---
   chrome.storage.local.get(['coverLetterEnabled'], (data) => {
@@ -134,6 +140,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  if (cloudSignInBtn && cloudAccountMenu) {
+    cloudSignInBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      cloudAccountMenu.classList.toggle('open');
+    });
+  }
+
   if (cloudMenuAuthBtn) {
     cloudMenuAuthBtn.addEventListener('click', async () => {
       cloudAccountMenu.classList.remove('open');
@@ -146,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         setTimeout(updateCloudAccountState, 500);
       } catch (error) {
-        showStatus(error.message || 'Cloud account action failed.', 'error');
+        setError(error?.message || 'Cloud sync error. Please try again.');
       }
     });
   }
@@ -241,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (provider === 'anthropic' && data.anthropicApiKey) hasApiKey = true;
 
     if (!hasApiKey || !hasResumes) {
-      showStatus("Please configure your API Key and Profile in Settings first.", "error");
+      setError(!hasApiKey ? 'No API key set. Open Settings to add one.' : 'No resume content found. Open Settings to add your resume.');
       generateBtn.disabled = true;
     }
 
@@ -293,7 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.type = 'button';
       btn.className = 'resume-selector-btn' + (resume.id === selectedResumeId ? ' active' : '');
       btn.title = resume.label || `Resume ${index + 1}`;
-      btn.innerHTML = `<span class="rs-number">${index + 1}</span><span class="rs-label">${escapeHtml(resume.label || `Resume ${index + 1}`)}</span>`;
+      btn.innerHTML = `<span class="rs-number"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span><span class="rs-label">${escapeHtml(resume.label || `Resume ${index + 1}`)}</span>`;
       btn.addEventListener('click', () => {
         selectedResumeId = resume.id;
         chrome.storage.local.set({ selectedResumeId: resume.id });
@@ -316,19 +329,15 @@ document.addEventListener('DOMContentLoaded', () => {
   generateBtn.addEventListener('click', async () => {
     // UI Reset
     generateBtn.disabled = true;
+    lastError = '';
+    lastErrorRaw = '';
+    if (errorInfoBtn) errorInfoBtn.style.display = 'none';
+    closeErrorModal();
     const selectedStyle = normalizeResumeStyle(resumeType.value || 'professional');
     resumeType.value = selectedStyle;
     const styleConfig = getResumeStyleConfig(selectedStyle);
 
-    // Check toggles to show appropriate status
-    const settings = await chrome.storage.local.get(['coverLetterEnabled']);
-    const coverLetterEnabled = !!settings.coverLetterEnabled;
-
-    if (coverLetterEnabled) {
-      showStatus("Generating resume and cover letter... This may take 20-40 seconds.", "loading");
-    } else {
-      showStatus("Capturing page and generating resume... This may take 10-20 seconds.", "loading");
-    }
+    setStatus('generating');
 
     // Get current tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -344,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, (response) => {
       
       if (chrome.runtime.lastError) {
-        showStatus("Error: " + chrome.runtime.lastError.message, "error");
+        setError(chrome.runtime.lastError.message || 'Could not reach the background service. Please try again.');
         generateBtn.disabled = false;
         return;
       }
@@ -380,31 +389,119 @@ document.addEventListener('DOMContentLoaded', () => {
 
               const coverLetterParsed = JSON.parse(rawCL);
               generateCoverLetterPDF(coverLetterParsed);
-              showStatus("Resume and cover letter downloaded successfully!", "success");
+              setStatus('success');
             } catch (clError) {
               console.error("Cover Letter JSON Parse Error:", clError);
               console.log("Raw CL Data:", response.coverLetterData);
-              showStatus("Resume downloaded. Cover letter parsing failed - please try again.", "error");
+              setError(clError.message || 'Cover letter generation failed. Please try again.');
             }
           } else {
-            showStatus("Resume downloaded successfully!", "success");
+            setStatus('success');
           }
         } catch (e) {
           console.error("JSON Parse Error:", e);
           console.log("Raw Data:", response.data);
-          showStatus("Error parsing generated resume. Please try again.", "error");
+          setError(e.message || 'Could not read the generated resume. Please try again.');
         }
       } else {
-        showStatus("Error: " + (response ? response.message : "Unknown error"), "error");
+        setError(response?.message || 'Something went wrong. Please try again.');
       }
       generateBtn.disabled = false;
     });
   });
 
-  function showStatus(text, type) {
-    statusDiv.textContent = text;
-    statusDiv.className = type; // loading, error, success
-    statusDiv.style.display = 'block';
+  let statusTimer = null;
+  let lastError = '';
+  let lastErrorRaw = '';
+
+  function setStatus(state, persist = false) {
+    document.body.dataset.status = state;
+    if (statusTimer) {
+      clearTimeout(statusTimer);
+      statusTimer = null;
+    }
+    if (persist || state === 'generating' || state === 'error') return;
+    statusTimer = setTimeout(() => {
+      document.body.dataset.status = 'idle';
+      statusTimer = null;
+    }, 4000);
+  }
+
+  function mapErrorMessage(raw) {
+    const msg = (raw || '').trim();
+    if (!msg) return 'Something went wrong. Please try again.';
+    const lower = msg.toLowerCase();
+
+    if (/api key|apikey|set your api|enter.*api/i.test(lower)) {
+      return 'No API key set. Open Settings to add one.';
+    }
+    if (/resume\/profile content|add your resume|userprofile|profile content/i.test(lower)) {
+      return 'No resume content found. Open Settings to add your resume.';
+    }
+    if (/invalid.*key|401|403|unauthorized|forbidden|not valid|authentication/i.test(lower)) {
+      return 'Invalid or unauthorized API key. Check your key in Settings.';
+    }
+    if (/429|rate limit|quota|exhausted|too many requests/i.test(lower)) {
+      return 'Rate limit reached. Try again in a moment.';
+    }
+    if (/failed to fetch|network|cors|fetch failed|connection|timeout|unable to connect/i.test(lower)) {
+      return 'Network error. Check your connection and try again.';
+    }
+    if (/parse|invalid json|unexpected token|json/i.test(lower)) {
+      return 'Model returned invalid data. Please try again.';
+    }
+    if (/500|502|503|504|server error|overloaded|bad gateway|internal/i.test(lower)) {
+      return 'Provider is having issues. Try again later.';
+    }
+    if (/safety|blocked|finishreason/i.test(lower)) {
+      return 'Model refused the request due to content safety filters.';
+    }
+
+    if (msg.length > 200) {
+      return msg.slice(0, 200) + '\u2026';
+    }
+    return msg;
+  }
+
+  function setError(message) {
+    lastErrorRaw = message || '';
+    lastError = mapErrorMessage(message);
+    if (errorInfoBtn) errorInfoBtn.style.display = 'flex';
+    setStatus('error');
+  }
+
+  function openErrorModal() {
+    if (!errorModal || !lastError) return;
+    if (errorMessageText) errorMessageText.textContent = lastError;
+    errorModal.style.display = 'flex';
+  }
+
+  function closeErrorModal() {
+    if (errorModal) errorModal.style.display = 'none';
+  }
+
+  if (errorInfoBtn && errorModal) {
+    errorInfoBtn.addEventListener('click', () => {
+      if (lastError) openErrorModal();
+    });
+    if (errorBackdrop) errorBackdrop.addEventListener('click', closeErrorModal);
+    if (errorCloseBtn) errorCloseBtn.addEventListener('click', closeErrorModal);
+    if (errorCopyBtn) {
+      errorCopyBtn.addEventListener('click', async () => {
+        const text = lastErrorRaw || lastError;
+        try {
+          await navigator.clipboard.writeText(text);
+          const original = errorCopyBtn.textContent;
+          errorCopyBtn.textContent = 'Copied!';
+          setTimeout(() => { errorCopyBtn.textContent = original; }, 1500);
+        } catch (e) {
+          console.error('Copy failed:', e);
+        }
+      });
+    }
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeErrorModal();
+    });
   }
 
   function generatePDF(data, type) {
