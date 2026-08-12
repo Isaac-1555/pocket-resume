@@ -584,6 +584,78 @@
       font-size: 11px;
     }
 
+    .tracker-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-top: 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+    }
+
+    .tracker-toggle-text p {
+      margin: 0;
+      font-size: 12px;
+      color: var(--font);
+    }
+
+    .tracker-toggle-text small {
+      display: block;
+      margin-top: 3px;
+      font-size: 11px;
+      line-height: 1.45;
+      color: rgba(255, 253, 237, 0.55);
+    }
+
+    .toggle-switch {
+      position: relative;
+      flex-shrink: 0;
+      width: 40px;
+      height: 24px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-switch .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.2s var(--ease, ease);
+    }
+
+    .toggle-switch .toggle-slider::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 2.5px;
+      background: rgba(255, 253, 237, 0.75);
+      border-radius: 50%;
+      transition: transform 0.2s var(--ease, ease);
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background: #ff8600;
+      border-color: transparent;
+    }
+
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(16px);
+    }
+
     /* ============================
        Right Panel - Resume Tabs
        ============================ */
@@ -962,6 +1034,20 @@
           </div>
         </div>
       </details>
+
+      <div class="divider"></div>
+
+      <label>Job Tracker</label>
+      <div class="tracker-toggle-row">
+        <div class="tracker-toggle-text">
+          <p>Automatically capture jobs to the Tracker</p>
+          <small>When you generate a resume, save the job posting as a card on your Job Tracker board. Company, role, and recruiter are read from the resume generation — no extra AI call.</small>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="trackerCaptureToggle">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
 
       <div class="divider"></div>
 

@@ -24,8 +24,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const errorCloseBtn = document.getElementById('errorCloseBtn');
 
   // --- Cover Letter Toggle ---
-  chrome.storage.local.get(['coverLetterEnabled'], (data) => {
+  let trackerCaptureEnabled = true;
+  chrome.storage.local.get(['coverLetterEnabled', 'trackerCaptureEnabled'], (data) => {
     coverLetterToggle.checked = !!data.coverLetterEnabled;
+    trackerCaptureEnabled = data.trackerCaptureEnabled !== false;
   });
   coverLetterToggle.addEventListener('change', () => {
     chrome.storage.local.set({ coverLetterEnabled: coverLetterToggle.checked });
@@ -326,6 +328,91 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.runtime.openOptionsPage();
   });
 
+  const trackerBtn = document.getElementById('trackerBtn');
+  if (trackerBtn) {
+    trackerBtn.addEventListener('click', () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL('tracker.html') });
+    });
+  }
+
+  function parseJobFromTitle(title) {
+    const t = (title || '').trim();
+    if (!t) return { company: '', role: '' };
+    const match = t.match(/^(.*?)\s+(?:at|@)\s+(.+?)(?:\s*[|·–—-]\s*.*)?$/);
+    if (match && match[1] && match[2]) {
+      return { company: match[2].trim(), role: match[1].trim() };
+    }
+    return { company: '', role: t };
+  }
+
+  function showTrackerToast(company, role) {
+    const toast = document.getElementById('trackerToast');
+    if (!toast) return;
+    const name = company || role || 'the job';
+    toast.textContent = `✓ Saved ${name} to Job Tracker`;
+    toast.style.display = 'block';
+    setTimeout(() => { toast.style.display = 'none'; }, 4000);
+  }
+
+  function saveApplicationToTracker(resumeData, tab, resumeIdUsed, resumeStyle) {
+    if (!tab) return;
+
+    const aiCompany = typeof resumeData?.company === 'string' ? resumeData.company.trim() : '';
+    const aiRole = typeof resumeData?.position === 'string' && resumeData.position.trim()
+      ? resumeData.position.trim()
+      : (typeof resumeData?.subtitle === 'string' ? resumeData.subtitle.trim() : '');
+    const aiRecruiterName = typeof resumeData?.recruiterName === 'string' ? resumeData.recruiterName.trim() : '';
+    const aiRecruiterEmail = typeof resumeData?.recruiterEmail === 'string' ? resumeData.recruiterEmail.trim() : '';
+
+    const titleParsed = parseJobFromTitle(tab.title);
+    const company = aiCompany || titleParsed.company;
+    const role = aiRole || titleParsed.role;
+    let sourceTag = 'ai';
+    if (!aiCompany && !aiRole) {
+      sourceTag = titleParsed.company || titleParsed.role ? 'title-heuristic' : 'fallback';
+    }
+    console.info('[Tracker] Captured application', { company, role, recruiterName: aiRecruiterName, sourceTag });
+    if (!company && !role) {
+      console.warn('[Tracker] Capture fallback: no company/role available', {
+        title: tab.title,
+        url: tab.url,
+        resumeData: resumeData
+      });
+    }
+
+    const application = {
+      id: 'a_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7),
+      company: company || '',
+      role: role || '',
+      url: tab.url || '',
+      recruiterName: aiRecruiterName || '',
+      recruiterEmail: aiRecruiterEmail || '',
+      status: 'saved',
+      dateSaved: Date.now(),
+      appliedDate: null,
+      interviewDate: null,
+      notes: '',
+      resumeIdUsed: resumeIdUsed || null,
+      resumeStyle: resumeStyle || null,
+      updatedAt: Date.now()
+    };
+    chrome.storage.local.get(['applications', 'trackerTrialStartedAt'], (data) => {
+      const apps = Array.isArray(data.applications) ? data.applications : [];
+      const existingIdx = apps.findIndex((a) => a.url && a.url === application.url && a.status === 'saved');
+      if (existingIdx >= 0) {
+        apps[existingIdx] = { ...apps[existingIdx], ...application, id: apps[existingIdx].id, dateSaved: apps[existingIdx].dateSaved, updatedAt: Date.now() };
+      } else {
+        apps.push(application);
+      }
+      const writes = { applications: apps };
+      if (!data.trackerTrialStartedAt) {
+        writes.trackerTrialStartedAt = Date.now();
+      }
+      chrome.storage.local.set(writes);
+      showTrackerToast(application.company, application.role);
+    });
+  }
+
   generateBtn.addEventListener('click', async () => {
     // UI Reset
     generateBtn.disabled = true;
@@ -369,6 +456,11 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           const resumeData = JSON.parse(rawData);
+
+          if (trackerCaptureEnabled && tab) {
+            saveApplicationToTracker(resumeData, tab, selectedResumeId, selectedStyle);
+          }
+
           if (styleConfig.layout === 'pocketresume') {
             generatePDF(resumeData, selectedStyle);
           } else if (window.ResumeRenderers && typeof window.ResumeRenderers.generateResumePDF === 'function') {

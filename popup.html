@@ -761,6 +761,49 @@
       display: flex;
     }
 
+    #trackerBtn {
+      width: 100%;
+      margin-top: 4px;
+      padding: 10px 12px;
+      box-sizing: border-box;
+      border: none;
+      border-radius: var(--radius-md);
+      background: rgba(255, 134, 0, 0.08);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--ease);
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #trackerBtn:hover {
+      background: rgba(255, 134, 0, 0.16);
+      color: var(--text-primary);
+    }
+
+    #trackerBtn:active {
+      transform: scale(0.98);
+    }
+
+    .tracker-toast {
+      margin-top: 6px;
+      padding: 8px 12px;
+      box-sizing: border-box;
+      border: 1px solid rgba(46, 160, 67, 0.4);
+      border-radius: var(--radius-md);
+      background: rgba(46, 160, 67, 0.1);
+      color: #2ea043;
+      font-size: 12px;
+      font-weight: 500;
+      position: relative;
+      z-index: 1;
+    }
+
     /* ============================
        Misc Elements
        ============================ */
@@ -1052,6 +1095,13 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
     </span>
   </button>
+
+  <button id="trackerBtn" type="button">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
+    <span>Job Tracker</span>
+  </button>
+
+  <div id="trackerToast" class="tracker-toast" style="display: none;"></div>
 
   <!-- Cloud Sync Onboarding Modal -->
   <div id="cloudOnboardingModal" class="onboarding-modal" style="display: none;">

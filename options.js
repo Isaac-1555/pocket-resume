@@ -368,7 +368,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     apiKeys[currentlyViewedProvider] = apiKeyInput.value.trim();
   });
 
-  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'apiProvider', 'userProfile', 'resumes']);
+  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'apiProvider', 'userProfile', 'resumes', 'trackerCaptureEnabled']);
+  const trackerCaptureToggle = document.getElementById('trackerCaptureToggle');
+  if (trackerCaptureToggle) {
+    trackerCaptureToggle.checked = data.trackerCaptureEnabled !== false;
+    trackerCaptureToggle.addEventListener('change', () => {
+      chrome.storage.local.set({ trackerCaptureEnabled: trackerCaptureToggle.checked });
+    });
+  }
 
   if (data.apiProvider) activeProvider = data.apiProvider;
   if (data.geminiApiKey) apiKeys.google = data.geminiApiKey;

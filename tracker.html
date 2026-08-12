@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PocketResume — Job Tracker</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #151b23;
+      --panel-2: #1c232d;
+      --border: rgba(255, 255, 255, 0.09);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --text: #f2f4f8;
+      --text-muted: rgba(242, 244, 248, 0.62);
+      --accent: #ff8600;
+      --accent-2: #4a9eff;
+      --green: #2ea043;
+      --red: #f85149;
+      --yellow: #d29922;
+      --purple: #a371f7;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background:
+        radial-gradient(1200px 600px at 20% -10%, rgba(74, 158, 255, 0.14), transparent 60%),
+        radial-gradient(1000px 500px at 90% 0%, rgba(255, 134, 0, 0.12), transparent 55%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header.app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 22px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(13, 17, 23, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .brand .logo {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent-2), var(--accent));
+      display: grid;
+      place-items: center;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .brand h1 {
+      font-size: 16px;
+      margin: 0;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .brand h1 span {
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .plan-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .plan-badge.locked { color: var(--yellow); border-color: rgba(210, 153, 34, 0.5); }
+    .plan-badge.trial { color: var(--accent); border-color: rgba(255, 134, 0, 0.5); }
+    .plan-badge.pro { color: var(--green); border-color: rgba(46, 160, 67, 0.5); }
+
+    .btn {
+      appearance: none;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border-strong);
+      background: var(--panel-2);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.2s var(--ease);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn:hover { border-color: rgba(255, 255, 255, 0.3); background: #232c38; }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #e07600);
+      border-color: transparent;
+      color: #fff;
+    }
+
+    .btn-primary:hover { background: linear-gradient(135deg, #ffa02d, #e07600); filter: brightness(1.05); }
+
+    .btn-ghost {
+      background: transparent;
+      border-color: transparent;
+      color: var(--text-muted);
+      padding: 8px;
+    }
+
+    .btn-ghost:hover { background: rgba(255, 255, 255, 0.05); color: var(--text); }
+
+    /* View switch */
+    .view-tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 3px;
+    }
+
+    .view-tab {
+      appearance: none;
+      font: inherit;
+      font-size: 12.5px;
+      font-weight: 500;
+      padding: 6px 14px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s var(--ease);
+    }
+
+    .view-tab.active {
+      background: var(--panel-2);
+      color: var(--text);
+    }
+
+    /* Lock banner */
+    .lock-banner {
+      display: none;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      margin: 18px 22px 0;
+      padding: 14px 18px;
+      border: 1px solid rgba(210, 153, 34, 0.5);
+      border-radius: var(--radius);
+      background: rgba(210, 153, 34, 0.08);
+    }
+
+    .lock-banner.visible { display: flex; }
+
+    .lock-banner .lock-title { font-size: 14px; font-weight: 600; color: var(--yellow); margin: 0 0 3px; }
+    .lock-banner .lock-text { font-size: 12.5px; color: var(--text-muted); margin: 0; }
+
+    .lock-banner .lock-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+    /* Board */
+    .board-wrap { padding: 18px 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 14px; }
+
+    .board-column {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      min-height: 160px;
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+    }
+
+    .board-column.drag-over {
+      border-color: var(--accent-2);
+      background: rgba(74, 158, 255, 0.06);
+    }
+
+    .column-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 2px 4px 10px;
+    }
+
+    .column-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .column-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+
+    .column-count {
+      margin-left: auto;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--panel-2);
+      border-radius: 999px;
+      padding: 2px 8px;
+      min-width: 22px;
+      text-align: center;
+    }
+
+    .column-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 20px;
+      flex: 1;
+    }
+
+    .card {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: grab;
+      transition: all 0.2s var(--ease);
+      user-select: none;
+    }
+
+    .card:hover {
+      border-color: var(--border-strong);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    }
+
+    .card.dragging {
+      opacity: 0.45;
+      transform: rotate(1.5deg);
+    }
+
+    .card.locked-card { cursor: pointer; }
+
+    .card-company {
+      font-size: 13.5px;
+      font-weight: 600;
+      margin: 0 0 2px;
+      word-break: break-word;
+    }
+
+    .card-role {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin: 0 0 6px;
+      word-break: break-word;
+    }
+
+    .card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .card-tag {
+      font-size: 10.5px;
+      font-weight: 500;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-muted);
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card-tag.accent { background: rgba(255, 134, 0, 0.12); color: var(--accent); }
+    .card-tag.link { text-decoration: underline; cursor: pointer; }
+    .card-tag.link:hover { color: var(--accent-2); }
+
+    .empty-state {
+      font-size: 12px;
+      color: rgba(242, 244, 248, 0.35);
+      text-align: center;
+      padding: 18px 8px;
+      border: 1px dashed rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+    }
+
+    /* Graph view */
+    .graph-wrap { padding: 18px 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+
+    .graph-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+    }
+
+    .graph-card h2 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0 0 14px;
+    }
+
+    .graph-card .sub { font-size: 12px; color: var(--text-muted); margin: -8px 0 14px; font-weight: 400; }
+
+    svg text { font-family: var(--font); }
+
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+    .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
+
+    .legend-dot { width: 9px; height: 9px; border-radius: 50%; }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 16px;
+      z-index: 50;
+      overflow-y: auto;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--panel);
+      border: 1px solid var(--border-strong);
+      border-radius: 16px;
+      max-width: 520px;
+      width: 100%;
+      padding: 22px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    .modal-head h2 { font-size: 16px; margin: 0; word-break: break-word; }
+    .modal-close { background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+    .modal-close:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 5px; }
+
+    .field input, .field select, .field textarea {
+      width: 100%;
+      font: inherit;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--panel-2);
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+
+    .field input:focus, .field select:focus, .field textarea:focus {
+      outline: none;
+      border-color: var(--accent-2);
+    }
+
+    .field textarea { min-height: 80px; resize: vertical; }
+    .field input[readonly], .field textarea[readonly] { opacity: 0.6; }
+
+    .modal-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 18px; }
+    .modal-actions .right { display: flex; gap: 8px; }
+    .btn-danger { border-color: rgba(248, 81, 73, 0.5); color: var(--red); }
+    .btn-danger:hover { background: rgba(248, 81, 73, 0.1); border-color: var(--red); }
+
+    .empty-board-note {
+      text-align: center;
+      padding: 70px 20px;
+      color: var(--text-muted);
+    }
+
+    .empty-board-note h2 { font-size: 18px; margin: 0 0 6px; color: var(--text); }
+    .empty-board-note p { font-size: 13.5px; margin: 0 0 18px; }
+
+    .readonly-note {
+      font-size: 11px;
+      color: var(--yellow);
+      margin-top: 6px;
+    }
+
+    @media (max-width: 720px) {
+      header.app-header { flex-wrap: wrap; }
+      .brand h1 span { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="logo">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+      </span>
+      <h1>Job Tracker <span>&middot; PocketResume</span></h1>
+    </div>
+
+    <div class="view-tabs" role="tablist">
+      <button class="view-tab active" data-view="board" role="tab">Board</button>
+      <button class="view-tab" data-view="graph" role="tab">Graph</button>
+    </div>
+
+    <div class="header-actions">
+      <span class="plan-badge" id="planBadge">Loading…</span>
+      <button class="btn btn-primary" id="addBtn">+ Add job</button>
+      <button class="btn" id="openSettingsBtn">Settings</button>
+    </div>
+  </header>
+
+  <div class="lock-banner" id="lockBanner">
+    <div>
+      <p class="lock-title">Your 30-day trial has ended</p>
+      <p class="lock-text">Your job tracker is now read-only. Upgrade to keep editing applications, dragging cards, and adding new jobs.</p>
+    </div>
+    <div class="lock-actions">
+      <button class="btn btn-primary" id="upgradeBtn">Upgrade</button>
+      <button class="btn" id="dismissLockBtn">Not now</button>
+    </div>
+  </div>
+
+  <main id="boardView" class="board-wrap"></main>
+
+  <main id="graphView" class="graph-wrap" style="display: none;"></main>
+
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-head">
+        <h2 id="modalTitle">Application</h2>
+        <button class="modal-close" id="modalCloseBtn" aria-label="Close">&times;</button>
+      </div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="cloud-sync.js"></script>
+  <script src="tracker.js"></script>
+</body>
+</html>

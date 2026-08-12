@@ -156,6 +156,9 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, prov
       "subtitle": "String (REQUIRED: derived from JD Job Title, NOT from profile)",
       "position": "String (REQUIRED: role/title from JD Job Title, NOT from profile)",
       "location": "String (REQUIRED: location from JD, NOT from profile)",
+      "company": "String (Hiring company name from the JOB DESCRIPTION, NOT from profile. Use \"\" if unclear.)",
+      "recruiterName": "String (Recruiter or hiring manager name from the JOB DESCRIPTION if explicitly present. Use \"\" if not present.)",
+      "recruiterEmail": "String (Recruiter or hiring/HR contact email from the JOB DESCRIPTION if present. Use \"\" if not present.)",
       "contact": "String (Include ALL contact info from my profile: Phone, Email, LinkedIn, Portfolio/Website, Location (UPDATED to JD location), etc. — separated by | )",
       "summary": "String",
       "skills": ["String", "String"],
@@ -855,7 +858,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     );
                 }
 
-                // 7. Success
+                // 6b. Success
+                console.info('[Tracker] Resume generation complete.');
                 sendResponse({ status: 'success', data: resumeText, coverLetterData: coverLetterText });
 
             } catch (error) {
