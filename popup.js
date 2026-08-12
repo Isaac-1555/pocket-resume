@@ -935,4 +935,132 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // --- Growth Prompts (Rating & Share) ---
+  const STORE_URL = 'https://chromewebstore.google.com/detail/pocketresume/mdplmgfkpgalajmchilemiamifoaneip';
+  const PROMPT_REPEAT_MS = 7 * 24 * 60 * 60 * 1000;
+
+  const ratingModal = document.getElementById('ratingPromptModal');
+  const ratingActionBtn = document.getElementById('ratingActionBtn');
+  const ratingCloseBtn = document.getElementById('ratingCloseBtn');
+  const shareModal = document.getElementById('sharePromptModal');
+  const shareActionBtn = document.getElementById('shareActionBtn');
+  const shareCloseBtn = document.getElementById('shareCloseBtn');
+  let pendingShare = false;
+
+  function getPromptState(key, callback) {
+    chrome.storage.local.get([key], (data) => callback(data[key] || {}));
+  }
+
+  function setPromptState(key, patch) {
+    chrome.storage.local.get([key], (data) => {
+      const state = data[key] || {};
+      chrome.storage.local.set({ [key]: Object.assign(state, patch) });
+    });
+  }
+
+  function shouldShowPrompt(state) {
+    if (state.converted) return false;
+    if (state.actionTs && !state.dismissedTs) return true;
+    if (!state.dismissedTs) return true;
+    return Date.now() - state.dismissedTs >= PROMPT_REPEAT_MS;
+  }
+
+  function showPrompt(modal) {
+    if (modal) modal.style.display = 'flex';
+  }
+
+  function hidePrompt(modal) {
+    if (modal) modal.style.display = 'none';
+  }
+
+  function closePrompt(key, modal) {
+    getPromptState(key, (state) => {
+      if (state.actionTs) {
+        setPromptState(key, { converted: true });
+      } else {
+        setPromptState(key, { dismissedTs: Date.now() });
+      }
+      hidePrompt(modal);
+    });
+  }
+
+  function isOverlayVisible() {
+    const cloudModal = document.getElementById('cloudOnboardingModal');
+    return (cloudModal && cloudModal.style.display === 'flex') ||
+      (errorModal && errorModal.style.display === 'flex');
+  }
+
+  function maybeShowPrompts() {
+    getPromptState('growthRatingPrompt', (ratingState) => {
+      getPromptState('growthSharePrompt', (shareState) => {
+        const ratingDue = shouldShowPrompt(ratingState);
+        const shareDue = shouldShowPrompt(shareState);
+        pendingShare = shareDue;
+        if (isOverlayVisible()) return;
+        if (ratingDue) {
+          showPrompt(ratingModal);
+        } else if (shareDue) {
+          showPrompt(shareModal);
+          pendingShare = false;
+        }
+      });
+    });
+  }
+
+  if (ratingActionBtn) {
+    ratingActionBtn.addEventListener('click', () => {
+      setPromptState('growthRatingPrompt', { actionTs: Date.now() });
+      chrome.tabs.create({ url: STORE_URL });
+    });
+  }
+
+  if (ratingCloseBtn) {
+    ratingCloseBtn.addEventListener('click', () => {
+      closePrompt('growthRatingPrompt', ratingModal);
+      if (pendingShare && !isOverlayVisible()) {
+        showPrompt(shareModal);
+        pendingShare = false;
+      }
+    });
+  }
+
+  async function sharePocketResume() {
+    const shareData = {
+      title: 'PocketResume',
+      text: 'PocketResume — one-click tailored resume from any job description. Free!',
+      url: STORE_URL
+    };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(shareData.text + ' ' + STORE_URL);
+      const original = shareActionBtn.textContent;
+      shareActionBtn.textContent = 'Link Copied!';
+      setTimeout(() => { shareActionBtn.textContent = original; }, 2000);
+    } catch (clipError) {
+      chrome.tabs.create({ url: STORE_URL });
+    }
+  }
+
+  if (shareActionBtn) {
+    shareActionBtn.addEventListener('click', () => {
+      setPromptState('growthSharePrompt', { actionTs: Date.now() });
+      sharePocketResume();
+    });
+  }
+
+  if (shareCloseBtn) {
+    shareCloseBtn.addEventListener('click', () => {
+      closePrompt('growthSharePrompt', shareModal);
+    });
+  }
+
+  setTimeout(maybeShowPrompts, 400);
 });

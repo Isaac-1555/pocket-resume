@@ -1091,6 +1091,38 @@
     </div>
   </div>
 
+  <!-- Rating Prompt Modal -->
+  <div id="ratingPromptModal" class="onboarding-modal" style="display: none;">
+    <div class="onboarding-backdrop"></div>
+    <div class="onboarding-card">
+      <div class="onboarding-icon" aria-hidden="true">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      </div>
+      <h2>Thanks for using PocketResume!</h2>
+      <p>I'm a solo developer, and every review helps. A rating and a quick comment on the Chrome Web Store would mean a lot and keeps this extension free.</p>
+      <div class="onboarding-actions">
+        <button id="ratingActionBtn" class="cloud-primary-btn">Rate &amp; Review on Web Store</button>
+        <button id="ratingCloseBtn" class="cloud-secondary-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share Prompt Modal -->
+  <div id="sharePromptModal" class="onboarding-modal" style="display: none;">
+    <div class="onboarding-backdrop"></div>
+    <div class="onboarding-card">
+      <div class="onboarding-icon" aria-hidden="true">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="m16 6-4-4-4 4"/><path d="M12 2v13"/></svg>
+      </div>
+      <h2>Help friends land their next job</h2>
+      <p>Share this app with your friends who are job hunting too. It's free and one click to tailor a resume.</p>
+      <div class="onboarding-actions">
+        <button id="shareActionBtn" class="cloud-primary-btn">Share with friends</button>
+        <button id="shareCloseBtn" class="cloud-secondary-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="libs/jspdf.umd.min.js"></script>
   <script src="cloud-sync.js"></script>
   <script src="resume-renderers.js"></script>
