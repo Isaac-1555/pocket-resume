@@ -335,6 +335,46 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // --- NEW badge on Job Tracker (permanently dismissed after first hover) ---
+  const trackerNewBadge = document.getElementById('trackerNewBadge');
+  chrome.storage.local.get('trackerNewBadgeDismissed', (data) => {
+    if (data.trackerNewBadgeDismissed) {
+      if (trackerNewBadge) trackerNewBadge.remove();
+    } else if (trackerNewBadge) {
+      const dismiss = () => {
+        trackerNewBadge.classList.add('gone');
+        trackerNewBadge.addEventListener('transitionend', () => trackerNewBadge.remove(), { once: true });
+        chrome.storage.local.set({ trackerNewBadgeDismissed: true });
+      };
+      trackerBtn.addEventListener('mouseenter', dismiss, { once: true });
+      trackerBtn.addEventListener('focus', dismiss, { once: true });
+    }
+  });
+
+  // --- What's New modal (once per version) ---
+  const whatsNewModal = document.getElementById('whatsNewModal');
+  const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
+  const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
+  const whatsNewVersionEl = document.getElementById('whatsNewVersion');
+  const version = chrome.runtime.getManifest().version;
+
+  function dismissWhatsNew() {
+    chrome.storage.local.set({ lastSeenAnnouncement: version });
+    if (whatsNewModal) whatsNewModal.style.display = 'none';
+  }
+
+  chrome.storage.local.get('lastSeenAnnouncement', (data) => {
+    if (!whatsNewModal) return;
+    if (data.lastSeenAnnouncement === version) return;
+    if (whatsNewVersionEl) whatsNewVersionEl.textContent = version;
+    whatsNewModal.style.display = 'flex';
+  });
+  if (whatsNewGotBtn) whatsNewGotBtn.addEventListener('click', dismissWhatsNew);
+  if (whatsNewPlansBtn) whatsNewPlansBtn.addEventListener('click', () => {
+    dismissWhatsNew();
+    chrome.tabs.create({ url: chrome.runtime.getURL('options.html#cloud-pricing') });
+  });
+
   function parseJobFromTitle(title) {
     const t = (title || '').trim();
     if (!t) return { company: '', role: '' };
@@ -1079,7 +1119,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function isOverlayVisible() {
     const cloudModal = document.getElementById('cloudOnboardingModal');
+    const whatsNew = document.getElementById('whatsNewModal');
     return (cloudModal && cloudModal.style.display === 'flex') ||
+      (whatsNew && whatsNew.style.display === 'flex') ||
       (errorModal && errorModal.style.display === 'flex');
   }
 
