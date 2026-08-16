@@ -805,6 +805,37 @@
     }
 
     /* ============================
+       NEW badge (Job Tracker)
+       ============================ */
+    .tracker-new-badge {
+      margin-left: auto;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--accent-gradient);
+      color: #241205;
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      line-height: 1.5;
+      transition: all 250ms ease;
+      animation: badgePulse 2.2s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    .tracker-new-badge.gone {
+      opacity: 0;
+      transform: scale(0.5);
+      animation: none;
+      pointer-events: none;
+    }
+
+    @keyframes badgePulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(240, 160, 75, 0.45); }
+      50% { box-shadow: 0 0 0 6px rgba(240, 160, 75, 0); }
+    }
+
+    /* ============================
        Misc Elements
        ============================ */
     #resultArea {
@@ -1099,6 +1130,7 @@
   <button id="trackerBtn" type="button">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
     <span>Job Tracker</span>
+    <span id="trackerNewBadge" class="tracker-new-badge">New</span>
   </button>
 
   <div id="trackerToast" class="tracker-toast" style="display: none;"></div>
@@ -1169,6 +1201,30 @@
       <div class="onboarding-actions">
         <button id="shareActionBtn" class="cloud-primary-btn">Share with friends</button>
         <button id="shareCloseBtn" class="cloud-secondary-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- What's New Modal -->
+  <div id="whatsNewModal" class="onboarding-modal" style="display: none;">
+    <div class="onboarding-backdrop"></div>
+    <div class="onboarding-card">
+      <div class="onboarding-icon" aria-hidden="true">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
+      </div>
+      <h2>New in <span id="whatsNewVersion"></span> — AI Job Tracker</h2>
+      <p class="error-message">
+        Every resume you generate now auto-saves the job posting to your Job Tracker board — company, role, and recruiter, pulled straight from the AI output with no extra API call. Drag cards through Saved → Applied → Interview → Offer, and watch your funnel on the Graph tab.
+      </p>
+      <ul class="onboarding-features">
+        <li>Auto-captures jobs when you generate a resume</li>
+        <li>Manual add/edit plus drag-and-drop board</li>
+        <li>On/off in Settings → Job Tracker</li>
+        <li>Pro feature — free for the first 30 days, then sign up to keep it</li>
+      </ul>
+      <div class="onboarding-actions">
+        <button id="whatsNewGotBtn" class="cloud-primary-btn">Got it</button>
+        <button id="whatsNewPlansBtn" class="cloud-secondary-btn">See Plans</button>
       </div>
     </div>
   </div>
