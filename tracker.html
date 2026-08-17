@@ -312,6 +312,10 @@
     .card-tag.link { text-decoration: underline; cursor: pointer; }
     .card-tag.link:hover { color: var(--accent-2); }
 
+    .round-control { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--text-muted); }
+    .round-control select { font: inherit; color: var(--purple); background: rgba(163, 113, 247, 0.12); border: 1px solid rgba(163, 113, 247, 0.35); border-radius: 999px; padding: 2px 5px; }
+    .round-control select:focus { outline: none; border-color: var(--purple); }
+
     .empty-state {
       font-size: 12px;
       color: rgba(242, 244, 248, 0.35);
@@ -329,6 +333,7 @@
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 18px;
+      align-self: start;
     }
 
     .graph-card h2 {
@@ -346,6 +351,116 @@
     .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
 
     .legend-dot { width: 9px; height: 9px; border-radius: 50%; }
+
+    /* Pipeline Sankey */
+    .graph-card.wide { grid-column: 1 / -1; }
+    .timeline-card { grid-column: 2 / -1; align-self: stretch; overflow-x: auto; }
+
+    .graph-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .graph-head h2 { margin: 0 0 4px; }
+    .graph-head .sub { margin: 0; }
+
+    .filter-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+
+    .filter-bar input[type="text"], .filter-bar select, .filter-bar input[type="date"] {
+      font: inherit;
+      font-size: 12.5px;
+      color: var(--text);
+      background: var(--panel-2);
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      padding: 6px 9px;
+    }
+
+    .filter-bar input[type="text"] { width: 180px; }
+    .filter-bar input:focus, .filter-bar select:focus { outline: none; border-color: var(--accent-2); }
+    .range-label { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-muted); }
+
+    .sanky-wrap { position: relative; overflow-x: auto; }
+    .sanky { display: block; width: 100%; height: 380px; min-width: 960px; }
+    .timeline-svg { display: block; width: 100%; max-width: none; height: 320px; }
+    .sanky text { font-family: var(--font); }
+
+    .sanky-node { cursor: pointer; }
+    .sanky-node rect { transition: opacity 0.2s var(--ease); }
+    .sanky-node:hover rect { fill-opacity: 0.26; }
+
+    .sanky-link { cursor: pointer; }
+    .sanky-link:hover { fill-opacity: 0.5; }
+
+    .sanky-tip {
+      position: absolute;
+      z-index: 40;
+      pointer-events: none;
+      background: rgba(13, 17, 23, 0.95);
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-size: 12px;
+      color: var(--text);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      white-space: nowrap;
+      display: none;
+    }
+
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+    .metric-tile { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 11px 12px; }
+    .metric-value { font-size: 20px; font-weight: 700; color: var(--text); line-height: 1.1; }
+    .metric-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .metric-sub { font-size: 10px; opacity: 0.7; }
+
+    .drill-panel { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px; }
+    .drill-title { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
+    .drill-list { display: grid; gap: 6px; max-height: 220px; overflow-y: auto; }
+    .drill-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      text-align: left;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font: inherit;
+      font-size: 12.5px;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .drill-row:hover { border-color: var(--border-strong); background: #232c38; }
+    .drill-company { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .drill-role { color: var(--text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .drill-status { margin-left: auto; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+    .drill-empty { font-size: 12px; color: var(--text-muted); padding: 8px; }
+
+    /* Modal: interview rounds + dates */
+    .field.row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .field.row3 .mini-field label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 5px; }
+    .field.row3 .mini-field input { width: 100%; font: inherit; font-size: 13px; color: var(--text); background: var(--panel-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px 10px; }
+    .field.row3 .mini-field input:focus { outline: none; border-color: var(--accent-2); }
+
+    .round-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .round-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(163, 113, 247, 0.15);
+      color: var(--purple);
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .round-row input { flex: 1; }
+    .field-hint { font-size: 11px; color: var(--text-muted); margin: -2px 0 8px; }
+    .round-rm { background: none; border: none; color: var(--text-muted); font-size: 16px; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+    .round-rm:hover { color: var(--red); background: rgba(248, 81, 73, 0.1); }
+    .add-round-btn { font-size: 12px; }
+
+    .flags { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+    .flag { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text); cursor: pointer; }
+    .flag input { accent-color: var(--accent-2); }
 
     /* Modal */
     .modal-overlay {
@@ -424,6 +539,8 @@
     @media (max-width: 720px) {
       header.app-header { flex-wrap: wrap; }
       .brand h1 span { display: none; }
+      .timeline-card { grid-column: 1 / -1; }
+      .timeline-svg { min-width: 560px; }
     }
   </style>
 </head>

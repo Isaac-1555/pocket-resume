@@ -434,6 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
       notes: '',
       resumeIdUsed: resumeIdUsed || null,
       resumeStyle: resumeStyle || null,
+      source: sourceTag,
       updatedAt: Date.now()
     };
     chrome.storage.local.get(['applications', 'trackerTrialStartedAt'], (data) => {
