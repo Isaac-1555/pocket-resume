@@ -536,6 +536,44 @@
       margin-top: 6px;
     }
 
+    /* Tour / onboarding */
+    .tour-overlay { position: fixed; inset: 0; z-index: 1000; display: none; }
+    .tour-catcher { position: absolute; inset: 0; cursor: default; }
+    .tour-spotlight {
+      position: absolute;
+      pointer-events: none;
+      box-shadow: 0 0 0 100vmax rgba(6, 8, 11, 0.55);
+      transition: left 0.35s var(--ease), top 0.35s var(--ease), width 0.35s var(--ease), height 0.35s var(--ease), border-radius 0.35s var(--ease), opacity 0.25s var(--ease);
+    }
+    .tour-tip {
+      position: fixed;
+      z-index: 1001;
+      width: 320px;
+      max-width: calc(100vw - 24px);
+      background: var(--panel);
+      border: 1px solid var(--border-strong);
+      border-radius: 14px;
+      padding: 16px 18px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+      pointer-events: auto;
+      animation: tourIn 260ms var(--ease);
+    }
+    @keyframes tourIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .tour-tip h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; color: var(--text); }
+    .tour-tip p { margin: 0 0 12px; font-size: 12.5px; line-height: 1.55; color: var(--text-muted); }
+    .tour-progress { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 10px; letter-spacing: 0.04em; }
+    .tour-actions { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+    .tour-actions .btn { padding: 7px 14px; font-size: 12.5px; }
+    #tourSkipBtn { margin-right: auto; }
+    #tourReplayBtn { width: 32px; height: 32px; padding: 0; justify-content: center; border-radius: 999px; font-weight: 700; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .tour-spotlight, .tour-tip { transition-duration: 0ms !important; animation: none !important; }
+    }
+
     @media (max-width: 720px) {
       header.app-header { flex-wrap: wrap; }
       .brand h1 span { display: none; }
@@ -559,6 +597,7 @@
     </div>
 
     <div class="header-actions">
+      <button class="btn btn-ghost" id="tourReplayBtn" title="Replay tour" aria-label="Replay tour">?</button>
       <span class="plan-badge" id="planBadge">Loading…</span>
       <button class="btn btn-primary" id="addBtn">+ Add job</button>
       <button class="btn" id="openSettingsBtn">Settings</button>
@@ -587,6 +626,20 @@
         <button class="modal-close" id="modalCloseBtn" aria-label="Close">&times;</button>
       </div>
       <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <div class="tour-overlay" id="tourOverlay">
+    <div class="tour-catcher" id="tourCatcher"></div>
+    <div class="tour-spotlight" id="tourSpotlight"></div>
+    <div class="tour-tip" id="tourTip" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+      <h3 id="tourTitle"></h3>
+      <p id="tourBody"></p>
+      <div class="tour-progress" id="tourProgress"></div>
+      <div class="tour-actions">
+        <button class="btn btn-ghost" id="tourSkipBtn">Skip</button>
+        <button class="btn btn-primary" id="tourNextBtn">Next</button>
+      </div>
     </div>
   </div>
 
