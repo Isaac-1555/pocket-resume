@@ -5,6 +5,7 @@ const STORAGE_KEYS = [
   'trackerTrialStartedAt',
   'trackerUnlocked',
   'trackerLockDismissed',
+  'trackerTourSeen',
 ];
 
 const TRIAL_DAYS = 30;
@@ -81,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === modalOverlay) closeModal();
   });
 
+  initTourControls();
   init();
 });
 
@@ -121,6 +123,7 @@ async function init() {
   trialInfo.startedAt = data.trackerTrialStartedAt || null;
   trialInfo.unlocked = !!data.trackerUnlocked;
   trialInfo.dismissed = !!data.trackerLockDismissed;
+  const tourSeen = !!data.trackerTourSeen;
 
   const hasPlan = await checkPlanAccess();
   if (hasPlan && !trialInfo.unlocked) {
@@ -133,6 +136,10 @@ async function init() {
 
   render();
   updatePlanBadge();
+
+  if (!tourSeen) {
+    window.setTimeout(startTour, 400);
+  }
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.applications) {
@@ -1291,4 +1298,229 @@ function buildMetrics(dataset) {
         wrap.appendChild(tile);
     });
     return wrap;
+}
+
+// --- Onboarding tour ---
+
+const tour = { active: false, steps: [], index: 0 };
+
+function tourEls() {
+    return {
+        overlay: document.getElementById('tourOverlay'),
+        catcher: document.getElementById('tourCatcher'),
+        spotlight: document.getElementById('tourSpotlight'),
+        tip: document.getElementById('tourTip'),
+        title: document.getElementById('tourTitle'),
+        body: document.getElementById('tourBody'),
+        progress: document.getElementById('tourProgress'),
+        nextBtn: document.getElementById('tourNextBtn'),
+        skipBtn: document.getElementById('tourSkipBtn'),
+    };
+}
+
+function buildTourSteps() {
+    const hasCards = !!document.querySelector('#boardView .card');
+    const steps = [
+        {
+            id: 'welcome',
+            title: 'Welcome to your Job Tracker',
+            body: 'One board for every application. Track each job from Saved to Offer, then watch your whole pipeline in the Graph view.',
+        },
+        {
+            id: 'plan',
+            target: () => document.getElementById('planBadge'),
+            placement: 'bottom',
+            title: 'Your free trial',
+            body: 'Every account starts with a free 30-day trial. After that, upgrade to keep editing — or your board goes read-only.',
+        },
+        {
+            id: 'add',
+            target: () => document.getElementById('addBtn'),
+            placement: 'bottom',
+            title: 'Add a job',
+            body: 'Add applications manually — company, role, URL, recruiter, flags, and notes. Jobs also appear here automatically whenever you generate a resume from a posting.',
+        },
+        {
+            id: 'board',
+            target: () => document.getElementById('boardView'),
+            placement: 'bottom',
+            title: 'The board',
+            body: 'Six stages: Saved, Applied, Interview, Offer, Rejected, and Withdrawn. Drag cards between columns to update status — counts update live.',
+        },
+        {
+            id: 'cards',
+            target: () => document.querySelector('#boardView .card') || document.querySelector('#boardView .board-column') || document.getElementById('boardView'),
+            placement: () => (hasCards ? 'top' : 'bottom'),
+            title: 'Cards',
+            body: hasCards
+                ? 'Click a card to edit recruiter, dates, flags (no reply / internal hire / scam), notes, and interview rounds. The Round selector on a card is a quick funnel update.'
+                : 'Cards appear here when you generate a resume or tap + Add job. Click a card to edit recruiter, dates, flags, notes, and interview rounds. The Round selector on a card is a quick funnel update.',
+        },
+        {
+            id: 'graph',
+            target: () => document.querySelector('.view-tab[data-view="graph"]'),
+            placement: 'bottom',
+            title: 'Graph view',
+            body: 'Switch to Graph to see your pipeline as a Sankey funnel, funnel metrics (response, interview, offer rates), submissions over time, and filters. Click any node or link to drill into the applications behind it.',
+        },
+        {
+            id: 'settings',
+            target: () => document.getElementById('openSettingsBtn'),
+            placement: 'bottom',
+            title: 'Settings',
+            body: 'Open Settings to toggle auto-capture in Job Tracker, manage your resumes, and handle your plan and cloud sync.',
+        },
+        {
+            id: 'done',
+            title: 'You\u2019re all set',
+            body: 'Generate a resume or tap + Add job to get started. Replay this tour anytime with the ? button in the header.',
+        },
+    ];
+
+    const banner = document.getElementById('lockBanner');
+    if (banner && banner.classList.contains('visible')) {
+        steps.splice(2, 0, {
+            id: 'lock',
+            target: () => banner,
+            placement: 'bottom',
+            title: 'Trial ended',
+            body: 'Your tracker is now read-only. Upgrade to keep adding applications and dragging cards.',
+        });
+    }
+    return steps;
+}
+
+function startTour() {
+    const els = tourEls();
+    if (!els.overlay) return;
+    tour.steps = buildTourSteps();
+    tour.active = true;
+    els.overlay.style.display = 'block';
+    tourRender(0);
+}
+
+function endTour() {
+    const els = tourEls();
+    tour.active = false;
+    if (els.overlay) els.overlay.style.display = 'none';
+    if (els.spotlight) els.spotlight.style.opacity = '0';
+    chrome.storage.local.set({ trackerTourSeen: true });
+}
+
+function tourRender(index) {
+    const els = tourEls();
+    const step = tour.steps[index];
+    if (!step) return;
+    tour.index = index;
+    els.title.textContent = step.title;
+    els.body.textContent = step.body;
+    els.progress.textContent = `${index + 1} / ${tour.steps.length}`;
+    els.nextBtn.textContent = index === tour.steps.length - 1 ? 'Finish' : 'Next';
+    els.tip.style.display = 'block';
+
+    const target = typeof step.target === 'function' ? step.target() : null;
+    if (target) {
+        const rect = target.getBoundingClientRect();
+        els.spotlight.style.opacity = '1';
+        els.spotlight.style.left = `${rect.left}px`;
+        els.spotlight.style.top = `${rect.top}px`;
+        els.spotlight.style.width = `${rect.width}px`;
+        els.spotlight.style.height = `${rect.height}px`;
+        els.spotlight.style.borderRadius = '10px';
+        positionTourTip(step, rect);
+    } else {
+        els.spotlight.style.opacity = '0';
+        centerTourTip();
+    }
+}
+
+function tourAdvance(next) {
+    const els = tourEls();
+    if (next >= tour.steps.length) {
+        endTour();
+        return;
+    }
+    tourRender(next);
+    const step = tour.steps[next];
+    const target = typeof step.target === 'function' ? step.target() : null;
+    if (target) {
+        target.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+        window.setTimeout(() => tourRender(tour.index), 420);
+    } else {
+        window.setTimeout(() => tourRender(tour.index), 60);
+    }
+    els.nextBtn.focus();
+}
+
+function positionTourTip(step, rect) {
+    const els = tourEls();
+    const tw = els.tip.offsetWidth;
+    const th = els.tip.offsetHeight;
+    const margin = 14;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const placement = typeof step.placement === 'function' ? step.placement() : (step.placement || 'bottom');
+
+    let left;
+    let top;
+    if (placement === 'top') {
+        left = rect.left + rect.width / 2 - tw / 2;
+        top = rect.top - th - margin;
+    } else if (placement === 'left') {
+        left = rect.left - tw - margin;
+        top = rect.top + rect.height / 2 - th / 2;
+    } else if (placement === 'right') {
+        left = rect.right + margin;
+        top = rect.top + rect.height / 2 - th / 2;
+    } else {
+        left = rect.left + rect.width / 2 - tw / 2;
+        top = rect.bottom + margin;
+    }
+
+    if (left + tw > vw - 12) left = vw - tw - 12;
+    if (top + th > vh - 12) top = vh - th - 12;
+    if (left < 12) left = 12;
+    if (top < 12) top = 12;
+
+    els.tip.style.left = `${left}px`;
+    els.tip.style.top = `${top}px`;
+}
+
+function centerTourTip() {
+    const els = tourEls();
+    const tw = els.tip.offsetWidth;
+    const th = els.tip.offsetHeight;
+    els.tip.style.left = `${(window.innerWidth - tw) / 2}px`;
+    els.tip.style.top = `${(window.innerHeight - th) / 2}px`;
+}
+
+function initTourControls() {
+    const els = tourEls();
+    if (!els.overlay || !els.nextBtn) return;
+
+    els.nextBtn.addEventListener('click', () => {
+        if (!tour.active) return;
+        tourAdvance(tour.index + 1);
+    });
+    els.skipBtn.addEventListener('click', endTour);
+    els.catcher.addEventListener('click', endTour);
+
+    window.addEventListener('keydown', (e) => {
+        if (tour.active && e.key === 'Escape') endTour();
+    });
+
+    let repositionTimer = null;
+    window.addEventListener('resize', () => {
+        if (!tour.active) return;
+        window.clearTimeout(repositionTimer);
+        repositionTimer = window.setTimeout(() => tourRender(tour.index), 80);
+    });
+    window.addEventListener('scroll', () => {
+        if (!tour.active) return;
+        window.clearTimeout(repositionTimer);
+        repositionTimer = window.setTimeout(() => tourRender(tour.index), 80);
+    }, true);
+
+    const replayBtn = document.getElementById('tourReplayBtn');
+    if (replayBtn) replayBtn.addEventListener('click', startTour);
 }
