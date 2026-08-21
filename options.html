@@ -964,6 +964,116 @@
     .review-actions button {
       margin: 0;
     }
+
+    #modelRow {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #customEndpointsSection {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .endpoint-preset-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .endpoint-preset-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      color: rgba(255, 253, 237, 0.7);
+      box-shadow: var(--glass-inner-shadow);
+    }
+
+    .endpoint-preset-btn:hover {
+      background: var(--glass-hover);
+      color: var(--font);
+      transform: none;
+    }
+
+    .endpoint-form-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    #customEndpointsSection small {
+      color: rgba(255, 253, 237, 0.5);
+      font-size: 11px;
+    }
+
+    .endpoint-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm);
+      background: var(--glass-bg);
+    }
+
+    .endpoint-item.active-endpoint {
+      border-color: rgba(255, 134, 0, 0.5);
+    }
+
+    .endpoint-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .endpoint-item-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--font);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .endpoint-item-url {
+      font-size: 11px;
+      color: rgba(255, 253, 237, 0.5);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .endpoint-active-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(255, 134, 0, 0.2);
+      border: 1px solid rgba(255, 134, 0, 0.4);
+      color: var(--primary);
+      white-space: nowrap;
+    }
+
+    .endpoint-item-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .endpoint-item-actions button {
+      padding: 4px 10px;
+      font-size: 11px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      color: rgba(255, 253, 237, 0.7);
+      box-shadow: var(--glass-inner-shadow);
+    }
+
+    .endpoint-item-actions button:hover {
+      background: var(--glass-hover);
+      color: var(--font);
+      transform: none;
+    }
   </style>
 </head>
 <body>
@@ -990,15 +1100,57 @@
           <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" fill="#fff" stroke="#fff"><g clip-path="url(#clip0_205_3)"><path d="M3 248.945C18 248.945 76 236 106 219C136 202 136 202 198 158C276.497 102.293 332 120.945 423 120.945" stroke-width="90"/><path d="M511 121.5L357.25 210.268L357.25 32.7324L511 121.5Z"/><path d="M0 249C15 249 73 261.945 103 278.945C133 295.945 133 295.945 195 339.945C273.497 395.652 329 377 420 377" stroke-width="90"/><path d="M508 376.445L354.25 287.678L354.25 465.213L508 376.445Z"/></g></svg>
           <div class="active-badge">&#10003;</div>
         </div>
+        <div class="provider-icon-wrapper" data-provider="custom" title="Custom / Local">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#fff"><path d="M4 3.5h16A1.5 1.5 0 0 1 21.5 5v4A1.5 1.5 0 0 1 20 10.5H4A1.5 1.5 0 0 1 2.5 9V5A1.5 1.5 0 0 1 4 3.5Zm0 10h16a1.5 1.5 0 0 1 1.5 1.5v4a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5v-4A1.5 1.5 0 0 1 4 13.5ZM6 6.25A.75.75 0 1 0 6 7.75a.75.75 0 0 0 0-1.5Zm0 10a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/></svg>
+          <div class="active-badge">&#10003;</div>
+        </div>
       </div>
 
       <label id="apiKeyLabel" for="apiKey">API Key:</label>
-      <div class="api-key-wrapper">
+      <div class="api-key-wrapper" id="apiKeyWrapper">
         <input type="password" id="apiKey" placeholder="Enter API Key">
         <button type="button" id="toggleApiKey">Show</button>
       </div>
       <button type="button" id="setActiveProviderBtn" class="set-active-btn" style="display: none;">Set as Active Provider</button>
       <small id="providerHelperText"></small>
+
+      <div id="modelRow" style="display: none;">
+        <label for="modelInput">Model:</label>
+        <div class="api-key-wrapper">
+          <input type="text" id="modelInput" list="cloudModelDatalist" placeholder="Leave empty for the default model" autocomplete="off">
+          <datalist id="cloudModelDatalist"></datalist>
+          <button type="button" id="loadModelsBtn">Load Models</button>
+        </div>
+        <small id="modelHelperText"></small>
+      </div>
+
+      <div id="customEndpointsSection" style="display: none;">
+        <label>Custom Endpoints (OpenAI-compatible)</label>
+        <div class="endpoint-preset-row">
+          <button type="button" class="endpoint-preset-btn" data-preset="ollama">Ollama</button>
+          <button type="button" class="endpoint-preset-btn" data-preset="lmstudio">LM Studio</button>
+          <button type="button" class="endpoint-preset-btn" data-preset="nvidia">NVIDIA NIM</button>
+        </div>
+        <label for="endpointNameInput">Endpoint Name:</label>
+        <input type="text" id="endpointNameInput" placeholder="e.g. My Ollama" maxlength="40">
+        <label for="endpointBaseUrlInput">Base URL:</label>
+        <input type="text" id="endpointBaseUrlInput" placeholder="http://localhost:11434/v1">
+        <label for="endpointApiKeyInput">API Key (optional):</label>
+        <input type="password" id="endpointApiKeyInput" placeholder="Leave empty for local endpoints">
+        <label for="endpointModelInput">Model:</label>
+        <div class="api-key-wrapper">
+          <input type="text" id="endpointModelInput" list="endpointModelDatalist" placeholder="e.g. llama3.1:8b" autocomplete="off">
+          <datalist id="endpointModelDatalist"></datalist>
+        </div>
+        <div class="endpoint-form-actions">
+          <button type="button" id="testEndpointBtn">Test Connection</button>
+          <button type="button" id="saveEndpointBtn">Save Endpoint</button>
+          <button type="button" id="cancelEndpointEditBtn" style="display: none;">Cancel Edit</button>
+        </div>
+        <small id="endpointStatusText"></small>
+        <div id="endpointsList"></div>
+        <small>Chrome will ask for permission to reach the endpoint's domain when you save or test it.</small>
+      </div>
 
       <div class="divider"></div>
 

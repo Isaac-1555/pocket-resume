@@ -71,21 +71,251 @@ function normalizeStringArray(value) {
         .filter(Boolean);
 }
 
-async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, provider = 'google') {
-    let url, model;
-    if (provider === 'openrouter') {
-        model = "openai/gpt-oss-120b:free";
-        url = `https://openrouter.ai/api/v1/chat/completions`;
-    } else if (provider === 'openai') {
-        model = "gpt-4o-mini";
-        url = `https://api.openai.com/v1/chat/completions`;
-    } else if (provider === 'anthropic') {
-        model = "claude-3-5-haiku-20241022";
-        url = `https://api.anthropic.com/v1/messages`;
-    } else {
-        model = "gemini-2.5-flash";
-        url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+// --- Provider Layer ---
+const PROVIDER_DEFAULT_MODELS = {
+    google: 'gemini-2.5-flash',
+    openai: 'gpt-4o-mini',
+    anthropic: 'claude-3-5-haiku-20241022',
+    openrouter: 'openai/gpt-oss-120b:free'
+};
+
+const PROVIDER_SETTINGS_KEYS = [
+    'apiProvider',
+    'geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey',
+    'googleModel', 'openaiModel', 'anthropicModel', 'openrouterModel',
+    'customEndpoints', 'activeCustomEndpointId'
+];
+
+function normalizeBaseUrl(baseUrl) {
+    return (baseUrl || '').trim().replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
+}
+
+function getProviderModel(settings, provider) {
+    const override = (settings[`${provider}Model`] || '').trim();
+    return override || PROVIDER_DEFAULT_MODELS[provider];
+}
+
+function getApiKeyForProvider(settings, provider) {
+    if (provider === 'openrouter') return settings.openrouterApiKey;
+    if (provider === 'openai') return settings.openaiApiKey;
+    if (provider === 'anthropic') return settings.anthropicApiKey;
+    if (provider === 'custom') return '';
+    return settings.geminiApiKey;
+}
+
+function resolveCustomEndpoint(settings) {
+    const endpoints = Array.isArray(settings.customEndpoints) ? settings.customEndpoints : [];
+    if (!endpoints.length) return null;
+    const activeId = settings.activeCustomEndpointId;
+    return endpoints.find((endpoint) => endpoint && endpoint.id === activeId) || endpoints[0];
+}
+
+function validateProviderReady(settings, provider) {
+    if (provider === 'custom') {
+        const endpoint = resolveCustomEndpoint(settings);
+        if (!endpoint || !normalizeBaseUrl(endpoint.baseUrl)) {
+            throw new Error("Please configure a custom endpoint in the extension settings.");
+        }
+        return;
     }
+    if (!(getApiKeyForProvider(settings, provider) || '').trim()) {
+        throw new Error("Please set your API Key in the extension settings.");
+    }
+}
+
+function createProviderContext(settings, apiKeyOverride = '') {
+    const provider = settings.apiProvider || 'google';
+    const storedKey = (getApiKeyForProvider(settings, provider) || '').trim();
+    return {
+        provider,
+        settings,
+        apiKey: (apiKeyOverride || '').trim() || storedKey
+    };
+}
+
+async function parseResponseJsonBody(response) {
+    const rawBody = await response.text();
+    try {
+        return JSON.parse(rawBody);
+    } catch (error) {
+        const snippet = rawBody.trim().slice(0, 200);
+        throw new Error(snippet || `HTTP ${response.status} with a non-JSON response.`);
+    }
+}
+
+const PROVIDER_TIMEOUT_MS = 90000;
+const PROVIDER_MAX_ATTEMPTS = 3;
+
+function isRetryableStatus(status) {
+    return status === 408 || status === 429 || status >= 500;
+}
+
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseRetryAfter(headerValue) {
+    if (!headerValue) return 0;
+    const seconds = Number(headerValue);
+    if (Number.isFinite(seconds)) return Math.min(Math.max(seconds * 1000, 0), 15000);
+    const dateMs = Date.parse(headerValue);
+    if (Number.isFinite(dateMs)) return Math.min(Math.max(dateMs - Date.now(), 0), 15000);
+    return 0;
+}
+
+async function fetchWithRetry(url, options = {}, contextLabel = '') {
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= PROVIDER_MAX_ATTEMPTS; attempt++) {
+        if (attempt > 1 && lastError) {
+            const backoffMs = Math.min(1000 * 2 ** (attempt - 2), 4000) + Math.random() * 500;
+            await sleep(Math.max(backoffMs, lastError.retryAfterMs || 0));
+        }
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+        try {
+            const response = await fetch(url, { ...options, signal: controller.signal });
+            if (!isRetryableStatus(response.status)) return response;
+            lastError = new Error(`HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`);
+            lastError.retryAfterMs = parseRetryAfter(response.headers.get('retry-after'));
+            if (attempt === PROVIDER_MAX_ATTEMPTS) return response;
+        } catch (error) {
+            if (error?.name === 'AbortError') {
+                lastError = new Error(`Request timed out after ${PROVIDER_TIMEOUT_MS / 1000}s${contextLabel ? ` (${contextLabel})` : ''}`);
+            } else {
+                lastError = error instanceof Error ? error : new Error(String(error));
+            }
+            lastError.retryAfterMs = 0;
+            if (attempt === PROVIDER_MAX_ATTEMPTS) throw lastError;
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    throw lastError || new Error('Request failed.');
+}
+
+async function executeProviderChat(context, prompt, contextLabel = '') {
+    const { provider, settings, apiKey } = context;
+    const errorSuffix = contextLabel ? ` (${contextLabel})` : '';
+
+    if (provider === 'anthropic') {
+        if (!apiKey) throw new Error("Please set your API Key in the extension settings.");
+
+        const response = await fetchWithRetry('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerously-allow-browser': 'true'
+            },
+            body: JSON.stringify({
+                model: getProviderModel(settings, 'anthropic'),
+                max_tokens: 4096,
+                messages: [{ role: "user", content: prompt }]
+            })
+        }, contextLabel);
+
+        const data = await parseResponseJsonBody(response);
+
+        if (!response.ok) {
+            const errMsg = data.error?.message || data.error || JSON.stringify(data);
+            throw new Error(`${errMsg || `Anthropic API Error${errorSuffix}`} (HTTP ${response.status})`);
+        }
+
+        const text = data.content?.[0]?.text;
+        if (typeof text !== 'string') {
+            throw new Error(`Anthropic API returned an unexpected response${errorSuffix}.`);
+        }
+        return text;
+    }
+
+    if (provider === 'google') {
+        if (!apiKey) throw new Error("Please set your API Key in the extension settings.");
+
+        const model = getProviderModel(settings, 'google');
+        const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        }, contextLabel);
+
+        const data = await parseResponseJsonBody(response);
+
+        if (!response.ok) {
+            throw new Error(`${data.error?.message || `Gemini API Error${errorSuffix}`} (HTTP ${response.status})`);
+        }
+
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    }
+
+    let url, headers, requestBody;
+
+    if (provider === 'openai' || provider === 'openrouter') {
+        if (!apiKey) throw new Error("Please set your API Key in the extension settings.");
+
+        url = provider === 'openai'
+            ? 'https://api.openai.com/v1/chat/completions'
+            : 'https://openrouter.ai/api/v1/chat/completions';
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        };
+        if (provider === 'openrouter') {
+            headers['HTTP-Referer'] = 'https://pocketresume.app';
+            headers['X-Title'] = 'PocketResume';
+        }
+        requestBody = {
+            model: getProviderModel(settings, provider),
+            messages: [{ role: "user", content: prompt }]
+        };
+    } else if (provider === 'custom') {
+        const endpoint = resolveCustomEndpoint(settings);
+        const baseUrl = normalizeBaseUrl(endpoint?.baseUrl);
+        if (!baseUrl) throw new Error("Please configure a custom endpoint in the extension settings.");
+
+        const model = (endpoint.model || '').trim();
+        if (!model) throw new Error("Please set a model for your custom endpoint in the extension settings.");
+
+        url = `${baseUrl}/chat/completions`;
+        headers = { 'Content-Type': 'application/json' };
+        const endpointKey = (endpoint.apiKey || '').trim();
+        if (endpointKey) headers['Authorization'] = `Bearer ${endpointKey}`;
+        requestBody = {
+            model,
+            max_tokens: 4096,
+            messages: [{ role: "user", content: prompt }]
+        };
+    } else {
+        throw new Error(`Unknown AI provider: ${provider}`);
+    }
+
+    const response = await fetchWithRetry(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody)
+    }, contextLabel);
+
+    const data = await parseResponseJsonBody(response);
+
+    if (!response.ok) {
+        let errMsg = data.error?.message || data.error || JSON.stringify(data);
+        if (data.error?.metadata?.raw) {
+            errMsg += " | Raw Provider Error: " + JSON.stringify(data.error.metadata.raw);
+        }
+        throw new Error(`${errMsg || `${provider} API Error${errorSuffix}`} (HTTP ${response.status})`);
+    }
+
+    const content = data.choices?.[0]?.message?.content;
+    if (typeof content !== 'string') {
+        throw new Error(`${provider} API returned an unexpected response${errorSuffix}.`);
+    }
+    return content;
+}
+
+async function generateTailoredResume(context, userProfile, jobDescription, resumeStyle) {
     const styleConfig = getResumeStyleConfig(resumeStyle);
     const selectedLayout = styleConfig.layout;
 
@@ -222,101 +452,10 @@ async function callGemini(apiKey, userProfile, jobDescription, resumeStyle, prov
     - Ensure bullet points are impactful (Action Verb + Context + Result) and concise unless the academic CV layout needs a short descriptive detail line.
   `;
 
-    const parts = [{ text: prompt }];
-
-    let response, data;
-
-    if (provider === 'openrouter' || provider === 'openai') {
-        const requestBody = {
-            model: model,
-            messages: [{ role: "user", content: prompt }]
-        };
-
-        response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-                'HTTP-Referer': 'https://pocketresume.app',
-                'X-Title': 'PocketResume'
-            },
-            body: JSON.stringify(requestBody)
-        });
-
-        data = await response.json();
-
-        if (!response.ok) {
-            let errMsg = data.error?.message || data.error || JSON.stringify(data);
-            if (data.error?.metadata?.raw) {
-                errMsg += " | Raw Provider Error: " + JSON.stringify(data.error.metadata.raw);
-            }
-            throw new Error(errMsg || `${provider} API Error`);
-        }
-
-        return data.choices[0].message.content;
-    } else if (provider === 'anthropic') {
-        const requestBody = {
-            model: model,
-            max_tokens: 4096,
-            messages: [{ role: "user", content: prompt }]
-        };
-
-        response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-                'anthropic-dangerously-allow-browser': 'true'
-            },
-            body: JSON.stringify(requestBody)
-        });
-
-        data = await response.json();
-
-        if (!response.ok) {
-            let errMsg = data.error?.message || data.error || JSON.stringify(data);
-            throw new Error(errMsg || "Anthropic API Error");
-        }
-
-        return data.content[0].text;
-    } else {
-        const requestBody = {
-            contents: [{ parts: parts }]
-        };
-
-        response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-
-        data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error?.message || "Gemini API Error");
-        }
-
-        return data.candidates[0].content.parts[0].text;
-    }
+    return executeProviderChat(context, prompt);
 }
 
-async function callGeminiResumeExtraction(apiKey, sourceText, provider = 'google') {
-    let url, model;
-    if (provider === 'openrouter') {
-        model = "openai/gpt-oss-120b:free";
-        url = `https://openrouter.ai/api/v1/chat/completions`;
-    } else if (provider === 'openai') {
-        model = "gpt-4o-mini";
-        url = `https://api.openai.com/v1/chat/completions`;
-    } else if (provider === 'anthropic') {
-        model = "claude-3-5-haiku-20241022";
-        url = `https://api.anthropic.com/v1/messages`;
-    } else {
-        model = "gemini-2.5-flash";
-        url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    }
-
+async function extractResumeProfileJson(context, sourceText) {
     const prompt = `
     You are an expert data extraction assistant.
     
@@ -374,101 +513,10 @@ async function callGeminiResumeExtraction(apiKey, sourceText, provider = 'google
     - Do NOT use Markdown code blocks (like \`\`\`json). Just output the raw JSON string.
   `;
 
-    let response, data, rawText;
-
-    if (provider === 'openrouter' || provider === 'openai') {
-        const requestBody = {
-            model: model,
-            messages: [{ role: "user", content: prompt }]
-        };
-
-        response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-                'HTTP-Referer': 'https://pocketresume.app',
-                'X-Title': 'PocketResume'
-            },
-            body: JSON.stringify(requestBody)
-        });
-
-        data = await response.json();
-
-        if (!response.ok) {
-            let errMsg = data.error?.message || data.error || JSON.stringify(data);
-            if (data.error?.metadata?.raw) {
-                errMsg += " | Raw Provider Error: " + JSON.stringify(data.error.metadata.raw);
-            }
-            throw new Error(errMsg || `${provider} API Error (Resume Extraction)`);
-        }
-
-        rawText = data.choices[0].message.content;
-    } else if (provider === 'anthropic') {
-        const requestBody = {
-            model: model,
-            max_tokens: 4096,
-            messages: [{ role: "user", content: prompt }]
-        };
-
-        response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-                'anthropic-dangerously-allow-browser': 'true'
-            },
-            body: JSON.stringify(requestBody)
-        });
-
-        data = await response.json();
-
-        if (!response.ok) {
-            let errMsg = data.error?.message || data.error || JSON.stringify(data);
-            throw new Error(errMsg || "Anthropic API Error (Resume Extraction)");
-        }
-
-        rawText = data.content[0].text;
-    } else {
-        const requestBody = {
-            contents: [{ parts: [{ text: prompt }] }]
-        };
-
-        response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-
-        data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error?.message || "Gemini API Error (Resume Extraction)");
-        }
-
-        rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    }
-
-    return rawText;
+    return executeProviderChat(context, prompt, 'Resume Extraction');
 }
 
-async function callGeminiResumeRefinement(apiKey, userProfile, provider = 'google') {
-    let url, model;
-    if (provider === 'openrouter') {
-        model = "openai/gpt-oss-120b:free";
-        url = `https://openrouter.ai/api/v1/chat/completions`;
-    } else if (provider === 'openai') {
-        model = "gpt-4o-mini";
-        url = `https://api.openai.com/v1/chat/completions`;
-    } else if (provider === 'anthropic') {
-        model = "claude-3-5-haiku-20241022";
-        url = `https://api.anthropic.com/v1/messages`;
-    } else {
-        model = "gemini-2.5-flash";
-        url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    }
-
+async function refineResumeSource(context, userProfile) {
     const prompt = `
     You are a strict resume normalization assistant.
 
@@ -523,81 +571,7 @@ async function callGeminiResumeRefinement(apiKey, userProfile, provider = 'googl
     - Return raw JSON only. Do not wrap it in markdown.
   `;
 
-    let response, data, rawText;
-
-    if (provider === 'openrouter' || provider === 'openai') {
-        const requestBody = {
-            model: model,
-            messages: [{ role: "user", content: prompt }]
-        };
-
-        response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-                'HTTP-Referer': 'https://pocketresume.app',
-                'X-Title': 'PocketResume'
-            },
-            body: JSON.stringify(requestBody)
-        });
-
-        data = await response.json();
-
-        if (!response.ok) {
-            let errMsg = data.error?.message || data.error || JSON.stringify(data);
-            if (data.error?.metadata?.raw) {
-                errMsg += " | Raw Provider Error: " + JSON.stringify(data.error.metadata.raw);
-            }
-            throw new Error(errMsg || `${provider} API Error (Resume Refinement)`);
-        }
-
-        rawText = data.choices[0].message.content;
-    } else if (provider === 'anthropic') {
-        const requestBody = {
-            model: model,
-            max_tokens: 4096,
-            messages: [{ role: "user", content: prompt }]
-        };
-
-        response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-                'anthropic-dangerously-allow-browser': 'true'
-            },
-            body: JSON.stringify(requestBody)
-        });
-
-        data = await response.json();
-
-        if (!response.ok) {
-            let errMsg = data.error?.message || data.error || JSON.stringify(data);
-            throw new Error(errMsg || "Anthropic API Error (Resume Refinement)");
-        }
-
-        rawText = data.content[0].text;
-    } else {
-        const requestBody = {
-            contents: [{ parts: [{ text: prompt }] }]
-        };
-
-        response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-
-        data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error?.message || "Gemini API Error (Resume Refinement)");
-        }
-
-        rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    }
+    const rawText = await executeProviderChat(context, prompt, 'Resume Refinement');
     const parsed = parseJsonText(rawText, 'Resume refinement response');
     const refinedText = typeof parsed.refinedText === 'string' ? parsed.refinedText.trim() : '';
 
@@ -612,21 +586,7 @@ async function callGeminiResumeRefinement(apiKey, userProfile, provider = 'googl
     };
 }
 
-async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resumeStyle, provider = 'google') {
-    let url, model;
-    if (provider === 'openrouter') {
-        model = "openai/gpt-oss-120b:free";
-        url = `https://openrouter.ai/api/v1/chat/completions`;
-    } else if (provider === 'openai') {
-        model = "gpt-4o-mini";
-        url = `https://api.openai.com/v1/chat/completions`;
-    } else if (provider === 'anthropic') {
-        model = "claude-3-5-haiku-20241022";
-        url = `https://api.anthropic.com/v1/messages`;
-    } else {
-        model = "gemini-2.5-flash";
-        url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    }
+async function generateCoverLetterText(context, userProfile, jobDescription, resumeStyle) {
     const styleConfig = getResumeStyleConfig(resumeStyle);
 
     let toneGuide = "";
@@ -689,81 +649,7 @@ async function callGeminiCoverLetter(apiKey, userProfile, jobDescription, resume
     - IMPORTANT: If a specific field is NOT available from the job description or profile, leave it as an empty string "". Do NOT put "N/A", "Unknown", or placeholders.
   `;
 
-    const parts = [{ text: prompt }];
-
-    if (provider === 'openrouter' || provider === 'openai') {
-        const requestBody = {
-            model: model,
-            messages: [{ role: "user", content: prompt }]
-        };
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-                'HTTP-Referer': 'https://pocketresume.app',
-                'X-Title': 'PocketResume'
-            },
-            body: JSON.stringify(requestBody)
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            let errMsg = data.error?.message || data.error || JSON.stringify(data);
-            if (data.error?.metadata?.raw) {
-                errMsg += " | Raw Provider Error: " + JSON.stringify(data.error.metadata.raw);
-            }
-            throw new Error(errMsg || `${provider} API Error (Cover Letter)`);
-        }
-
-        return data.choices[0].message.content;
-    } else if (provider === 'anthropic') {
-        const requestBody = {
-            model: model,
-            max_tokens: 4096,
-            messages: [{ role: "user", content: prompt }]
-        };
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-                'anthropic-dangerously-allow-browser': 'true'
-            },
-            body: JSON.stringify(requestBody)
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            let errMsg = data.error?.message || data.error || JSON.stringify(data);
-            throw new Error(errMsg || "Anthropic API Error (Cover Letter)");
-        }
-
-        return data.content[0].text;
-    } else {
-        const requestBody = {
-            contents: [{ parts: parts }]
-        };
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error?.message || "Gemini API Error (Cover Letter)");
-        }
-
-        return data.candidates[0].content.parts[0].text;
-    }
+    return executeProviderChat(context, prompt, 'Cover Letter');
 }
 
 
@@ -783,18 +669,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 const selectedResumeStyle = normalizeResumeStyle(requestedResumeStyle);
 
                 // 1. Get Settings
-                const settings = await chrome.storage.local.get(['apiProvider', 'geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'resumes', 'userProfile', 'coverLetterEnabled']);
+                const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS.concat(['resumes', 'userProfile', 'coverLetterEnabled']));
                 const provider = settings.apiProvider || 'google';
-
-                let apiKey;
-                if (provider === 'openrouter') apiKey = settings.openrouterApiKey;
-                else if (provider === 'openai') apiKey = settings.openaiApiKey;
-                else if (provider === 'anthropic') apiKey = settings.anthropicApiKey;
-                else apiKey = settings.geminiApiKey;
-
-                if (!apiKey) {
-                    throw new Error("Please set your API Key in the extension settings.");
-                }
+                validateProviderReady(settings, provider);
+                const context = createProviderContext(settings);
 
                 // Resolve the user profile content from the resumes array (or fallback to legacy userProfile)
                 let userProfile = '';
@@ -837,25 +715,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // 4. Extract job text (content script already ran)
                 const jobText = contentData.text || "No text found on page.";
 
-                // 5. Call Pipeline (Gemini) - Resume
-                const resumeText = await callGemini(
-                    apiKey,
-                    userProfile,
-                    jobText,
-                    selectedResumeStyle,
-                    provider
-                );
+                // 5. Call Pipeline - Resume
+                const resumeText = await generateTailoredResume(context, userProfile, jobText, selectedResumeStyle);
 
                 // 6. Conditionally generate cover letter
                 let coverLetterText = null;
                 if (settings.coverLetterEnabled) {
-                    coverLetterText = await callGeminiCoverLetter(
-                        apiKey,
-                        userProfile,
-                        jobText,
-                        selectedResumeStyle,
-                        provider
-                    );
+                    coverLetterText = await generateCoverLetterText(context, userProfile, jobText, selectedResumeStyle);
                 }
 
                 // 6b. Success
@@ -875,28 +741,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         (async () => {
             try {
                 const payload = message.payload || {};
-                const settings = await chrome.storage.local.get(['apiProvider', 'geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey']);
+                const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS);
                 const provider = settings.apiProvider || 'google';
-                let storedApiKey;
-                if (provider === 'openrouter') storedApiKey = settings.openrouterApiKey;
-                else if (provider === 'openai') storedApiKey = settings.openaiApiKey;
-                else if (provider === 'anthropic') storedApiKey = settings.anthropicApiKey;
-                else storedApiKey = settings.geminiApiKey;
-
-                const apiKey = (typeof payload.apiKey === 'string' && payload.apiKey.trim())
-                    ? payload.apiKey.trim()
-                    : (storedApiKey || '').trim();
+                validateProviderReady(settings, provider);
+                const context = createProviderContext(settings, typeof payload.apiKey === 'string' ? payload.apiKey : '');
                 const sourceText = typeof payload.sourceText === 'string' ? payload.sourceText : '';
-
-                if (!apiKey) {
-                    throw new Error("Please set your API Key in the extension settings.");
-                }
 
                 if (!sourceText.trim()) {
                     throw new Error("Please add your resume/profile content before refining it.");
                 }
 
-                const refinement = await callGeminiResumeRefinement(apiKey, sourceText, provider);
+                const refinement = await refineResumeSource(context, sourceText);
                 sendResponse({ status: 'success', data: refinement });
             } catch (error) {
                 console.error("Refinement Error:", error);
@@ -911,28 +766,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         (async () => {
             try {
                 const payload = message.payload || {};
-                const settings = await chrome.storage.local.get(['apiProvider', 'geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey']);
+                const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS);
                 const provider = settings.apiProvider || 'google';
-                let storedApiKey;
-                if (provider === 'openrouter') storedApiKey = settings.openrouterApiKey;
-                else if (provider === 'openai') storedApiKey = settings.openaiApiKey;
-                else if (provider === 'anthropic') storedApiKey = settings.anthropicApiKey;
-                else storedApiKey = settings.geminiApiKey;
-
-                const apiKey = (typeof payload.apiKey === 'string' && payload.apiKey.trim())
-                    ? payload.apiKey.trim()
-                    : (storedApiKey || '').trim();
+                validateProviderReady(settings, provider);
+                const context = createProviderContext(settings, typeof payload.apiKey === 'string' ? payload.apiKey : '');
                 const sourceText = typeof payload.sourceText === 'string' ? payload.sourceText : '';
-
-                if (!apiKey) {
-                    throw new Error("Please set your API Key in the extension settings.");
-                }
 
                 if (!sourceText.trim()) {
                     throw new Error("Please add your resume/profile content before extracting it.");
                 }
 
-                const extractedJson = await callGeminiResumeExtraction(apiKey, sourceText, provider);
+                const extractedJson = await extractResumeProfileJson(context, sourceText);
                 sendResponse({ status: 'success', data: extractedJson });
             } catch (error) {
                 console.error("Extraction Error:", error);

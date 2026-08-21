@@ -7,7 +7,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   const tabContentArea = document.getElementById('tabContentArea');
 
   const apiKeyLabel = document.getElementById('apiKeyLabel');
+  const apiKeyWrapper = document.getElementById('apiKeyWrapper');
   const providerHelperText = document.getElementById('providerHelperText');
+  const modelRow = document.getElementById('modelRow');
+  const modelInput = document.getElementById('modelInput');
+  const cloudModelDatalist = document.getElementById('cloudModelDatalist');
+  const loadModelsBtn = document.getElementById('loadModelsBtn');
+  const customEndpointsSection = document.getElementById('customEndpointsSection');
+  const endpointNameInput = document.getElementById('endpointNameInput');
+  const endpointBaseUrlInput = document.getElementById('endpointBaseUrlInput');
+  const endpointApiKeyInput = document.getElementById('endpointApiKeyInput');
+  const endpointModelInput = document.getElementById('endpointModelInput');
+  const endpointModelDatalist = document.getElementById('endpointModelDatalist');
+  const testEndpointBtn = document.getElementById('testEndpointBtn');
+  const saveEndpointBtn = document.getElementById('saveEndpointBtn');
+  const cancelEndpointEditBtn = document.getElementById('cancelEndpointEditBtn');
+  const endpointStatusText = document.getElementById('endpointStatusText');
+  const endpointsList = document.getElementById('endpointsList');
   const setActiveProviderBtn = document.getElementById('setActiveProviderBtn');
   const providerIcons = document.querySelectorAll('.provider-icon-wrapper');
   const cloudAuthStatus = document.getElementById('cloudAuthStatus');
@@ -38,6 +54,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   let activeProvider = 'google';
   let currentlyViewedProvider = 'google';
   let cloudRestoreDraft = [];
+  let providerModels = { google: '', openai: '', anthropic: '', openrouter: '' };
+  let customEndpoints = [];
+  let activeCustomEndpointId = '';
+  let editingEndpointId = null;
 
   let resumes = [];
   let activeTabIndex = 0;
@@ -49,6 +69,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   function generateId() {
     return 'r_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
   }
+
+  const PROVIDER_NAMES = {
+    google: 'Google Gemini',
+    openrouter: 'OpenRouter',
+    openai: 'OpenAI',
+    anthropic: 'Anthropic',
+    custom: 'Custom / Local'
+  };
+
+  const ENDPOINT_PRESETS = {
+    ollama: { name: 'Ollama', baseUrl: 'http://localhost:11434/v1', model: '' },
+    lmstudio: { name: 'LM Studio', baseUrl: 'http://localhost:1234/v1', model: '' },
+    nvidia: { name: 'NVIDIA NIM', baseUrl: 'https://integrate.api.nvidia.com/v1', model: 'mistralai/mistral-small-3.1-24b-instruct-2503' }
+  };
 
   if (window.location.hash === '#cloud-pricing') {
     setTimeout(showCloudPricingPanel, 300);
@@ -186,6 +220,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       openrouterApiKey: apiKeys.openrouter,
       openaiApiKey: apiKeys.openai,
       anthropicApiKey: apiKeys.anthropic,
+      googleModel: providerModels.google,
+      openaiModel: providerModels.openai,
+      anthropicModel: providerModels.anthropic,
+      openrouterModel: providerModels.openrouter,
+      customEndpoints: customEndpoints,
+      activeCustomEndpointId: activeCustomEndpointId,
       resumes: getPersistedResumes()
     };
   }
@@ -323,24 +363,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   const updateViewedProvider = (provider) => {
     if (currentlyViewedProvider && currentlyViewedProvider !== provider) {
       apiKeys[currentlyViewedProvider] = apiKeyInput.value.trim();
+      if (providerModels.hasOwnProperty(currentlyViewedProvider)) {
+        providerModels[currentlyViewedProvider] = modelInput.value.trim();
+      }
     }
     currentlyViewedProvider = provider;
-    apiKeyInput.value = apiKeys[provider] || '';
+    const isCustom = provider === 'custom';
+
     providerIcons.forEach(icon => {
       icon.classList.toggle('active-view', icon.dataset.provider === provider);
     });
-    const names = {
-      google: 'Google Gemini',
-      openrouter: 'OpenRouter',
-      openai: 'OpenAI',
-      anthropic: 'Anthropic'
-    };
-    apiKeyLabel.textContent = `${names[provider]} API Key:`;
+
+    apiKeyWrapper.style.display = isCustom ? 'none' : 'flex';
+    modelRow.style.display = isCustom ? 'none' : 'flex';
+    customEndpointsSection.style.display = isCustom ? 'flex' : 'none';
+
+    if (!isCustom) {
+      apiKeyInput.value = apiKeys[provider] || '';
+      modelInput.value = providerModels[provider] || '';
+      cloudModelDatalist.innerHTML = '';
+      modelHelperText.textContent = "Leave empty to use this provider's default model.";
+    } else {
+      resetEndpointForm();
+      renderEndpointsList();
+    }
+
+    apiKeyLabel.textContent = `${PROVIDER_NAMES[provider]} API Key:`;
     const helperTexts = {
       google: 'Get your Google key from <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>',
       openrouter: 'Get your OpenRouter key from <a href="https://openrouter.ai/keys" target="_blank">OpenRouter</a>',
       openai: 'Get your OpenAI key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>',
-      anthropic: 'Get your Anthropic key from <a href="https://console.anthropic.com/settings/keys" target="_blank">Anthropic Console</a>'
+      anthropic: 'Get your Anthropic key from <a href="https://console.anthropic.com/settings/keys" target="_blank">Anthropic Console</a>',
+      custom: 'Connect any OpenAI-compatible API: Ollama, LM Studio, NVIDIA NIM, Groq, DeepSeek and more.'
     };
     providerHelperText.innerHTML = helperTexts[provider];
     setActiveProviderBtn.style.display = provider === activeProvider ? 'none' : 'inline-block';
@@ -368,7 +422,262 @@ document.addEventListener('DOMContentLoaded', async () => {
     apiKeys[currentlyViewedProvider] = apiKeyInput.value.trim();
   });
 
-  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'apiProvider', 'userProfile', 'resumes', 'trackerCaptureEnabled']);
+  modelInput.addEventListener('input', () => {
+    if (providerModels.hasOwnProperty(currentlyViewedProvider)) {
+      providerModels[currentlyViewedProvider] = modelInput.value.trim();
+    }
+  });
+
+  async function fetchCloudProviderModels(provider) {
+    if (provider === 'google') {
+      const key = apiKeys.google;
+      if (!key) throw new Error('Enter your Google API key first.');
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
+      return (data.models || []).map((m) => (m.name || '').replace(/^models\//, '')).filter(Boolean);
+    }
+    if (provider === 'openai') {
+      const key = apiKeys.openai;
+      if (!key) throw new Error('Enter your OpenAI API key first.');
+      const res = await fetch('https://api.openai.com/v1/models', { headers: { 'Authorization': `Bearer ${key}` } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
+      return (data.data || []).map((m) => m.id).filter(Boolean);
+    }
+    if (provider === 'anthropic') {
+      const key = apiKeys.anthropic;
+      if (!key) throw new Error('Enter your Anthropic API key first.');
+      const res = await fetch('https://api.anthropic.com/v1/models', { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
+      return (data.data || []).map((m) => m.id).filter(Boolean);
+    }
+    if (provider === 'openrouter') {
+      const res = await fetch('https://openrouter.ai/api/v1/models');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
+      return (data.data || []).map((m) => m.id).filter(Boolean);
+    }
+    throw new Error('Select a cloud provider first.');
+  }
+
+  loadModelsBtn.addEventListener('click', async () => {
+    const provider = currentlyViewedProvider;
+    if (!providerModels.hasOwnProperty(provider)) return;
+    loadModelsBtn.disabled = true;
+    try {
+      const models = (await fetchCloudProviderModels(provider)).sort();
+      cloudModelDatalist.innerHTML = models.map((m) => `<option value="${escapeAttr(m)}"></option>`).join('');
+      modelHelperText.textContent = models.length
+        ? `${models.length} models loaded. Click the model field to pick one.`
+        : 'No models found for this key.';
+    } catch (error) {
+      modelHelperText.textContent = `Could not load models: ${error.message}`;
+    } finally {
+      loadModelsBtn.disabled = false;
+    }
+  });
+
+  function getEndpointOrigin(baseUrl) {
+    try {
+      const url = new URL(baseUrl);
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+      return url.origin + '/*';
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async function ensureEndpointPermission(baseUrl) {
+    const origin = getEndpointOrigin(baseUrl);
+    if (!origin) throw new Error('Enter a valid http(s) Base URL.');
+    const alreadyGranted = await chrome.permissions.contains({ origins: [origin] });
+    if (alreadyGranted) return;
+    const granted = await chrome.permissions.request({ origins: [origin] });
+    if (!granted) throw new Error(`Permission denied for ${origin}`);
+  }
+
+  function normalizeEndpointBase(baseUrl) {
+    return (baseUrl || '').trim().replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
+  }
+
+  async function fetchCustomEndpointModels(baseUrl, apiKey) {
+    const normalized = normalizeEndpointBase(baseUrl);
+    if (!normalized) throw new Error('Enter a Base URL first.');
+    const headers = {};
+    if ((apiKey || '').trim()) headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+    const res = await fetch(`${normalized}/models`, { headers });
+    let data;
+    try {
+      data = await res.json();
+    } catch (error) {
+      throw new Error(`HTTP ${res.status} with a non-JSON response.`);
+    }
+    if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
+    return (Array.isArray(data.data) ? data.data : []).map((m) => m?.id).filter(Boolean);
+  }
+
+  function resetEndpointForm() {
+    editingEndpointId = null;
+    endpointNameInput.value = '';
+    endpointBaseUrlInput.value = '';
+    endpointApiKeyInput.value = '';
+    endpointModelInput.value = '';
+    endpointModelDatalist.innerHTML = '';
+    endpointStatusText.textContent = '';
+    cancelEndpointEditBtn.style.display = 'none';
+    saveEndpointBtn.textContent = 'Save Endpoint';
+  }
+
+  function renderEndpointsList() {
+    endpointsList.innerHTML = '';
+    if (!customEndpoints.length) {
+      endpointsList.innerHTML = '<small>No saved endpoints yet.</small>';
+      return;
+    }
+    customEndpoints.forEach((endpoint) => {
+      const isActive = endpoint.id === activeCustomEndpointId;
+      const item = document.createElement('div');
+      item.className = 'endpoint-item' + (isActive ? ' active-endpoint' : '');
+      item.innerHTML = `
+        <div class="endpoint-item-info">
+          <div class="endpoint-item-name">${escapeHtml(endpoint.name)}${isActive ? '<span class="endpoint-active-badge">Active</span>' : ''}</div>
+          <div class="endpoint-item-url">${escapeHtml(endpoint.baseUrl)} · ${escapeHtml(endpoint.model)}</div>
+        </div>
+        <div class="endpoint-item-actions">
+          ${isActive ? '' : '<button type="button" data-action="activate">Set Active</button>'}
+          <button type="button" data-action="edit">Edit</button>
+          <button type="button" data-action="delete">Delete</button>
+        </div>
+      `;
+      item.querySelectorAll('button[data-action]').forEach((btn) => {
+        btn.addEventListener('click', () => handleEndpointAction(btn.dataset.action, endpoint.id));
+      });
+      endpointsList.appendChild(item);
+    });
+  }
+
+  async function handleEndpointAction(action, endpointId) {
+    const endpoint = customEndpoints.find((e) => e.id === endpointId);
+    if (!endpoint) return;
+
+    if (action === 'edit') {
+      editingEndpointId = endpointId;
+      endpointNameInput.value = endpoint.name || '';
+      endpointBaseUrlInput.value = endpoint.baseUrl || '';
+      endpointApiKeyInput.value = endpoint.apiKey || '';
+      endpointModelInput.value = endpoint.model || '';
+      endpointModelDatalist.innerHTML = '';
+      endpointStatusText.textContent = '';
+      cancelEndpointEditBtn.style.display = 'inline-block';
+      saveEndpointBtn.textContent = 'Update Endpoint';
+      return;
+    }
+
+    if (action === 'activate') {
+      activeCustomEndpointId = endpointId;
+      try {
+        await setLocalStorage({ customEndpoints, activeCustomEndpointId });
+      } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error', 4500);
+        return;
+      }
+      renderEndpointsList();
+      return;
+    }
+
+    if (action === 'delete') {
+      if (!confirm(`Delete endpoint "${endpoint.name}"?`)) return;
+      customEndpoints = customEndpoints.filter((e) => e.id !== endpointId);
+      if (activeCustomEndpointId === endpointId) {
+        activeCustomEndpointId = customEndpoints.length ? customEndpoints[0].id : '';
+      }
+      try {
+        await setLocalStorage({ customEndpoints, activeCustomEndpointId });
+      } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error', 4500);
+        return;
+      }
+      if (editingEndpointId === endpointId) resetEndpointForm();
+      renderEndpointsList();
+    }
+  }
+
+  document.querySelectorAll('.endpoint-preset-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const preset = ENDPOINT_PRESETS[btn.dataset.preset];
+      if (!preset) return;
+      resetEndpointForm();
+      endpointNameInput.value = preset.name;
+      endpointBaseUrlInput.value = preset.baseUrl;
+      endpointModelInput.focus();
+    });
+  });
+
+  testEndpointBtn.addEventListener('click', async () => {
+    const baseUrl = endpointBaseUrlInput.value.trim();
+    endpointStatusText.textContent = '';
+    try {
+      await ensureEndpointPermission(baseUrl);
+      endpointStatusText.textContent = 'Testing connection...';
+      const models = await fetchCustomEndpointModels(baseUrl, endpointApiKeyInput.value);
+      endpointModelDatalist.innerHTML = models.map((m) => `<option value="${escapeAttr(m)}"></option>`).join('');
+      endpointStatusText.textContent = models.length
+        ? `Success — ${models.length} models available. Click the model field to pick one.`
+        : 'Success — endpoint reachable, but no models listed.';
+    } catch (error) {
+      endpointStatusText.textContent = `Failed: ${error.message}`;
+    }
+  });
+
+  cancelEndpointEditBtn.addEventListener('click', resetEndpointForm);
+
+  saveEndpointBtn.addEventListener('click', async () => {
+    const name = endpointNameInput.value.trim() || 'My Endpoint';
+    const baseUrl = endpointBaseUrlInput.value.trim();
+    const apiKey = endpointApiKeyInput.value.trim();
+    const model = endpointModelInput.value.trim();
+
+    if (!getEndpointOrigin(baseUrl)) {
+      endpointStatusText.textContent = 'Enter a valid http(s) Base URL.';
+      return;
+    }
+    if (!model) {
+      endpointStatusText.textContent = 'Enter the model ID to use (Test Connection lists options).';
+      return;
+    }
+
+    try {
+      await ensureEndpointPermission(baseUrl);
+    } catch (error) {
+      endpointStatusText.textContent = error.message;
+      return;
+    }
+
+    if (editingEndpointId) {
+      const entry = customEndpoints.find((e) => e.id === editingEndpointId);
+      if (entry) Object.assign(entry, { name, baseUrl, apiKey, model });
+      if (activeCustomEndpointId === entry.id) activeCustomEndpointId = entry.id;
+    } else {
+      const entry = { id: generateId(), name, baseUrl, apiKey, model };
+      customEndpoints.push(entry);
+      if (!activeCustomEndpointId) activeCustomEndpointId = entry.id;
+    }
+
+    try {
+      await setLocalStorage({ customEndpoints, activeCustomEndpointId });
+    } catch (error) {
+      endpointStatusText.textContent = `Error: ${error.message}`;
+      return;
+    }
+
+    endpointStatusText.textContent = `Endpoint "${name}" saved.`;
+    resetEndpointForm();
+    renderEndpointsList();
+  });
+
+  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'googleModel', 'openaiModel', 'anthropicModel', 'openrouterModel', 'customEndpoints', 'activeCustomEndpointId', 'apiProvider', 'userProfile', 'resumes', 'trackerCaptureEnabled']);
   const trackerCaptureToggle = document.getElementById('trackerCaptureToggle');
   if (trackerCaptureToggle) {
     trackerCaptureToggle.checked = data.trackerCaptureEnabled !== false;
@@ -382,6 +691,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (data.openrouterApiKey) apiKeys.openrouter = data.openrouterApiKey;
   if (data.openaiApiKey) apiKeys.openai = data.openaiApiKey;
   if (data.anthropicApiKey) apiKeys.anthropic = data.anthropicApiKey;
+  if (data.googleModel) providerModels.google = data.googleModel;
+  if (data.openaiModel) providerModels.openai = data.openaiModel;
+  if (data.anthropicModel) providerModels.anthropic = data.anthropicModel;
+  if (data.openrouterModel) providerModels.openrouter = data.openrouterModel;
+  if (Array.isArray(data.customEndpoints)) {
+    customEndpoints = data.customEndpoints.filter((e) => e && typeof e.baseUrl === 'string' && e.baseUrl.trim());
+  }
+  activeCustomEndpointId = customEndpoints.some((e) => e.id === data.activeCustomEndpointId)
+    ? data.activeCustomEndpointId
+    : (customEndpoints.length ? customEndpoints[0].id : '');
 
   updateActiveProvider(activeProvider);
   updateViewedProvider(activeProvider);
