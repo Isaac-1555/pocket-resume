@@ -52,8 +52,41 @@ function stripMarkdownCodeBlock(rawText) {
     return text;
 }
 
+function sanitizeJsonControlChars(text) {
+    let out = '';
+    let inString = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (!inString) {
+            if (ch === '"') inString = true;
+            out += ch;
+            continue;
+        }
+        if (ch === '\\') {
+            out += ch + (text[i + 1] || '');
+            i++;
+            continue;
+        }
+        if (ch === '"') {
+            inString = false;
+            out += ch;
+            continue;
+        }
+        const code = ch.charCodeAt(0);
+        if (code < 0x20) {
+            if (code === 0x0A) out += '\\n';
+            else if (code === 0x0D) out += '\\r';
+            else if (code === 0x09) out += '\\t';
+            else out += '\\u' + code.toString(16).padStart(4, '0');
+            continue;
+        }
+        out += ch;
+    }
+    return out;
+}
+
 function parseJsonText(rawText, contextLabel) {
-    const cleanedText = stripMarkdownCodeBlock(rawText);
+    const cleanedText = sanitizeJsonControlChars(stripMarkdownCodeBlock(rawText));
 
     try {
         return JSON.parse(cleanedText);
@@ -143,7 +176,6 @@ async function parseResponseJsonBody(response) {
     }
 }
 
-const PROVIDER_TIMEOUT_MS = 90000;
 const PROVIDER_MAX_ATTEMPTS = 3;
 
 function isRetryableStatus(status) {
@@ -163,6 +195,22 @@ function parseRetryAfter(headerValue) {
     return 0;
 }
 
+function parseExtraBody(raw, endpointName) {
+    const text = (raw || '').trim();
+    if (!text) return null;
+    let parsed;
+    try {
+        parsed = JSON.parse(text);
+    } catch {
+        throw new Error(`Extra body params for "${endpointName}" are not valid JSON.`);
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error(`Extra body params for "${endpointName}" must be a JSON object.`);
+    }
+    for (const key of ['__proto__', 'constructor', 'prototype']) delete parsed[key];
+    return parsed;
+}
+
 async function fetchWithRetry(url, options = {}, contextLabel = '') {
     let lastError = null;
 
@@ -172,24 +220,16 @@ async function fetchWithRetry(url, options = {}, contextLabel = '') {
             await sleep(Math.max(backoffMs, lastError.retryAfterMs || 0));
         }
 
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
         try {
-            const response = await fetch(url, { ...options, signal: controller.signal });
+            const response = await fetch(url, options);
             if (!isRetryableStatus(response.status)) return response;
             lastError = new Error(`HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`);
             lastError.retryAfterMs = parseRetryAfter(response.headers.get('retry-after'));
             if (attempt === PROVIDER_MAX_ATTEMPTS) return response;
         } catch (error) {
-            if (error?.name === 'AbortError') {
-                lastError = new Error(`Request timed out after ${PROVIDER_TIMEOUT_MS / 1000}s${contextLabel ? ` (${contextLabel})` : ''}`);
-            } else {
-                lastError = error instanceof Error ? error : new Error(String(error));
-            }
+            lastError = error instanceof Error ? error : new Error(String(error));
             lastError.retryAfterMs = 0;
             if (attempt === PROVIDER_MAX_ATTEMPTS) throw lastError;
-        } finally {
-            clearTimeout(timer);
         }
     }
 
@@ -285,9 +325,11 @@ async function executeProviderChat(context, prompt, contextLabel = '') {
         if (endpointKey) headers['Authorization'] = `Bearer ${endpointKey}`;
         requestBody = {
             model,
-            max_tokens: 4096,
+            max_tokens: 16384,
             messages: [{ role: "user", content: prompt }]
         };
+        const extraBody = parseExtraBody(endpoint.extraBody, endpoint.name || 'endpoint');
+        if (extraBody) Object.assign(requestBody, extraBody);
     } else {
         throw new Error(`Unknown AI provider: ${provider}`);
     }

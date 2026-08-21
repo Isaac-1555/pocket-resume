@@ -6,8 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const resumeSelectorDiv = document.getElementById('resumeSelector');
   const coverLetterToggle = document.getElementById('coverLetterToggle');
   const cloudAccountCard = document.getElementById('cloudAccountCard');
-  const cloudAccountTitle = document.getElementById('cloudAccountTitle');
-  const cloudAccountSubtitle = document.getElementById('cloudAccountSubtitle');
+  const cloudMenuTitle = document.getElementById('cloudMenuTitle');
   const cloudPlanBadge = document.getElementById('cloudPlanBadge');
   const cloudAvatarBtn = document.getElementById('cloudAvatarBtn');
   const cloudAvatarImg = document.getElementById('cloudAvatarImg');
@@ -15,7 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const cloudAccountMenu = document.getElementById('cloudAccountMenu');
   const cloudMenuAuthBtn = document.getElementById('cloudMenuAuthBtn');
   const cloudMenuPlansBtn = document.getElementById('cloudMenuPlansBtn');
-  const cloudSignInBtn = document.getElementById('cloudSignInBtn');
   const errorInfoBtn = document.getElementById('errorInfoBtn');
   const errorModal = document.getElementById('errorModal');
   const errorBackdrop = document.getElementById('errorBackdrop');
@@ -65,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     cloudAccountCard.style.display = 'block';
-    cloudAccountCard.classList.add('inactive');
     if (cloudPlanBadge) {
       cloudPlanBadge.textContent = 'Checking Cloud Sync';
       cloudPlanBadge.className = 'cloud-plan-badge inactive';
@@ -78,36 +75,31 @@ document.addEventListener('DOMContentLoaded', () => {
       const profile = cloudSignedIn && window.CloudSync.getUserProfile ? await window.CloudSync.getUserProfile() : null;
 
       if (cloudSignedIn) {
-        cloudAccountTitle.textContent = profile?.name || 'Signed in';
-        cloudAccountSubtitle.textContent = profile?.email || 'Cloud account connected';
+        cloudMenuTitle.textContent = profile?.name || 'Signed in';
         cloudMenuAuthBtn.textContent = 'Sign Out';
+        cloudMenuPlansBtn.textContent = 'Change Plans';
         setCloudAvatar(profile);
       } else {
-        cloudAccountTitle.textContent = 'Cloud Sync';
-        cloudAccountSubtitle.textContent = 'Sign in to sync across devices';
+        cloudMenuTitle.textContent = 'Cloud Sync';
         cloudMenuAuthBtn.textContent = 'Sign In';
+        cloudMenuPlansBtn.textContent = 'See Plans';
         setCloudAvatar(null);
       }
 
       if (hasAccess) {
-        cloudAccountCard.classList.remove('inactive');
         cloudPlanBadge.textContent = 'Cloud Sync active';
         cloudPlanBadge.className = 'cloud-plan-badge';
       } else if (cloudSignedIn) {
-        cloudAccountCard.classList.add('inactive');
         cloudPlanBadge.textContent = 'Plan required';
         cloudPlanBadge.className = 'cloud-plan-badge inactive';
       } else {
-        cloudAccountCard.classList.add('inactive');
         cloudPlanBadge.textContent = 'Signed out';
         cloudPlanBadge.className = 'cloud-plan-badge inactive';
       }
     } catch (error) {
-      cloudAccountTitle.textContent = 'Cloud Sync';
-      cloudAccountSubtitle.textContent = 'Could not load account state';
+      cloudMenuTitle.textContent = 'Cloud Sync';
       cloudPlanBadge.textContent = 'Unavailable';
       cloudPlanBadge.className = 'cloud-plan-badge inactive';
-      cloudAccountCard.classList.add('inactive');
     }
   }
 
@@ -139,13 +131,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!cloudAccountCard.contains(event.target)) {
         cloudAccountMenu.classList.remove('open');
       }
-    });
-  }
-
-  if (cloudSignInBtn && cloudAccountMenu) {
-    cloudSignInBtn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      cloudAccountMenu.classList.toggle('open');
     });
   }
 
@@ -332,6 +317,39 @@ document.addEventListener('DOMContentLoaded', () => {
     return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  function sanitizeJsonControlChars(text) {
+    let out = '';
+    let inString = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (!inString) {
+        if (ch === '"') inString = true;
+        out += ch;
+        continue;
+      }
+      if (ch === '\\') {
+        out += ch + (text[i + 1] || '');
+        i++;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+        out += ch;
+        continue;
+      }
+      const code = ch.charCodeAt(0);
+      if (code < 0x20) {
+        if (code === 0x0A) out += '\\n';
+        else if (code === 0x0D) out += '\\r';
+        else if (code === 0x09) out += '\\t';
+        else out += '\\u' + code.toString(16).padStart(4, '0');
+        continue;
+      }
+      out += ch;
+    }
+    return out;
+  }
+
   settingsBtn.addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
   });
@@ -364,17 +382,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const version = chrome.runtime.getManifest().version;
+  const ANNOUNCEMENT_VERSION = '7.3';
 
   function dismissWhatsNew() {
-    chrome.storage.local.set({ lastSeenAnnouncement: version });
+    chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_VERSION });
     if (whatsNewModal) whatsNewModal.style.display = 'none';
   }
 
   chrome.storage.local.get('lastSeenAnnouncement', (data) => {
     if (!whatsNewModal) return;
-    if (data.lastSeenAnnouncement === version) return;
-    if (whatsNewVersionEl) whatsNewVersionEl.textContent = version;
+    if (data.lastSeenAnnouncement === ANNOUNCEMENT_VERSION) return;
+    if (whatsNewVersionEl) whatsNewVersionEl.textContent = ANNOUNCEMENT_VERSION;
     whatsNewModal.style.display = 'flex';
   });
   if (whatsNewGotBtn) whatsNewGotBtn.addEventListener('click', dismissWhatsNew);
@@ -504,7 +522,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rawData = rawData.replace(/^```/, '').replace(/```$/, '');
           }
 
-          const resumeData = JSON.parse(rawData);
+          const resumeData = JSON.parse(sanitizeJsonControlChars(rawData));
 
           if (trackerCaptureEnabled && tab) {
             saveApplicationToTracker(resumeData, tab, selectedResumeId, selectedStyle);
@@ -528,7 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 rawCL = rawCL.replace(/^```/, '').replace(/```$/, '');
               }
 
-              const coverLetterParsed = JSON.parse(rawCL);
+              const coverLetterParsed = JSON.parse(sanitizeJsonControlChars(rawCL));
               generateCoverLetterPDF(coverLetterParsed);
               setStatus('success');
             } catch (clError) {
@@ -581,6 +599,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (/invalid.*key|401|403|unauthorized|forbidden|not valid|authentication/i.test(lower)) {
       return 'Invalid or unauthorized API key. Check your key in Settings.';
+    }
+    if (/not found for account|function .*not found/i.test(lower)) {
+      return 'This model is not available for your API account. Check the model ID in Settings \u2192 Custom Endpoints.';
     }
     if (/429|rate limit|quota|exhausted|too many requests/i.test(lower)) {
       return 'Rate limit reached. Try again in a moment.';
