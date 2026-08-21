@@ -20,6 +20,11 @@
 - **Cloud Sync** — Optional Clerk + Convex cloud sync across devices
 - **Privacy First** — API keys and profile data stored locally (cloud sync optional)
 
+### What's New in v7.4
+
+- **Model Selection** — Override the model for Gemini, OpenAI, Anthropic, or OpenRouter. "Load Models" fetches each provider's live model list; leave it empty to stay on the default.
+- **Custom / Local Models** — New provider type for any OpenAI-compatible endpoint. One-click presets for Ollama, LM Studio, and NVIDIA NIM, or enter your own Base URL. Local servers need no API key, and "Test Connection" verifies the setup before saving.
+
 ## Installation
 
 Not on the Chrome Web Store — load unpacked:
@@ -79,7 +84,7 @@ To enable cross-device sync:
 
 - **Runtime:** Vanilla HTML/CSS/JS, Manifest V3
 - **PDF:** [jsPDF](libs/jspdf.umd.min.js) (vendored)
-- **AI:** Gemini, GPT-4o-mini, Claude 3.5 Haiku, OpenRouter
+- **AI:** Gemini, GPT-4o-mini, Claude 3.5 Haiku, OpenRouter, plus any custom/local OpenAI-compatible endpoint
 - **Cloud (optional):** [Clerk](https://clerk.com) auth, [Convex](https://convex.dev) realtime DB
 - **Build:** esbuild (only for `cloud-sync.js` bundle); no bundler for app code
 
