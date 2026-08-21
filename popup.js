@@ -238,7 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   // Check if settings are configured + load resumes
-  chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'apiProvider', 'resumes', 'userProfile', 'resumeType', 'resumeLayout', 'selectedResumeId'], (data) => {
+  chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'apiProvider', 'customEndpoints', 'activeCustomEndpointId', 'resumes', 'userProfile', 'resumeType', 'resumeLayout', 'selectedResumeId'], (data) => {
     // Migrate legacy profile
     if (data.userProfile && (!data.resumes || data.resumes.length === 0)) {
       loadedResumes = [{ id: 'migrated_1', label: 'Resume 1', content: data.userProfile }];
@@ -254,9 +254,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (provider === 'openrouter' && data.openrouterApiKey) hasApiKey = true;
     if (provider === 'openai' && data.openaiApiKey) hasApiKey = true;
     if (provider === 'anthropic' && data.anthropicApiKey) hasApiKey = true;
+    if (provider === 'custom') {
+      const endpoints = Array.isArray(data.customEndpoints) ? data.customEndpoints : [];
+      const activeEndpoint = endpoints.find((e) => e.id === data.activeCustomEndpointId) || endpoints[0];
+      hasApiKey = !!(activeEndpoint && String(activeEndpoint.baseUrl || '').trim() && String(activeEndpoint.model || '').trim());
+    }
 
     if (!hasApiKey || !hasResumes) {
-      setError(!hasApiKey ? 'No API key set. Open Settings to add one.' : 'No resume content found. Open Settings to add your resume.');
+      const setupMessage = provider === 'custom'
+        ? 'No custom endpoint configured. Open Settings to add one.'
+        : 'No API key set. Open Settings to add one.';
+      setError(!hasApiKey ? setupMessage : 'No resume content found. Open Settings to add your resume.');
       generateBtn.disabled = true;
     }
 

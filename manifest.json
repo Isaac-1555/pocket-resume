@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PocketResume",
-  "version": "7.3",
+  "version": "7.4",
   "description": "Generate tailored resumes from job descriptions using AI for free*.",
   "permissions": [
     "storage",
@@ -16,6 +16,10 @@
     "https://*.convex.cloud/*",
     "https://*.clerk.accounts.dev/*",
     "https://clerk.pocket-resume.xyz/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
   ],
   "action": {
     "default_popup": "popup.html",

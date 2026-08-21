@@ -9,7 +9,8 @@
 ## Features
 
 - **4 Resume Layouts** — Professional, FAANG, Deedy (double-sided, dense two-column), Academic CV
-- **4 AI Providers** — Google Gemini (`gemini-2.5-flash`), OpenAI (`gpt-4o-mini`), Anthropic (`claude-3-5-haiku`), OpenRouter
+- **5 AI Providers** — Google Gemini, OpenAI, Anthropic, OpenRouter, plus any custom/local OpenAI-compatible endpoint (Ollama, LM Studio, NVIDIA NIM, Groq, ...)
+- **Model Selection** — Override the model per provider; fetch the live model list from each provider
 - **Cover Letters** — Optional, single-page cover letter generated alongside your resume
 - **Clear Error Reporting** — Generation failures keep the popup red until you close it or retry; a "?" button opens a human-readable error message with copyable raw details
 - **PDF Export** — Clean, print-ready PDFs via jsPDF for every layout
@@ -37,6 +38,7 @@ npm install
 
 1. Click the extension icon → gear icon (Settings)
 2. Select AI provider → paste API key → "Set as Active Provider"
+   - For **Custom / Local**: pick a preset (Ollama, LM Studio, NVIDIA NIM) or enter any OpenAI-compatible Base URL, optional API key, and model → "Test Connection" → "Save Endpoint" → "Set as Active Provider"
 3. Paste your master resume into the profile text area → **Save**
 4. (Optional) Enable Cover Letter toggle
 5. (Optional) Configure cloud sync — see [Configuration](#configuration)

@@ -79,6 +79,7 @@ Pocket Resume requests only the permissions necessary for core functionality:
 * **Storage**: To save your profile, API key, preferences, and generated documents locally
 * **Scripting**: To extract text content from web pages
 * **Host Permissions**: To bypass CORS restrictions specifically for communicating with the supported AI provider APIs (`api.openai.com`, `api.anthropic.com`, `openrouter.ai`, and `generativelanguage.googleapis.com`)
+* **Optional Host Permissions**: If you add a custom or local endpoint (e.g. Ollama, LM Studio, NVIDIA NIM), Chrome will ask for your explicit consent before the extension is granted access to that endpoint's domain. You can revoke this at any time in Chrome's extension permission settings.
 
 These permissions are used exclusively to enable the resume and cover letter generation features and are not used to collect data for other purposes.
 

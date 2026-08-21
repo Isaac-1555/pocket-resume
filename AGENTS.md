@@ -128,8 +128,11 @@ Settings are stored in `chrome.storage.local`, managed in `options.js`.
 
 Important keys:
 
-- `apiProvider`: `"google" | "openrouter" | "openai" | "anthropic"`
+- `apiProvider`: `"google" | "openrouter" | "openai" | "anthropic" | "custom"`
 - `geminiApiKey` / `openrouterApiKey` / `openaiApiKey` / `anthropicApiKey`: string
+- `googleModel` / `openaiModel` / `anthropicModel` / `openrouterModel`: string model override ("" = provider default)
+- `customEndpoints`: array of `{ id, name, baseUrl, apiKey, model }` (OpenAI-compatible endpoints; `apiKey` may be empty for local servers)
+- `activeCustomEndpointId`: which custom endpoint is active when `apiProvider` is `"custom"`
 - `resumes`: array of `{ id, label, content, jsonContent, lastRefineBackup, lastRefineAppliedAt }` (up to 3)
 - `selectedResumeId`: which resume is active in the popup
 - `resumeType`: `"basic" | "professional" | "faang" | "jake" | "deedy" | "academic-cv"`
@@ -140,14 +143,19 @@ Legacy migration: `userProfile` → `resumes[0].content`
 
 ## AI provider support
 
-Four providers supported, selected via `apiProvider`:
+Five providers supported, selected via `apiProvider`:
 
-- **Google Gemini**: model `gemini-2.5-flash`, API key from Google AI Studio
-- **OpenAI**: model `gpt-4o-mini`, API key from OpenAI Platform
-- **Anthropic**: model `claude-3-5-haiku-20241022`, API key from Anthropic Console
-- **OpenRouter**: model `openai/gpt-oss-120b:free`, API key from OpenRouter
+- **Google Gemini**: default model `gemini-2.5-flash`, API key from Google AI Studio
+- **OpenAI**: default model `gpt-4o-mini`, API key from OpenAI Platform
+- **Anthropic**: default model `claude-3-5-haiku-20241022`, API key from Anthropic Console
+- **OpenRouter**: default model `openai/gpt-oss-120b:free`, API key from OpenRouter
+- **Custom / Local**: any OpenAI-compatible endpoint (Ollama, LM Studio, NVIDIA NIM, Groq, ...). Saved endpoints live in `customEndpoints`; the active one is used. No API key required for local servers.
 
-Each provider has matching `callGemini*` / `callOpenAI*` / `callAnthropic*` / `callOpenRouter*` variants for all 4 pipelines: generation, cover letter, extraction, refinement. Naming is historical — the function is selected at runtime based on `apiProvider`.
+Model overrides per provider are stored in the `*Model` keys; empty string falls back to the defaults in `PROVIDER_DEFAULT_MODELS` (`background.js`). The options page can fetch available models from each provider's list endpoint.
+
+All providers share one request path: `executeProviderChat(context, prompt, label)` in `background.js` handles the three wire formats (OpenAI-compatible chat completions, Anthropic messages, Gemini generateContent). The 4 pipelines call it via `generateTailoredResume`, `generateCoverLetterText`, `extractResumeProfileJson`, and `refineResumeSource`.
+
+Custom endpoints require a runtime host permission for the endpoint's origin. `manifest.json` declares `optional_host_permissions: ["https://*/*", "http://*/*"]`; the options page calls `chrome.permissions.request({ origins: [origin + '/*'] })` when saving or testing an endpoint.
 
 ## Cloud sync (optional feature)
 
@@ -192,7 +200,7 @@ PocketResume/
 
 ## Where to make common product changes
 
-- **Change AI model, prompts, or JSON schema**: `background.js` (`callGemini*` / `callOpenAI*` / `callAnthropic*` / `callOpenRouter*`). Update the style config table above if the schema or layout mapping changes.
+- **Change AI model, prompts, or JSON schema**: `background.js` (`executeProviderChat` + the 4 pipeline functions). Update the style config table above if the schema or layout mapping changes.
 - **Change what we extract from a page**: `content.js` (`extractPageText`) and the truncation logic in `background.js`.
 - **Change PocketResume PDF layout**: `popup.js` (`generatePDF` / `generateCoverLetterPDF`).
 - **Change Jake / Deedy / Academic CV PDF layouts**: `resume-renderers.js` (`renderJakeLayout` / `renderDeedyLayout` / `renderAcademicCvLayout`).
