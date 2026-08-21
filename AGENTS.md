@@ -131,7 +131,7 @@ Important keys:
 - `apiProvider`: `"google" | "openrouter" | "openai" | "anthropic" | "custom"`
 - `geminiApiKey` / `openrouterApiKey` / `openaiApiKey` / `anthropicApiKey`: string
 - `googleModel` / `openaiModel` / `anthropicModel` / `openrouterModel`: string model override ("" = provider default)
-- `customEndpoints`: array of `{ id, name, baseUrl, apiKey, model }` (OpenAI-compatible endpoints; `apiKey` may be empty for local servers)
+- `customEndpoints`: array of `{ id, name, baseUrl, apiKey, model, extraBody }` (OpenAI-compatible endpoints; `apiKey` may be empty for local servers; `extraBody` is an optional raw JSON string shallow-merged into the request body)
 - `activeCustomEndpointId`: which custom endpoint is active when `apiProvider` is `"custom"`
 - `resumes`: array of `{ id, label, content, jsonContent, lastRefineBackup, lastRefineAppliedAt }` (up to 3)
 - `selectedResumeId`: which resume is active in the popup

@@ -6,13 +6,14 @@
     :root {
       --bg: #07020D;
       --font: #FFFDED;
-      --primary: #FF8600;
+      --accent-rgb: 255, 134, 0;
+      --primary: rgb(var(--accent-rgb));
       --secondary: #A29F15;
 
       --glass-bg: rgba(255, 255, 255, 0.06);
       --glass-border: rgba(255, 255, 255, 0.1);
       --glass-hover: rgba(255, 255, 255, 0.1);
-      --glass-active: rgba(255, 134, 0, 0.15);
+      --glass-active: rgba(var(--accent-rgb), 0.15);
       --glass-blur: blur(20px);
       --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
       --glass-inner-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -43,6 +44,20 @@
       color: var(--font);
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      --accent-rgb: 255, 134, 0;
+      --primary: rgb(var(--accent-rgb));
+    }
+
+    body[data-status="loading"] {
+      --accent-rgb: 74, 158, 255;
+    }
+
+    body[data-status="success"] {
+      --accent-rgb: 48, 209, 88;
+    }
+
+    body[data-status="error"] {
+      --accent-rgb: 255, 69, 58;
     }
 
     h1 {
@@ -137,8 +152,8 @@
     input[type="password"]:focus,
     textarea:focus {
       outline: none;
-      border-color: rgba(255, 134, 0, 0.5);
-      box-shadow: 0 0 0 2px rgba(255, 134, 0, 0.1), var(--glass-inner-shadow);
+      border-color: rgba(var(--accent-rgb), 0.5);
+      box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.1), var(--glass-inner-shadow);
     }
 
     input[type="text"]::placeholder,
@@ -157,11 +172,11 @@
 
     button {
       padding: 8px 18px;
-      background: rgba(255, 134, 0, 0.15);
+      background: rgba(var(--accent-rgb), 0.15);
       backdrop-filter: var(--glass-blur);
       -webkit-backdrop-filter: var(--glass-blur);
       color: var(--primary);
-      border: 1px solid rgba(255, 134, 0, 0.3);
+      border: 1px solid rgba(var(--accent-rgb), 0.3);
       border-radius: var(--radius-sm);
       cursor: pointer;
       font-size: 13px;
@@ -173,8 +188,8 @@
     }
 
     button:hover {
-      background: rgba(255, 134, 0, 0.25);
-      border-color: rgba(255, 134, 0, 0.5);
+      background: rgba(var(--accent-rgb), 0.25);
+      border-color: rgba(var(--accent-rgb), 0.5);
       transform: translateY(-1px);
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), var(--glass-inner-shadow);
     }
@@ -252,7 +267,7 @@
     .provider-icon-wrapper:hover {
       background: var(--glass-hover);
       transform: translateY(-1px);
-      border-color: rgba(255, 134, 0, 0.3);
+      border-color: rgba(var(--accent-rgb), 0.3);
     }
 
     .provider-icon-wrapper:hover svg {
@@ -261,9 +276,9 @@
     }
 
     .provider-icon-wrapper.active-view {
-      border-color: rgba(255, 134, 0, 0.5);
-      background: rgba(255, 134, 0, 0.06);
-      box-shadow: 0 0 0 2px rgba(255, 134, 0, 0.1), var(--glass-inner-shadow);
+      border-color: rgba(var(--accent-rgb), 0.5);
+      background: rgba(var(--accent-rgb), 0.06);
+      box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.1), var(--glass-inner-shadow);
     }
 
     .provider-icon-wrapper.active-view svg {
@@ -284,7 +299,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      box-shadow: 0 2px 6px rgba(255, 134, 0, 0.4);
+      box-shadow: 0 2px 6px rgba(var(--accent-rgb), 0.4);
       opacity: 0;
       transform: scale(0);
       transition: all 0.25s var(--ease-spring);
@@ -296,21 +311,25 @@
     }
 
     .provider-icon-wrapper.active-provider {
-      border-color: rgba(255, 134, 0, 0.6);
-      background: rgba(255, 134, 0, 0.08);
+      border-color: rgba(var(--accent-rgb), 0.6);
+      background: rgba(var(--accent-rgb), 0.08);
     }
 
     .set-active-btn {
-      padding: 6px 14px;
+      width: 100%;
+      padding: 8px 14px;
       font-size: 12px;
-      background: rgba(255, 134, 0, 0.1);
+      font-weight: 700;
+      background: rgba(var(--accent-rgb), 0.22);
+      border: 1px solid rgba(var(--accent-rgb), 0.55);
+      color: var(--primary);
       border-radius: var(--radius-sm);
       box-shadow: var(--glass-inner-shadow);
     }
 
     .set-active-btn:hover {
-      background: rgba(255, 134, 0, 0.18);
-      border-color: rgba(255, 134, 0, 0.4);
+      background: rgba(var(--accent-rgb), 0.32);
+      border-color: rgba(var(--accent-rgb), 0.75);
       transform: none;
       box-shadow: var(--glass-inner-shadow);
     }
@@ -338,37 +357,87 @@
       text-decoration: underline;
     }
 
-    .status {
-      padding: 8px 12px;
-      border-radius: var(--radius-sm);
-      font-weight: 500;
-      font-size: 12px;
-      display: none;
-      border: 1px solid var(--glass-border);
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
+    /* ============================
+       Status Overlay (center dialog)
+       ============================ */
+    #statusOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s var(--ease-out);
+    }
+
+    #statusOverlay.visible {
+      opacity: 1;
+    }
+
+    #statusOverlay.blocking {
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      pointer-events: auto;
+    }
+
+    #statusOverlay[data-state="loading"] {
+      --status-color: #4a9eff;
+    }
+
+    #statusOverlay[data-state="success"] {
+      --status-color: #30D158;
+    }
+
+    #statusOverlay[data-state="error"] {
+      --status-color: #FF453A;
+    }
+
+    #statusOverlay[data-state="info"] {
+      --status-color: rgba(255, 253, 237, 0.7);
+    }
+
+    .status-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      max-width: 520px;
+      padding: 18px 24px;
+      background: #0f0a18;
+      border: 1px solid var(--status-color, var(--glass-border));
+      border-radius: var(--radius-lg);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+      transform: translateY(10px) scale(0.96);
+      transition: transform 0.25s var(--ease-spring);
+    }
+
+    #statusOverlay.visible .status-card {
+      transform: translateY(0) scale(1);
+    }
+
+    .status-icon {
+      width: 34px;
+      height: 34px;
+      flex-shrink: 0;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--status-color, var(--font));
+    }
+
+    #statusOverlay[data-state="loading"] .status-icon {
+      background: url('libs/animations/gear.webp') center / contain no-repeat;
+    }
+
+    .status-text {
+      font-size: 13px;
+      line-height: 1.5;
       color: var(--font);
-      box-shadow: var(--glass-inner-shadow);
-    }
-
-    .status.success {
-      border-color: rgba(48, 209, 88, 0.3);
-      background: rgba(48, 209, 88, 0.08);
-      color: #30D158;
-    }
-
-    .status.error {
-      border-color: rgba(255, 69, 58, 0.3);
-      background: rgba(255, 69, 58, 0.08);
-      color: #FF453A;
-    }
-
-    .status.loading,
-    .status.info {
-      border-color: rgba(255, 134, 0, 0.3);
-      background: rgba(255, 134, 0, 0.08);
-      color: var(--primary);
     }
 
     #save {
@@ -468,8 +537,8 @@
     }
 
     .cloud-status-pill.syncing {
-      border-color: rgba(255, 134, 0, 0.3);
-      background: rgba(255, 134, 0, 0.08);
+      border-color: rgba(var(--accent-rgb), 0.3);
+      background: rgba(var(--accent-rgb), 0.08);
       color: var(--primary);
     }
 
@@ -477,6 +546,120 @@
       border-color: rgba(255, 69, 58, 0.3);
       background: rgba(255, 69, 58, 0.08);
       color: #FF453A;
+    }
+
+    .cloud-account-chip {
+      position: relative;
+      width: fit-content;
+      padding: 5px;
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+    }
+
+    .cloud-avatar-btn {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.2s var(--ease-out);
+      position: relative;
+      z-index: 3;
+      box-shadow: var(--glass-inner-shadow);
+    }
+
+    .cloud-avatar-btn:hover {
+      border-color: rgba(var(--accent-rgb), 0.5);
+      background: var(--glass-hover);
+      transform: none;
+    }
+
+    .cloud-avatar-btn img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+
+    .cloud-avatar-initials {
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255, 253, 237, 0.7);
+    }
+
+    .cloud-account-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      z-index: 1500;
+      display: none;
+      width: 210px;
+      padding: 6px;
+      border-radius: var(--radius-sm);
+      background: #0f0a18;
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .cloud-account-menu.open {
+      display: block;
+    }
+
+    .cloud-menu-header {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      padding: 8px 10px 9px;
+      margin-bottom: 4px;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .cloud-menu-title {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--font);
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .cloud-account-menu .cloud-status-pill {
+      font-size: 10px;
+    }
+
+    .cloud-menu-btn {
+      width: 100%;
+      margin: 0;
+      padding: 8px 10px;
+      border: none;
+      border-radius: calc(var(--radius-sm) - 3px);
+      background: transparent;
+      color: rgba(255, 253, 237, 0.75);
+      font-size: 12.5px;
+      font-weight: 500;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.2s var(--ease-out);
+      box-shadow: none;
+    }
+
+    .cloud-menu-btn:hover {
+      background: rgba(var(--accent-rgb), 0.1);
+      color: var(--primary);
+      transform: none;
+      box-shadow: none;
     }
 
     .cloud-actions {
@@ -493,16 +676,16 @@
     }
 
     .secondary-action-btn {
-      background: rgba(255, 134, 0, 0.1);
+      background: rgba(var(--accent-rgb), 0.1);
       color: var(--primary);
-      border: 1px solid rgba(255, 134, 0, 0.25);
+      border: 1px solid rgba(var(--accent-rgb), 0.25);
       backdrop-filter: var(--glass-blur);
       -webkit-backdrop-filter: var(--glass-blur);
     }
 
     .secondary-action-btn:hover {
-      background: rgba(255, 134, 0, 0.18);
-      border-color: rgba(255, 134, 0, 0.4);
+      background: rgba(var(--accent-rgb), 0.18);
+      border-color: rgba(var(--accent-rgb), 0.4);
       transform: none;
       box-shadow: none;
     }
@@ -524,9 +707,9 @@
 
     .cloud-restore-panel {
       padding: 10px;
-      border: 1px solid rgba(255, 134, 0, 0.15);
+      border: 1px solid rgba(var(--accent-rgb), 0.15);
       border-radius: var(--radius-sm);
-      background: rgba(255, 134, 0, 0.04);
+      background: rgba(var(--accent-rgb), 0.04);
       display: none;
     }
 
@@ -538,9 +721,9 @@
 
     .cloud-pricing-panel {
       padding: 10px;
-      border: 1px solid rgba(255, 134, 0, 0.15);
+      border: 1px solid rgba(var(--accent-rgb), 0.15);
       border-radius: var(--radius-sm);
-      background: rgba(255, 134, 0, 0.04);
+      background: rgba(var(--accent-rgb), 0.04);
       display: none;
     }
 
@@ -648,7 +831,7 @@
     }
 
     .toggle-switch input:checked + .toggle-slider {
-      background: #ff8600;
+      background: rgb(var(--accent-rgb));
       border-color: transparent;
     }
 
@@ -713,9 +896,9 @@
     }
 
     .add-tab-btn:hover {
-      border-color: rgba(255, 134, 0, 0.4);
+      border-color: rgba(var(--accent-rgb), 0.4);
       color: var(--primary);
-      background: rgba(255, 134, 0, 0.06);
+      background: rgba(var(--accent-rgb), 0.06);
     }
 
     .tab-content-area {
@@ -754,7 +937,7 @@
 
     .resume-label-input:focus {
       outline: none;
-      border-color: rgba(255, 134, 0, 0.5);
+      border-color: rgba(var(--accent-rgb), 0.5);
     }
 
     .delete-tab-btn {
@@ -896,7 +1079,7 @@
 
     .review-card {
       padding: 10px 12px;
-      border: 1px solid rgba(255, 134, 0, 0.12);
+      border: 1px solid rgba(var(--accent-rgb), 0.12);
       border-radius: var(--radius-sm);
       background: var(--glass-bg);
       backdrop-filter: var(--glass-blur);
@@ -1020,7 +1203,7 @@
     }
 
     .endpoint-item.active-endpoint {
-      border-color: rgba(255, 134, 0, 0.5);
+      border-color: rgba(var(--accent-rgb), 0.5);
     }
 
     .endpoint-item-info {
@@ -1049,8 +1232,8 @@
       font-size: 10px;
       padding: 2px 6px;
       border-radius: 999px;
-      background: rgba(255, 134, 0, 0.2);
-      border: 1px solid rgba(255, 134, 0, 0.4);
+      background: rgba(var(--accent-rgb), 0.2);
+      border: 1px solid rgba(var(--accent-rgb), 0.4);
       color: var(--primary);
       white-space: nowrap;
     }
@@ -1106,12 +1289,13 @@
         </div>
       </div>
 
+      <button type="button" id="setActiveProviderBtn" class="set-active-btn" style="display: none;">Set as Active Provider</button>
+
       <label id="apiKeyLabel" for="apiKey">API Key:</label>
       <div class="api-key-wrapper" id="apiKeyWrapper">
         <input type="password" id="apiKey" placeholder="Enter API Key">
         <button type="button" id="toggleApiKey">Show</button>
       </div>
-      <button type="button" id="setActiveProviderBtn" class="set-active-btn" style="display: none;">Set as Active Provider</button>
       <small id="providerHelperText"></small>
 
       <div id="modelRow" style="display: none;">
@@ -1142,6 +1326,8 @@
           <input type="text" id="endpointModelInput" list="endpointModelDatalist" placeholder="e.g. llama3.1:8b" autocomplete="off">
           <datalist id="endpointModelDatalist"></datalist>
         </div>
+        <label for="endpointExtraInput">Extra body JSON (optional):</label>
+        <textarea id="endpointExtraInput" rows="3" placeholder='{"chat_template_kwargs": {"enable_thinking": false}}' spellcheck="false"></textarea>
         <div class="endpoint-form-actions">
           <button type="button" id="testEndpointBtn">Test Connection</button>
           <button type="button" id="saveEndpointBtn">Save Endpoint</button>
@@ -1157,11 +1343,21 @@
       <details class="cloud-sync-details" id="cloudSyncDetails">
         <summary>Cloud Sync</summary>
         <div class="cloud-sync-body">
-          <span id="cloudAuthStatus" class="cloud-status-pill">Cloud sync unavailable</span>
+          <div id="cloudAccountChip" class="cloud-account-chip" style="display: none;">
+            <button type="button" id="cloudAvatarBtn" class="cloud-avatar-btn" aria-label="Cloud Sync account menu">
+              <img id="cloudAvatarImg" alt="">
+              <span id="cloudAvatarInitials" class="cloud-avatar-initials">?</span>
+            </button>
+            <div id="cloudAccountMenu" class="cloud-account-menu">
+              <div class="cloud-menu-header">
+                <p id="cloudMenuTitle" class="cloud-menu-title">Cloud Sync</p>
+                <span id="cloudAuthStatus" class="cloud-status-pill">Cloud sync unavailable</span>
+              </div>
+              <button type="button" id="cloudMenuAuthBtn" class="cloud-menu-btn">Sign In</button>
+              <button type="button" id="cloudMenuPlansBtn" class="cloud-menu-btn">See Plans</button>
+            </div>
+          </div>
           <div class="cloud-actions">
-            <button type="button" id="cloudSignInBtn" class="secondary-action-btn">Sign In</button>
-            <button type="button" id="cloudSignOutBtn" class="ghost-btn" style="display: none;">Sign Out</button>
-            <button type="button" id="cloudUpgradeBtn" class="secondary-action-btn" style="display: none;">View Plans</button>
             <button type="button" id="cloudPushBtn" class="secondary-action-btn">Push Local to Cloud</button>
             <button type="button" id="cloudRestoreBtn" class="ghost-btn">Restore from Cloud</button>
           </div>
@@ -1212,13 +1408,20 @@
       <div class="divider"></div>
 
       <button id="save">Save Settings</button>
-      <div id="status" class="status"></div>
     </div>
 
     <!-- RIGHT PANEL -->
     <div class="right-panel">
       <div class="tab-bar" id="tabBar"></div>
       <div class="tab-content-area" id="tabContentArea"></div>
+    </div>
+  </div>
+
+  <!-- STATUS OVERLAY -->
+  <div id="statusOverlay" data-state="loading">
+    <div class="status-card">
+      <div class="status-icon" id="statusIcon"></div>
+      <div class="status-text" id="statusText"></div>
     </div>
   </div>
 

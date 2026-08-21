@@ -2,7 +2,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const apiKeyInput = document.getElementById('apiKey');
   const toggleApiKeyButton = document.getElementById('toggleApiKey');
   const saveButton = document.getElementById('save');
-  const statusDiv = document.getElementById('status');
+  const statusOverlay = document.getElementById('statusOverlay');
+  const statusIcon = document.getElementById('statusIcon');
+  const statusText = document.getElementById('statusText');
   const tabBar = document.getElementById('tabBar');
   const tabContentArea = document.getElementById('tabContentArea');
 
@@ -19,6 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const endpointApiKeyInput = document.getElementById('endpointApiKeyInput');
   const endpointModelInput = document.getElementById('endpointModelInput');
   const endpointModelDatalist = document.getElementById('endpointModelDatalist');
+  const endpointExtraInput = document.getElementById('endpointExtraInput');
   const testEndpointBtn = document.getElementById('testEndpointBtn');
   const saveEndpointBtn = document.getElementById('saveEndpointBtn');
   const cancelEndpointEditBtn = document.getElementById('cancelEndpointEditBtn');
@@ -27,9 +30,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const setActiveProviderBtn = document.getElementById('setActiveProviderBtn');
   const providerIcons = document.querySelectorAll('.provider-icon-wrapper');
   const cloudAuthStatus = document.getElementById('cloudAuthStatus');
-  const cloudSignInBtn = document.getElementById('cloudSignInBtn');
-  const cloudSignOutBtn = document.getElementById('cloudSignOutBtn');
-  const cloudUpgradeBtn = document.getElementById('cloudUpgradeBtn');
+  const cloudAccountChip = document.getElementById('cloudAccountChip');
+  const cloudAvatarBtn = document.getElementById('cloudAvatarBtn');
+  const cloudAvatarImg = document.getElementById('cloudAvatarImg');
+  const cloudAvatarInitials = document.getElementById('cloudAvatarInitials');
+  const cloudAccountMenu = document.getElementById('cloudAccountMenu');
+  const cloudMenuTitle = document.getElementById('cloudMenuTitle');
+  const cloudMenuAuthBtn = document.getElementById('cloudMenuAuthBtn');
+  const cloudMenuPlansBtn = document.getElementById('cloudMenuPlansBtn');
   const cloudPushBtn = document.getElementById('cloudPushBtn');
   const cloudRestoreBtn = document.getElementById('cloudRestoreBtn');
   const cloudRestorePanel = document.getElementById('cloudRestorePanel');
@@ -86,13 +94,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (window.location.hash === '#cloud-pricing') {
     setTimeout(showCloudPricingPanel, 300);
-  }
-
-  if (cloudUpgradeBtn) {
-    cloudUpgradeBtn.addEventListener('click', async () => {
-      if (cloudSyncDetails) cloudSyncDetails.open = true;
-      await showCloudPricingPanel();
-    });
   }
 
   async function showCloudPricingPanel() {
@@ -173,19 +174,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     return resumes[activeTabIndex] || null;
   }
 
+  const STATUS_ICONS = { success: '\u2713', error: '\u2715', info: '\u2139' };
+
+  function hideStatusOverlay() {
+    statusOverlay.classList.remove('visible', 'blocking');
+    delete document.body.dataset.status;
+    statusTimeoutId = null;
+  }
+
   function showStatus(text, type = 'success', autoHideMs = 2500) {
     if (statusTimeoutId) {
       clearTimeout(statusTimeoutId);
       statusTimeoutId = null;
     }
-    statusDiv.textContent = text;
-    statusDiv.className = `status ${type}`;
-    statusDiv.style.display = 'block';
+    const normalizedType = ['loading', 'success', 'error', 'info'].includes(type) ? type : 'info';
+    if (normalizedType === 'loading' || normalizedType === 'success' || normalizedType === 'error') {
+      document.body.dataset.status = normalizedType;
+    } else {
+      delete document.body.dataset.status;
+    }
+    statusOverlay.dataset.state = normalizedType;
+    statusOverlay.classList.add('visible');
+    statusOverlay.classList.toggle('blocking', normalizedType === 'loading');
+    statusIcon.textContent = STATUS_ICONS[normalizedType] || '';
+    statusText.textContent = text;
     if (autoHideMs > 0) {
-      statusTimeoutId = setTimeout(() => {
-        statusDiv.style.display = 'none';
-        statusTimeoutId = null;
-      }, autoHideMs);
+      statusTimeoutId = setTimeout(hideStatusOverlay, autoHideMs);
     }
   }
 
@@ -230,53 +244,65 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
   }
 
+  function setCloudAvatar(profile) {
+    if (!cloudAvatarImg || !cloudAvatarInitials) return;
+    if (profile?.imageUrl) {
+      cloudAvatarImg.src = profile.imageUrl;
+      cloudAvatarImg.style.display = 'block';
+      cloudAvatarInitials.style.display = 'none';
+      return;
+    }
+    cloudAvatarImg.removeAttribute('src');
+    cloudAvatarImg.style.display = 'none';
+    cloudAvatarInitials.style.display = 'inline';
+    const source = profile?.name || profile?.email || 'Cloud Sync';
+    cloudAvatarInitials.textContent = source.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || '?';
+  }
+
   async function updateCloudStatus() {
-    if (!cloudAuthStatus) return;
+    if (!cloudAuthStatus || !cloudAccountChip) return;
     const configured = !!(window.CloudSync && window.CloudSync.isConfigured && window.CloudSync.isConfigured());
     if (!configured) {
-      cloudAuthStatus.textContent = 'Cloud sync coming soon';
-      cloudAuthStatus.className = 'cloud-status-pill';
-      if (cloudSignInBtn) cloudSignInBtn.style.display = 'none';
-      if (cloudSignOutBtn) cloudSignOutBtn.style.display = 'none';
-      if (cloudUpgradeBtn) cloudUpgradeBtn.style.display = 'none';
+      cloudAccountChip.style.display = 'none';
       if (cloudPushBtn) cloudPushBtn.style.display = 'none';
       if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'none';
       return;
     }
+    cloudAccountChip.style.display = 'block';
     if (cloudPushBtn) cloudPushBtn.style.display = 'inline-block';
     if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'inline-block';
 
     try {
-      if (window.CloudSync) {
-        await window.CloudSync.init();
-        const signedIn = await window.CloudSync.isSignedIn();
-        if (signedIn) {
-          const email = await window.CloudSync.getUserEmail();
-          const hasAccess = await window.CloudSync.hasCloudSyncAccess();
-          if (hasAccess) {
-            cloudAuthStatus.textContent = email ? `Cloud Sync active: ${email}` : 'Cloud Sync active';
-            cloudAuthStatus.className = 'cloud-status-pill synced';
-            if (cloudPushBtn) cloudPushBtn.style.display = 'inline-block';
-            if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'inline-block';
-            if (cloudUpgradeBtn) cloudUpgradeBtn.style.display = 'none';
-          } else {
-            cloudAuthStatus.textContent = 'Cloud Sync needs a paid plan';
-            cloudAuthStatus.className = 'cloud-status-pill error';
-            if (cloudPushBtn) cloudPushBtn.style.display = 'none';
-            if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'none';
-            if (cloudUpgradeBtn) cloudUpgradeBtn.style.display = 'inline-block';
-          }
-          if (cloudSignInBtn) cloudSignInBtn.style.display = 'none';
-          if (cloudSignOutBtn) cloudSignOutBtn.style.display = 'inline-block';
+      await window.CloudSync.init();
+      const signedIn = await window.CloudSync.isSignedIn();
+      const profile = signedIn && window.CloudSync.getUserProfile ? await window.CloudSync.getUserProfile() : null;
+      if (signedIn) {
+        cloudMenuTitle.textContent = profile?.name || profile?.email || 'Signed in';
+        cloudMenuAuthBtn.textContent = 'Sign Out';
+        cloudMenuPlansBtn.textContent = 'Change Plans';
+        setCloudAvatar(profile);
+        const hasAccess = await window.CloudSync.hasCloudSyncAccess();
+        if (hasAccess) {
+          cloudAuthStatus.textContent = profile?.email || 'Cloud Sync active';
+          cloudAuthStatus.className = 'cloud-status-pill synced';
+          if (cloudPushBtn) cloudPushBtn.style.display = 'inline-block';
+          if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'inline-block';
         } else {
-          cloudAuthStatus.textContent = 'Configured, signed out';
-          cloudAuthStatus.className = 'cloud-status-pill';
-          if (cloudSignInBtn) cloudSignInBtn.style.display = 'inline-block';
-          if (cloudSignOutBtn) cloudSignOutBtn.style.display = 'none';
-          if (cloudUpgradeBtn) cloudUpgradeBtn.style.display = 'none';
+          cloudAuthStatus.textContent = 'Cloud Sync needs a paid plan';
+          cloudAuthStatus.className = 'cloud-status-pill error';
+          if (cloudPushBtn) cloudPushBtn.style.display = 'none';
+          if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'none';
         }
+      } else {
+        cloudMenuTitle.textContent = 'Cloud Sync';
+        cloudMenuAuthBtn.textContent = 'Sign In';
+        cloudMenuPlansBtn.textContent = 'See Plans';
+        setCloudAvatar(null);
+        cloudAuthStatus.textContent = 'Configured, signed out';
+        cloudAuthStatus.className = 'cloud-status-pill';
       }
     } catch (error) {
+      cloudMenuTitle.textContent = 'Cloud Sync';
       cloudAuthStatus.textContent = 'Cloud sync error';
       cloudAuthStatus.className = 'cloud-status-pill error';
     }
@@ -295,12 +321,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
   }
 
+  function sanitizeJsonControlChars(text) {
+    let out = '';
+    let inString = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (!inString) {
+        if (ch === '"') inString = true;
+        out += ch;
+        continue;
+      }
+      if (ch === '\\') {
+        out += ch + (text[i + 1] || '');
+        i++;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+        out += ch;
+        continue;
+      }
+      const code = ch.charCodeAt(0);
+      if (code < 0x20) {
+        if (code === 0x0A) out += '\\n';
+        else if (code === 0x0D) out += '\\r';
+        else if (code === 0x09) out += '\\t';
+        else out += '\\u' + code.toString(16).padStart(4, '0');
+        continue;
+      }
+      out += ch;
+    }
+    return out;
+  }
+
   function formatExtractedJson(rawText) {
     try {
       let rawData = (rawText || '').trim();
       if (rawData.startsWith('```json')) rawData = rawData.replace(/^```json/, '').replace(/```$/, '');
       else if (rawData.startsWith('```')) rawData = rawData.replace(/^```/, '').replace(/```$/, '');
-      return JSON.stringify(JSON.parse(rawData), null, 2);
+      return JSON.stringify(JSON.parse(sanitizeJsonControlChars(rawData)), null, 2);
     } catch (e) {
       return rawText;
     }
@@ -400,12 +459,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     setActiveProviderBtn.style.display = provider === activeProvider ? 'none' : 'inline-block';
   };
 
-  const updateActiveProvider = (provider) => {
+  const updateActiveProvider = (provider, persist = false) => {
     activeProvider = provider;
     providerIcons.forEach(icon => {
       icon.classList.toggle('active-provider', icon.dataset.provider === provider);
     });
     setActiveProviderBtn.style.display = 'none';
+    if (!persist) return;
+    chrome.storage.local.set({ apiProvider: provider }, () => {
+      if (chrome.runtime.lastError) {
+        showStatus(`Error: ${chrome.runtime.lastError.message}`, 'error', 4500);
+        return;
+      }
+      if (currentlyViewedProvider === provider) {
+        showStatus(`${PROVIDER_NAMES[provider]} is now your default provider.`, 'success', 2500);
+      }
+    });
   };
 
   providerIcons.forEach(icon => {
@@ -415,7 +484,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   setActiveProviderBtn.addEventListener('click', () => {
-    updateActiveProvider(currentlyViewedProvider);
+    updateActiveProvider(currentlyViewedProvider, true);
   });
 
   apiKeyInput.addEventListener('input', () => {
@@ -524,6 +593,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     endpointBaseUrlInput.value = '';
     endpointApiKeyInput.value = '';
     endpointModelInput.value = '';
+    endpointExtraInput.value = '';
     endpointModelDatalist.innerHTML = '';
     endpointStatusText.textContent = '';
     cancelEndpointEditBtn.style.display = 'none';
@@ -568,6 +638,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       endpointBaseUrlInput.value = endpoint.baseUrl || '';
       endpointApiKeyInput.value = endpoint.apiKey || '';
       endpointModelInput.value = endpoint.model || '';
+      endpointExtraInput.value = endpoint.extraBody || '';
       endpointModelDatalist.innerHTML = '';
       endpointStatusText.textContent = '';
       cancelEndpointEditBtn.style.display = 'inline-block';
@@ -638,6 +709,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const baseUrl = endpointBaseUrlInput.value.trim();
     const apiKey = endpointApiKeyInput.value.trim();
     const model = endpointModelInput.value.trim();
+    let extraBody = endpointExtraInput.value.trim();
+    if (extraBody) {
+      try {
+        const parsed = JSON.parse(extraBody);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('Extra body params must be a JSON object.');
+        }
+      } catch (error) {
+        endpointStatusText.textContent = error.message.includes('JSON object') ? error.message : 'Extra body params are not valid JSON.';
+        return;
+      }
+    } else {
+      extraBody = '';
+    }
 
     if (!getEndpointOrigin(baseUrl)) {
       endpointStatusText.textContent = 'Enter a valid http(s) Base URL.';
@@ -657,10 +742,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (editingEndpointId) {
       const entry = customEndpoints.find((e) => e.id === editingEndpointId);
-      if (entry) Object.assign(entry, { name, baseUrl, apiKey, model });
+      if (entry) Object.assign(entry, { name, baseUrl, apiKey, model, extraBody });
       if (activeCustomEndpointId === entry.id) activeCustomEndpointId = entry.id;
     } else {
-      const entry = { id: generateId(), name, baseUrl, apiKey, model };
+      const entry = { id: generateId(), name, baseUrl, apiKey, model, extraBody };
       customEndpoints.push(entry);
       if (!activeCustomEndpointId) activeCustomEndpointId = entry.id;
     }
@@ -672,8 +757,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    endpointStatusText.textContent = `Endpoint "${name}" saved.`;
     resetEndpointForm();
+    endpointStatusText.textContent = `Endpoint "${name}" saved.`;
     renderEndpointsList();
   });
 
@@ -706,25 +791,40 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateViewedProvider(activeProvider);
   updateCloudStatus();
 
-  if (cloudSignInBtn) {
-    cloudSignInBtn.addEventListener('click', async () => {
+  if (cloudAvatarBtn && cloudAccountMenu) {
+    cloudAvatarBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      cloudAccountMenu.classList.toggle('open');
+    });
+    document.addEventListener('click', (event) => {
+      if (!cloudAccountChip.contains(event.target)) {
+        cloudAccountMenu.classList.remove('open');
+      }
+    });
+  }
+
+  if (cloudMenuAuthBtn) {
+    cloudMenuAuthBtn.addEventListener('click', async () => {
+      cloudAccountMenu.classList.remove('open');
       try {
         if (!window.CloudSync) throw new Error('Cloud sync service failed to load.');
-        await window.CloudSync.signIn();
+        const signedIn = await window.CloudSync.isSignedIn();
+        if (signedIn) {
+          await window.CloudSync.signOut();
+        } else {
+          await window.CloudSync.signIn();
+        }
+        setTimeout(updateCloudStatus, 500);
       } catch (error) {
         showStatus(`Error: ${error.message}`, 'error', 6000);
       }
     });
   }
 
-  if (cloudSignOutBtn) {
-    cloudSignOutBtn.addEventListener('click', async () => {
-      try {
-        if (window.CloudSync) await window.CloudSync.signOut();
-        await updateCloudStatus();
-      } catch (error) {
-        showStatus(`Error: ${error.message}`, 'error', 4500);
-      }
+  if (cloudMenuPlansBtn) {
+    cloudMenuPlansBtn.addEventListener('click', async () => {
+      cloudAccountMenu.classList.remove('open');
+      await showCloudPricingPanel();
     });
   }
 
