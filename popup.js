@@ -380,9 +380,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- What's New modal (once per version) ---
   const whatsNewModal = document.getElementById('whatsNewModal');
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
-  const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
+  const whatsNewSettingsBtn = document.getElementById('whatsNewSettingsBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '7.3';
+  const ANNOUNCEMENT_VERSION = '7.4';
 
   function dismissWhatsNew() {
     chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_VERSION });
@@ -396,9 +396,9 @@ document.addEventListener('DOMContentLoaded', () => {
     whatsNewModal.style.display = 'flex';
   });
   if (whatsNewGotBtn) whatsNewGotBtn.addEventListener('click', dismissWhatsNew);
-  if (whatsNewPlansBtn) whatsNewPlansBtn.addEventListener('click', () => {
+  if (whatsNewSettingsBtn) whatsNewSettingsBtn.addEventListener('click', () => {
     dismissWhatsNew();
-    chrome.tabs.create({ url: chrome.runtime.getURL('options.html#cloud-pricing') });
+    chrome.tabs.create({ url: chrome.runtime.getURL('options.html') });
   });
 
   function parseJobFromTitle(title) {
