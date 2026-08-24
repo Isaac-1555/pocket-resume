@@ -684,9 +684,18 @@ function renderGraph() {
   const timelineCard = document.createElement('div');
   timelineCard.className = 'graph-card timeline-card';
   timelineCard.innerHTML = `<h2>Submissions over time</h2><p class="sub">Last 12 weeks by week of save date</p>`;
-  timelineCard.appendChild(buildTimelineSvg());
   graph.appendChild(timelineCard);
+  timelineCard.appendChild(buildTimelineSvg());
 }
+
+let timelineResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(timelineResizeTimer);
+  timelineResizeTimer = setTimeout(() => {
+    const gv = document.getElementById('graphView');
+    if (gv && gv.style.display !== 'none') renderGraph();
+  }, 150);
+});
 
 const NO_REPLY_THRESHOLD_DAYS = 14;
 
@@ -990,14 +999,16 @@ function buildTimelineSvg() {
     w.count = applications.filter((a) => a.dateSaved >= w.startMs && a.dateSaved < w.startMs + 7 * 24 * 60 * 60 * 1000).length;
   });
 
-  const chartWidth = 380;
-  const barW = 22;
+  const host = document.querySelector('.timeline-card');
+  const chartWidth = Math.max(560, Math.floor((host?.clientWidth || 900) - 36));
+  const chartHeight = 300;
+  const baseline = 248;
+  const plotHeight = 200;
+  const barW = 26;
   const gap = (chartWidth - 40 - weeks.length * barW) / Math.max(1, weeks.length - 1);
-  const baseline = 140;
-  const plotHeight = 120;
   const maxCount = Math.max(1, ...weeks.map((w) => w.count));
 
-  let svg = `<svg class="timeline-svg" preserveAspectRatio="none" viewBox="0 0 ${chartWidth} ${baseline + 34}" role="img" aria-label="Submissions over time">`;
+  let svg = `<svg class="timeline-svg" width="${chartWidth}" height="${chartHeight}" viewBox="0 0 ${chartWidth} ${chartHeight}" role="img" aria-label="Submissions over time">`;
   svg += `<line x1="20" y1="${baseline}" x2="${chartWidth - 20}" y2="${baseline}" stroke="#303844" stroke-width="1"></line>`;
   weeks.forEach((w, i) => {
     const x = 20 + i * (barW + gap);
@@ -1005,8 +1016,8 @@ function buildTimelineSvg() {
     const y = baseline - h;
     svg += `
       <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="6" fill="#4a9eff" opacity="${w.count ? 0.9 : 0.2}"></rect>
-      <text x="${x + barW / 2}" y="${baseline + 18}" text-anchor="middle" fill="#8896a5" font-size="10">${w.label}</text>
-      ${w.count ? `<text x="${x + barW / 2}" y="${y - 7}" text-anchor="middle" fill="#f2f4f8" font-size="11" font-weight="600">${w.count}</text>` : ''}
+      <text x="${x + barW / 2}" y="${baseline + 18}" text-anchor="middle" fill="#8896a5" font-size="11">${w.label}</text>
+      ${w.count ? `<text x="${x + barW / 2}" y="${y - 7}" text-anchor="middle" fill="#f2f4f8" font-size="12" font-weight="600">${w.count}</text>` : ''}
     `;
   });
   svg += `</svg>`;
