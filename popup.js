@@ -1,11 +1,15 @@
 // popup.js
 document.addEventListener('DOMContentLoaded', () => {
   const generateBtn = document.getElementById('generateBtn');
+  let statusTimer = null;
+  let scrambleTimer = null;
+  let lastError = '';
+  let lastErrorRaw = '';
   const settingsBtn = document.getElementById('settingsBtn');
   const resumeType = document.getElementById('resumeType');
   const resumeSelectorDiv = document.getElementById('resumeSelector');
   const coverLetterToggle = document.getElementById('coverLetterToggle');
-  const cloudAccountCard = document.getElementById('cloudAccountCard');
+  const generateLabel = document.getElementById('generateLabel');
   const cloudMenuTitle = document.getElementById('cloudMenuTitle');
   const cloudPlanBadge = document.getElementById('cloudPlanBadge');
   const cloudAvatarBtn = document.getElementById('cloudAvatarBtn');
@@ -56,13 +60,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function setCloudLinkState(linked) {
+    if (!cloudAvatarBtn) return;
+    cloudAvatarBtn.classList.toggle('unlinked', !linked);
+    if (linked) return;
+    if (cloudAvatarImg) {
+      cloudAvatarImg.removeAttribute('src');
+      cloudAvatarImg.style.display = 'none';
+    }
+    if (cloudAvatarInitials) cloudAvatarInitials.style.display = 'none';
+    if (cloudAccountMenu) cloudAccountMenu.classList.remove('open');
+  }
+
   async function updateCloudAccountState() {
-    if (!cloudAccountCard || !window.CloudSync || !window.CloudSync.isConfigured || !window.CloudSync.isConfigured()) {
-      if (cloudAccountCard) cloudAccountCard.style.display = 'none';
+    const configured = !!(window.CloudSync && window.CloudSync.isConfigured && window.CloudSync.isConfigured());
+    if (!configured || !cloudMenuTitle) {
+      setCloudLinkState(false);
       return;
     }
 
-    cloudAccountCard.style.display = 'block';
+    setCloudLinkState(true);
     if (cloudPlanBadge) {
       cloudPlanBadge.textContent = 'Checking Cloud Sync';
       cloudPlanBadge.className = 'cloud-plan-badge inactive';
@@ -125,10 +142,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (cloudAvatarBtn && cloudAccountMenu) {
     cloudAvatarBtn.addEventListener('click', (event) => {
       event.stopPropagation();
+      if (cloudAvatarBtn.classList.contains('unlinked')) return;
       cloudAccountMenu.classList.toggle('open');
     });
     window.addEventListener('click', (event) => {
-      if (!cloudAccountCard.contains(event.target)) {
+      if (!cloudAvatarBtn.contains(event.target) && !cloudAccountMenu.contains(event.target)) {
         cloudAccountMenu.classList.remove('open');
       }
     });
@@ -299,14 +317,14 @@ document.addEventListener('DOMContentLoaded', () => {
     loadedResumes.forEach((resume, index) => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'resume-selector-btn' + (resume.id === selectedResumeId ? ' active' : '');
+      btn.className = 'glass style-btn' + (resume.id === selectedResumeId ? ' active' : '');
       btn.title = resume.label || `Resume ${index + 1}`;
-      btn.innerHTML = `<span class="rs-number"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span><span class="rs-label">${escapeHtml(resume.label || `Resume ${index + 1}`)}</span>`;
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span class="rs-label">${escapeHtml(resume.label || `Resume ${index + 1}`)}</span>`;
       btn.addEventListener('click', () => {
         selectedResumeId = resume.id;
         chrome.storage.local.set({ selectedResumeId: resume.id });
         // Update active state
-        resumeSelectorDiv.querySelectorAll('.resume-selector-btn').forEach(b => b.classList.remove('active'));
+        resumeSelectorDiv.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
       });
       resumeSelectorDiv.appendChild(btn);
@@ -569,19 +587,71 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  let statusTimer = null;
-  let lastError = '';
-  let lastErrorRaw = '';
+  const BUSY_LABELS = ['Reading job page…', 'Matching keywords…', 'Tailoring bullets…', 'Polishing layout…', 'Almost there…'];
+  const SCRAMBLE_CHARS = 'ABCDEFGHKMNPRSTUVWXYZ23456789#/<>*+';
+
+  function stopScramble() {
+    if (scrambleTimer) {
+      clearInterval(scrambleTimer);
+      scrambleTimer = null;
+    }
+  }
+
+  function startScramble() {
+    if (!generateLabel) return;
+    stopScramble();
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      generateLabel.textContent = 'Generating…';
+      return;
+    }
+    let labelIdx = 0;
+    let frame = 0;
+    const settleFrames = 13;
+    const holdFrames = 30;
+    scrambleTimer = setInterval(() => {
+      frame++;
+      const target = BUSY_LABELS[labelIdx % BUSY_LABELS.length];
+      if (frame > settleFrames + holdFrames) {
+        labelIdx++;
+        frame = 0;
+        return;
+      }
+      const settled = Math.floor((frame / settleFrames) * target.length);
+      let out = '';
+      for (let i = 0; i < target.length; i++) {
+        if (i < settled || target[i] === ' ' || target[i] === '\u2026') {
+          out += target[i];
+        } else {
+          out += SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
+        }
+      }
+      generateLabel.textContent = out;
+    }, 34);
+  }
 
   function setStatus(state, persist = false) {
-    document.body.dataset.status = state;
+    const uiState = state === 'error' ? 'failure' : state;
+    document.body.dataset.status = uiState;
+
+    if (uiState === 'generating') {
+      startScramble();
+    } else {
+      stopScramble();
+      if (generateLabel) {
+        generateLabel.textContent =
+          uiState === 'success' ? 'Done \u2014 PDF ready'
+            : uiState === 'failure' ? 'Failed \u2014 try again'
+              : 'Generate PDF Resume';
+      }
+    }
+
     if (statusTimer) {
       clearTimeout(statusTimer);
       statusTimer = null;
     }
-    if (persist || state === 'generating' || state === 'error') return;
+    if (persist || uiState === 'generating' || uiState === 'failure') return;
     statusTimer = setTimeout(() => {
-      document.body.dataset.status = 'idle';
+      setStatus('idle');
       statusTimer = null;
     }, 4000);
   }
