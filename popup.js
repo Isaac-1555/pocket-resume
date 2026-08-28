@@ -495,15 +495,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return { company: '', role: t };
   }
 
-  function showTrackerToast(company, role) {
-    const toast = document.getElementById('trackerToast');
-    if (!toast) return;
-    const name = company || role || 'the job';
-    toast.textContent = `✓ Saved ${name} to Job Tracker`;
-    toast.style.display = 'block';
-    setTimeout(() => { toast.style.display = 'none'; }, 4000);
-  }
-
   function saveApplicationToTracker(resumeData, tab, resumeIdUsed, resumeStyle) {
     if (!tab) return;
 
@@ -560,7 +551,6 @@ document.addEventListener('DOMContentLoaded', () => {
         writes.trackerTrialStartedAt = Date.now();
       }
       chrome.storage.local.set(writes);
-      showTrackerToast(application.company, application.role);
     });
   }
 

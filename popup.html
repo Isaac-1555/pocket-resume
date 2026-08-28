@@ -136,7 +136,7 @@
     }
 
     .app-header, #resumeSelector, .toggle-group,
-    #generateBtn, #settingsBtn, #trackerBtn, #trackerToast {
+    #generateBtn, #settingsBtn, #trackerBtn {
       position: relative;
       z-index: 1;
     }
@@ -818,17 +818,6 @@
       50%      { box-shadow: 0 0 0 6px rgba(244, 147, 59, 0); }
     }
 
-    .tracker-toast {
-      margin-top: 10px;
-      padding: 10px 14px;
-      border: 1px solid rgba(43, 214, 132, 0.45);
-      border-radius: 13px;
-      background: rgba(43, 214, 132, 0.12);
-      color: #7fe6ae;
-      font-size: 12.5px;
-      font-weight: 500;
-    }
-
     /* ============================
        Focus Visibility
        ============================ */
@@ -1294,8 +1283,6 @@
     </span>
     <span id="trackerNewBadge" class="tracker-new-badge">New</span>
   </button>
-
-  <div id="trackerToast" class="tracker-toast" style="display: none;"></div>
 
   <!-- Cloud Sync Onboarding Modal -->
   <div id="cloudOnboardingModal" class="onboarding-modal" style="display: none;">
