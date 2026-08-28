@@ -1236,6 +1236,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Growth Prompts (Rating & Share) ---
   const STORE_URL = 'https://chromewebstore.google.com/detail/pocketresume/mdplmgfkpgalajmchilemiamifoaneip';
+  const WEBSITE_URL = 'https://pocket-resume.xyz';
   const PROMPT_REPEAT_MS = 7 * 24 * 60 * 60 * 1000;
 
   const ratingModal = document.getElementById('ratingPromptModal');
@@ -1329,7 +1330,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const shareData = {
       title: 'PocketResume',
       text: 'PocketResume — one-click tailored resume from any job description. Free!',
-      url: STORE_URL
+      url: WEBSITE_URL
     };
     if (navigator.share) {
       try {
@@ -1340,12 +1341,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
     try {
-      await navigator.clipboard.writeText(shareData.text + ' ' + STORE_URL);
+      await navigator.clipboard.writeText(shareData.text + ' ' + WEBSITE_URL);
       const original = shareActionBtn.textContent;
       shareActionBtn.textContent = 'Link Copied!';
       setTimeout(() => { shareActionBtn.textContent = original; }, 2000);
     } catch (clipError) {
-      chrome.tabs.create({ url: STORE_URL });
+      chrome.tabs.create({ url: WEBSITE_URL });
     }
   }
 
@@ -1360,6 +1361,26 @@ document.addEventListener('DOMContentLoaded', () => {
     shareCloseBtn.addEventListener('click', () => {
       closePrompt('growthSharePrompt', shareModal);
     });
+  }
+
+  const openWebsite = () => {
+    chrome.tabs.create({ url: WEBSITE_URL });
+  };
+
+  const websiteLink = document.getElementById('websiteLink');
+  if (websiteLink) {
+    websiteLink.addEventListener('click', openWebsite);
+    websiteLink.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openWebsite();
+      }
+    });
+  }
+
+  const logoLink = document.getElementById('logoLink');
+  if (logoLink) {
+    logoLink.addEventListener('click', openWebsite);
   }
 
   setTimeout(maybeShowPrompts, 400);
