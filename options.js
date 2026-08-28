@@ -1249,6 +1249,173 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderTabBar();
   renderTabContent();
 
+  // --- Onboarding spotlight tour ---
+  const tourOverlay = document.getElementById('tourOverlay');
+  const tourHighlight = document.getElementById('tourHighlight');
+  const tourCard = document.getElementById('tourCard');
+  const tourStepLabel = document.getElementById('tourStepLabel');
+  const tourTitle = document.getElementById('tourTitle');
+  const tourBody = document.getElementById('tourBody');
+  const tourHint = document.getElementById('tourHint');
+  const tourBackBtn = document.getElementById('tourBackBtn');
+  const tourNextBtn = document.getElementById('tourNextBtn');
+  const tourSkipBtn = document.getElementById('tourSkipBtn');
+
+  const TOUR_STEPS = [
+    {
+      target: '.provider-icons',
+      title: 'Pick your AI provider',
+      body: 'Click a provider icon. Google Gemini is the easiest free start. If you browse a different provider, click "Set as Active Provider" below the icons.'
+    },
+    {
+      target: '#apiKeyWrapper',
+      title: 'Paste your API key',
+      body: 'Paste the key for the provider you picked. The link just below this field tells you where to get one.',
+      validate: 'apiKey'
+    },
+    {
+      target: '#modelRow',
+      title: 'Choose a model (optional)',
+      body: 'Leave this empty to use the provider\'s default model, or type a model ID. "Load Models" fetches the list your account can use.'
+    },
+    {
+      target: '#resumeContentTextarea',
+      title: 'Paste your master resume',
+      body: 'Paste your full, unedited master resume in this box. PocketResume tailors it to each job posting — your original text stays untouched.'
+    },
+    {
+      target: '#refineResumeBtn',
+      title: 'Optional: Refine Resume',
+      body: 'Optional. Click this once to let the AI restructure your resume into a clean master version. You review the result and can apply it or cancel.'
+    },
+    {
+      target: '#save',
+      title: 'Save Settings',
+      body: 'Click Save Settings. PocketResume also extracts a structured JSON profile from your resume automatically.'
+    }
+  ];
+
+  let tourActive = false;
+  let tourStepIndex = 0;
+
+  function tourPersistStep() {
+    const step = tourStepIndex < TOUR_STEPS.length ? tourStepIndex + 1 : null;
+    chrome.storage.local.set({ onboarding: { step, dismissed: false } });
+  }
+
+  function tourDismiss() {
+    tourActive = false;
+    tourOverlay.classList.remove('open');
+    chrome.storage.local.set({ onboarding: { step: null, dismissed: true } });
+  }
+
+  function positionTourCard(rect) {
+    const margin = 14;
+    let top;
+    if (tourStepIndex >= TOUR_STEPS.length || !rect) {
+      top = Math.max(margin, (window.innerHeight - tourCard.offsetHeight) / 2);
+    } else {
+      top = rect.bottom + 14;
+      if (top + tourCard.offsetHeight > window.innerHeight - margin) {
+        top = Math.max(margin, rect.top - tourCard.offsetHeight - 14);
+      }
+    }
+    const left = Math.max(margin, Math.min(
+      (rect ? rect.left + rect.width / 2 : window.innerWidth / 2) - 160,
+      window.innerWidth - 320 - margin
+    ));
+    tourCard.style.top = `${Math.round(top)}px`;
+    tourCard.style.left = `${Math.round(left)}px`;
+  }
+
+  function renderTourStep() {
+    if (tourStepIndex >= TOUR_STEPS.length) {
+      tourHighlight.style.display = 'none';
+      tourStepLabel.textContent = 'Setup complete';
+      tourTitle.textContent = 'You\'re all set';
+      tourBody.textContent = 'Open the PocketResume popup and click Generate PDF Resume.';
+      tourHint.style.display = 'none';
+      tourBackBtn.style.visibility = 'hidden';
+      tourNextBtn.textContent = 'Done';
+      positionTourCard(null);
+      return;
+    }
+
+    const step = TOUR_STEPS[tourStepIndex];
+    if (step.target === '#resumeContentTextarea' && editorMode !== 'resume') {
+      setEditorMode('resume');
+    }
+    const el = document.querySelector(step.target);
+    if (el) el.scrollIntoView({ block: 'center' });
+    tourHighlight.style.display = el ? 'block' : 'none';
+    tourStepLabel.textContent = `Step ${tourStepIndex + 1} of ${TOUR_STEPS.length}`;
+    tourTitle.textContent = step.title;
+    tourBody.textContent = step.body;
+    tourHint.style.display = step.validate === 'apiKey' && !apiKeyInput.value.trim() ? 'block' : 'none';
+    tourBackBtn.style.visibility = tourStepIndex === 0 ? 'hidden' : 'visible';
+    tourNextBtn.textContent = 'Next';
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const pad = 6;
+        tourHighlight.style.top = `${Math.round(rect.top - pad)}px`;
+        tourHighlight.style.left = `${Math.round(rect.left - pad)}px`;
+        tourHighlight.style.width = `${Math.round(rect.width + pad * 2)}px`;
+        tourHighlight.style.height = `${Math.round(rect.height + pad * 2)}px`;
+        positionTourCard(rect);
+      });
+    });
+  }
+
+  function tourOpenAt(index) {
+    tourActive = true;
+    tourStepIndex = Math.max(0, Math.min(index, TOUR_STEPS.length));
+    tourOverlay.classList.add('open');
+    renderTourStep();
+  }
+
+  function tourNotifySaved() {
+    if (tourActive && tourStepIndex < TOUR_STEPS.length) {
+      tourStepIndex = TOUR_STEPS.length;
+      renderTourStep();
+    }
+  }
+
+  tourNextBtn.addEventListener('click', () => {
+    if (tourStepIndex >= TOUR_STEPS.length) {
+      tourDismiss();
+      return;
+    }
+    tourStepIndex += 1;
+    tourPersistStep();
+    renderTourStep();
+  });
+
+  tourBackBtn.addEventListener('click', () => {
+    if (tourStepIndex === 0) return;
+    tourStepIndex -= 1;
+    tourPersistStep();
+    renderTourStep();
+  });
+
+  tourSkipBtn.addEventListener('click', tourDismiss);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && tourActive) tourDismiss();
+  });
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !changes.onboarding || tourActive) return;
+    const ob = changes.onboarding.newValue;
+    if (ob && typeof ob.step === 'number') tourOpenAt(ob.step - 1);
+  });
+
+  const obData = await chrome.storage.local.get(['onboarding']);
+  if (obData.onboarding && typeof obData.onboarding.step === 'number') {
+    tourOpenAt(obData.onboarding.step - 1);
+  }
+
   saveButton.addEventListener('click', async () => {
     saveCurrentTabToState();
     apiKeys[currentlyViewedProvider] = apiKeyInput.value.trim();
@@ -1279,6 +1446,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       resumes.forEach((entry) => {
         entry._lastSavedContent = entry.content;
       });
+      tourNotifySaved();
     } catch (error) {
       showStatus(`Error: ${error.message}`, 'error', 4500);
       saveButton.disabled = false;

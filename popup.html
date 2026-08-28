@@ -828,6 +828,148 @@
     }
 
     /* ============================
+       Setup Card (Onboarding)
+       ============================ */
+    .setup-card {
+      margin: 0 0 14px;
+      padding: 16px;
+      text-align: left;
+      position: relative;
+      z-index: 1;
+    }
+
+    .setup-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .setup-title {
+      margin: 0;
+      font-size: 14.5px;
+      font-weight: 600;
+    }
+
+    .setup-skip {
+      font-size: 11.5px;
+      color: var(--text-faint);
+      cursor: pointer;
+      transition: color var(--ease);
+    }
+
+    .setup-skip:hover {
+      color: var(--text-dim);
+    }
+
+    .setup-step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    .setup-step-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .setup-step-label {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .setup-step-desc {
+      margin: 1px 0 0;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .setup-goto {
+      flex-shrink: 0;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 9px;
+      cursor: pointer;
+      background: var(--orange-fill);
+      border: 1px solid var(--orange-border);
+      color: var(--orange);
+      transition: all var(--ease);
+    }
+
+    .setup-goto:hover {
+      background: var(--orange-fill-strong);
+      color: var(--text);
+    }
+
+    .setup-goto-wide {
+      display: block;
+      width: 100%;
+      text-align: center;
+      padding: 9px 12px;
+    }
+
+    .setup-check {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 1.5px solid var(--glass-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: transparent;
+      transition: all var(--ease);
+    }
+
+    .setup-check svg {
+      width: 11px;
+      height: 11px;
+    }
+
+    .setup-step.done .setup-check {
+      background: rgba(43, 214, 132, 0.18);
+      border-color: rgba(43, 214, 132, 0.55);
+      color: #2bd684;
+    }
+
+    .setup-step.done .setup-step-label {
+      color: var(--text-dim);
+      text-decoration: line-through;
+      text-decoration-color: rgba(255, 255, 255, 0.25);
+    }
+
+    .setup-step.done .setup-goto {
+      display: none;
+    }
+
+    .setup-done-text {
+      margin: 0 0 12px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--text-dim);
+      border-top: 1px solid rgba(255, 255, 255, 0.07);
+      padding-top: 12px;
+    }
+
+    .setup-done-text strong {
+      color: var(--text);
+    }
+
+    .setup-compact {
+      padding: 14px 16px;
+    }
+
+    .setup-compact .setup-head {
+      margin-bottom: 10px;
+    }
+
+    /* ============================
        Modals — Glass Cards
        ============================ */
     .onboarding-modal {
@@ -1009,6 +1151,58 @@
     <h1>PocketResume</h1>
     <p class="tagline">One Click. One Tailored Resume.</p>
   </header>
+
+  <div id="setupCard" class="setup-card glass" style="display: none;">
+    <div class="setup-head">
+      <p class="setup-title" id="setupTitle">Set up PocketResume</p>
+      <button type="button" id="setupSkipBtn" class="setup-skip">Skip setup</button>
+    </div>
+    <div id="setupSteps">
+      <div class="setup-step" id="setupStepProvider">
+        <span class="setup-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+        <div class="setup-step-text">
+          <p class="setup-step-label">Choose an AI provider</p>
+          <p class="setup-step-desc">Google Gemini has a generous free tier</p>
+        </div>
+        <button type="button" class="setup-goto" data-tour-step="1">Do it</button>
+      </div>
+      <div class="setup-step" id="setupStepApiKey">
+        <span class="setup-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+        <div class="setup-step-text">
+          <p class="setup-step-label">Paste your API key</p>
+          <p class="setup-step-desc">Takes about 30 seconds</p>
+        </div>
+        <button type="button" class="setup-goto" data-tour-step="2">Do it</button>
+      </div>
+      <div class="setup-step" id="setupStepResume">
+        <span class="setup-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+        <div class="setup-step-text">
+          <p class="setup-step-label">Paste your master resume</p>
+          <p class="setup-step-desc">Your original is never modified</p>
+        </div>
+        <button type="button" class="setup-goto" data-tour-step="4">Do it</button>
+      </div>
+      <div class="setup-step" id="setupStepSave">
+        <span class="setup-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+        <div class="setup-step-text">
+          <p class="setup-step-label">Save settings</p>
+          <p class="setup-step-desc">Then generate on any job page</p>
+        </div>
+        <button type="button" class="setup-goto" data-tour-step="6">Do it</button>
+      </div>
+    </div>
+    <div id="setupDoneState" style="display: none;">
+      <p class="setup-done-text">You're all set. Visit a job posting and click <strong>Generate PDF Resume</strong>.</p>
+      <button type="button" id="setupDoneBtn" class="setup-goto setup-goto-wide">Let's go</button>
+    </div>
+  </div>
+
+  <div id="setupCompact" class="setup-card glass setup-compact" style="display: none;">
+    <div class="setup-head">
+      <p class="setup-title">Finish setup to start generating</p>
+    </div>
+    <button type="button" id="setupResumeBtn" class="setup-goto setup-goto-wide">Resume setup</button>
+  </div>
 
   <div class="control-group">
     <div class="section-label">

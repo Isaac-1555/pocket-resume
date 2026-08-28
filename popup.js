@@ -24,6 +24,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const errorMessageText = document.getElementById('errorMessageText');
   const errorCopyBtn = document.getElementById('errorCopyBtn');
   const errorCloseBtn = document.getElementById('errorCloseBtn');
+  const setupCard = document.getElementById('setupCard');
+  const setupCompact = document.getElementById('setupCompact');
+  const setupSkipBtn = document.getElementById('setupSkipBtn');
+  const setupDoneBtn = document.getElementById('setupDoneBtn');
+  const setupResumeBtn = document.getElementById('setupResumeBtn');
 
   // --- Cover Letter Toggle ---
   let trackerCaptureEnabled = true;
@@ -241,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   // Check if settings are configured + load resumes
-  chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'apiProvider', 'customEndpoints', 'activeCustomEndpointId', 'resumes', 'userProfile', 'resumeType', 'resumeLayout', 'selectedResumeId'], (data) => {
+  chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'apiProvider', 'customEndpoints', 'activeCustomEndpointId', 'resumes', 'userProfile', 'resumeType', 'resumeLayout', 'selectedResumeId', 'onboarding', 'onboardingCompleted'], (data) => {
     // Migrate legacy profile
     if (data.userProfile && (!data.resumes || data.resumes.length === 0)) {
       loadedResumes = [{ id: 'migrated_1', label: 'Resume 1', content: data.userProfile }];
@@ -264,11 +269,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (!hasApiKey || !hasResumes) {
-      const setupMessage = provider === 'custom'
-        ? 'No custom endpoint configured. Open Settings to add one.'
-        : 'No API key set. Open Settings to add one.';
-      setError(!hasApiKey ? setupMessage : 'No resume content found. Open Settings to add your resume.');
       generateBtn.disabled = true;
+      renderSetupCard(hasApiKey, hasResumes, data.onboarding);
+    } else if (!data.onboardingCompleted) {
+      renderSetupCompleteCard();
     }
 
     // Set selected resume
@@ -371,6 +375,68 @@ document.addEventListener('DOMContentLoaded', () => {
   settingsBtn.addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
   });
+
+  // --- Setup / onboarding card ---
+  function setSetupStepDone(stepId, done) {
+    const row = document.getElementById(stepId);
+    if (row) row.classList.toggle('done', done);
+  }
+
+  function renderSetupCard(hasApiKey, hasResumes, onboarding) {
+    if (!setupCard) return;
+    if (onboarding && onboarding.dismissed) {
+      setupCard.style.display = 'none';
+      if (setupCompact) setupCompact.style.display = 'block';
+      return;
+    }
+    if (setupCompact) setupCompact.style.display = 'none';
+    setSetupStepDone('setupStepProvider', hasApiKey);
+    setSetupStepDone('setupStepApiKey', hasApiKey);
+    setSetupStepDone('setupStepResume', hasResumes);
+    setSetupStepDone('setupStepSave', hasApiKey && hasResumes);
+    setupCard.style.display = 'block';
+  }
+
+  function renderSetupCompleteCard() {
+    if (!setupCard) return;
+    if (setupCompact) setupCompact.style.display = 'none';
+    const stepsEl = document.getElementById('setupSteps');
+    const doneEl = document.getElementById('setupDoneState');
+    const skipBtn = document.getElementById('setupSkipBtn');
+    const titleEl = document.getElementById('setupTitle');
+    if (stepsEl) stepsEl.style.display = 'none';
+    if (skipBtn) skipBtn.style.display = 'none';
+    if (doneEl) doneEl.style.display = 'block';
+    if (titleEl) titleEl.textContent = 'Setup complete';
+    setupCard.style.display = 'block';
+    chrome.storage.local.set({ onboardingCompleted: true });
+  }
+
+  function startSetupTour(step) {
+    chrome.storage.local.set({ onboarding: { step, dismissed: false } }, () => {
+      chrome.runtime.openOptionsPage();
+    });
+  }
+
+  document.querySelectorAll('#setupCard .setup-goto[data-tour-step]').forEach((btn) => {
+    btn.addEventListener('click', () => startSetupTour(parseInt(btn.dataset.tourStep, 10) || 1));
+  });
+  if (setupSkipBtn) {
+    setupSkipBtn.addEventListener('click', () => {
+      chrome.storage.local.set({ onboarding: { step: null, dismissed: true } });
+      setupCard.style.display = 'none';
+      if (setupCompact) setupCompact.style.display = 'block';
+    });
+  }
+  if (setupDoneBtn) {
+    setupDoneBtn.addEventListener('click', () => {
+      if (setupCard) setupCard.style.display = 'none';
+    });
+  }
+  if (setupResumeBtn) {
+    setupResumeBtn.addEventListener('click', () => startSetupTour(1));
+  }
+
 
   const trackerBtn = document.getElementById('trackerBtn');
   if (trackerBtn) {
