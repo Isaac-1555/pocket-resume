@@ -92,7 +92,18 @@ None configured. No test runner or linter. Validate by hand: load unpacked, gene
      - PocketResume layouts (basic / professional / faang): `generatePDF(...)` in `popup.js`
      - Alternative layouts (jake / deedy / academic-cv): `window.ResumeRenderers.generateResumePDF(...)` in `resume-renderers.js`
    - Cover letter: `generateCoverLetterPDF(...)` in `popup.js`
-6. Popup (error): `setError()` stores the raw message, maps it to a short human-readable string via `mapErrorMessage(...)`, and persists the red `data-status="error"` state until the popup closes or Generate is clicked again. It also reveals the "?" button (`#errorInfoBtn`), which opens the error modal (`#errorModal`) with the mapped message plus a Copy Details button for the full raw error.
+6. Popup (error): `setError()` stores the raw message, maps it to a short human-readable string via `mapErrorMessage(...)`, and persists the red `data-status="error"` state until the popup closes or Generate is clicked again. It also reveals the "?" button (`#errorInfoBtn`), which opens the error modal (`#errorModal`) with the mapped message plus a Copy Details button for the full raw error. Exception: a missing/unconfigured API key or resume no longer produces the red error — the setup card shows instead (see onboarding flow below).
+
+### Onboarding flow
+
+New/unconfigured users get a setup card in the popup plus a spotlight tour on the options page instead of a red error.
+
+1. Popup load (`popup.js`): if the config check (API key per provider / custom endpoint + resume content) fails, `renderSetupCard(...)` shows `#setupCard` — a checklist (provider / API key / master resume / save settings) with live checkmarks. Generate stays disabled.
+2. Each "Do it" button writes `onboarding: { step: N }` to `chrome.storage.local` (N is 1-based into `TOUR_STEPS` in `options.js`) and calls `chrome.runtime.openOptionsPage()`. "Skip setup" sets `onboarding.dismissed = true`, which collapses the card to the compact `#setupCompact` variant on later opens (the red error never returns for a missing-config state).
+3. Options page load (`options.js`): if `onboarding.step` is a number, the spotlight tour opens at that step. A `chrome.storage.onChanged` listener also starts the tour if the options page is already open when the popup sets the step.
+4. `TOUR_STEPS` (options.js) walks through: provider icons → API key → model (optional) → `#resumeContentTextarea` → `#refineResumeBtn` (explain only, no AI call forced) → `#save`. The highlight uses a box-shadow spotlight and is `pointer-events: none`, so the user interacts with the real UI while the tour guides.
+5. "Next"/"Back" persist the current step; Skip, Escape, or the final "Done" set `onboarding: { step: null, dismissed: true }`. Clicking Save Settings while the tour is active (`tourNotifySaved()`) jumps straight to the finish card.
+6. When the config check passes and `onboardingCompleted` is not yet set, the popup shows the one-time "Setup complete" card and persists `onboardingCompleted: true`.
 
 ### Resume refinement flow
 

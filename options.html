@@ -1425,6 +1425,103 @@
     }
 
     /* ============================
+       Onboarding Spotlight Tour
+       ============================ */
+    #tourOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1600;
+      display: none;
+      pointer-events: none;
+    }
+
+    #tourOverlay.open {
+      display: block;
+    }
+
+    .tour-dim {
+      position: absolute;
+      inset: 0;
+      background: rgba(5, 5, 6, 0.45);
+    }
+
+    .tour-highlight {
+      position: absolute;
+      border-radius: 12px;
+      box-shadow: 0 0 0 2px var(--orange),
+                  0 0 0 6px rgba(244, 147, 59, 0.22),
+                  0 0 34px rgba(244, 147, 59, 0.35),
+                  0 0 0 4000px rgba(5, 5, 6, 0.55);
+      transition: top 220ms ease, left 220ms ease, width 220ms ease, height 220ms ease;
+    }
+
+    .tour-card {
+      position: absolute;
+      width: 320px;
+      max-width: calc(100vw - 28px);
+      border-radius: 16px;
+      padding: 18px;
+      background: linear-gradient(165deg, rgba(30, 28, 26, 0.97), rgba(12, 11, 10, 0.98));
+      border: 1px solid var(--glass-border);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 24px 60px rgba(0, 0, 0, 0.6);
+      pointer-events: auto;
+      animation: tourCardIn 200ms ease;
+    }
+
+    @keyframes tourCardIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .tour-step-label {
+      margin: 0 0 4px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--orange);
+    }
+
+    .tour-card h3 {
+      margin: 0 0 6px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .tour-card p.tour-body {
+      margin: 0;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--text-dim);
+    }
+
+    .tour-hint {
+      display: none;
+      margin: 8px 0 0;
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--orange);
+      background: var(--orange-fill);
+      border: 1px solid var(--orange-border);
+      border-radius: 8px;
+      padding: 7px 10px;
+    }
+
+    .tour-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .tour-actions-right {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* ============================
        Focus / Scrollbar / Motion
        ============================ */
     button:focus-visible,
@@ -1630,6 +1727,25 @@
     <div class="status-card">
       <div class="status-icon" id="statusIcon"></div>
       <div class="status-text" id="statusText"></div>
+    </div>
+  </div>
+
+  <!-- ONBOARDING SPOTLIGHT TOUR -->
+  <div id="tourOverlay">
+    <div class="tour-dim"></div>
+    <div class="tour-highlight" id="tourHighlight"></div>
+    <div class="tour-card" id="tourCard">
+      <p class="tour-step-label" id="tourStepLabel"></p>
+      <h3 id="tourTitle"></h3>
+      <p class="tour-body" id="tourBody"></p>
+      <p class="tour-hint" id="tourHint">Add your API key above to continue &mdash; or click Next anyway.</p>
+      <div class="tour-actions">
+        <button type="button" id="tourSkipBtn" class="ghost-btn">Skip tour</button>
+        <div class="tour-actions-right">
+          <button type="button" id="tourBackBtn" class="ghost-btn">Back</button>
+          <button type="button" id="tourNextBtn" class="secondary-action-btn">Next</button>
+        </div>
+      </div>
     </div>
   </div>
 
