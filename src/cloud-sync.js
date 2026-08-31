@@ -29,6 +29,17 @@
   const EXTENSION_URL = chrome.runtime.getURL('.');
   const POPUP_URL = EXTENSION_URL + 'popup.html';
 
+  // clerk-js session touch rethrows non-auth errors (e.g. offline) from its
+  // focus handler, surfacing as unhandled rejections. They are harmless —
+  // Clerk retries on the next focus — so log and swallow them.
+  globalThis.addEventListener('unhandledrejection', (event) => {
+    const msg = event.reason && event.reason.message ? String(event.reason.message) : String(event.reason || '');
+    if (msg.startsWith('ClerkJS: Network error')) {
+      event.preventDefault();
+      console.warn('[CloudSync] Suppressed Clerk session touch network error:', msg);
+    }
+  });
+
   // --- Clerk Setup ---
   async function getClerkPublishableKey() {
     return CLOUD_CONFIG.clerkPublishableKey || null;
