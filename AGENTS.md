@@ -47,6 +47,15 @@ npm install jspdf@latest
 cp node_modules/jspdf/dist/jspdf.umd.min.js libs/jspdf.umd.min.js
 ```
 
+### Update vendored LDRS loader
+
+`tracker.html` loads the Newton's Cradle loader from `libs/ldrs-newtons-cradle.js` (vendored esbuild bundle of the `ldrs` web component, used as the plan-check loader in the Job Tracker header). If you bump `ldrs`, rebuild the bundle:
+
+```sh
+npm install ldrs@latest
+npm run build:ldrs
+```
+
 ### Run / debug in Chrome
 
 No dev server.
@@ -199,6 +208,7 @@ PocketResume/
 │   ├── resumes.ts
 │   └── _generated/          # [generated, gitignored]
 ├── libs/jspdf.umd.min.js    # Vendored jsPDF
+├── libs/ldrs-newtons-cradle.js # [generated, gitignored? no—committed] vendored ldrs Newton's Cradle web component
 ├── scripts/build-clerk.mjs  # Build script for cloud-sync bundle
 ├── .env.example             # Template for .env.local
 ├── AGENTS.md                # This file

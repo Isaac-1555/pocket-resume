@@ -6,10 +6,12 @@ const STORAGE_KEYS = [
   'trackerUnlocked',
   'trackerLockDismissed',
   'trackerTourSeen',
+  'trackerPlanCache',
 ];
 
 const TRIAL_DAYS = 30;
 const TRIAL_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000;
+const PLAN_CHECK_TIMEOUT_MS = 4000;
 
 const COLUMNS = ['saved', 'applied', 'interview', 'offer', 'rejected', 'withdrawn'];
 
@@ -113,11 +115,29 @@ async function checkPlanAccess() {
     return await window.CloudSync.hasCloudSyncAccess();
   } catch (err) {
     console.warn('[Tracker] Plan check failed:', err);
-    return false;
+    throw err;
   }
 }
 
+function checkPlanAccessWithTimeout() {
+  return Promise.race([
+    checkPlanAccess(),
+    new Promise((resolve) => setTimeout(() => resolve(null), PLAN_CHECK_TIMEOUT_MS)),
+  ]);
+}
+
+function unlockPlan() {
+  trialInfo.unlocked = true;
+  chrome.storage.local.set({ trackerUnlocked: true });
+}
+
+function refreshLockState() {
+  const trialElapsed = trialInfo.startedAt ? (Date.now() - trialInfo.startedAt) : 0;
+  locked = !trialInfo.unlocked && !!trialInfo.startedAt && trialElapsed > TRIAL_MS;
+}
+
 async function init() {
+  const livePlanCheck = checkPlanAccessWithTimeout();
   const data = await getFromStorage(STORAGE_KEYS);
   applications = Array.isArray(data.applications) ? data.applications : [];
   trialInfo.startedAt = data.trackerTrialStartedAt || null;
@@ -125,17 +145,29 @@ async function init() {
   trialInfo.dismissed = !!data.trackerLockDismissed;
   const tourSeen = !!data.trackerTourSeen;
 
-  const hasPlan = await checkPlanAccess();
-  if (hasPlan && !trialInfo.unlocked) {
-    trialInfo.unlocked = true;
-    chrome.storage.local.set({ trackerUnlocked: true });
+  const cachedPlan = data.trackerPlanCache;
+  if (cachedPlan && cachedPlan.unlocked && !trialInfo.unlocked) {
+    unlockPlan();
   }
-
-  const trialElapsed = trialInfo.startedAt ? (Date.now() - trialInfo.startedAt) : 0;
-  locked = !trialInfo.unlocked && !!trialInfo.startedAt && trialElapsed > TRIAL_MS;
+  refreshLockState();
 
   render();
   updatePlanBadge();
+
+  try {
+    const hasPlan = await livePlanCheck;
+    if (hasPlan !== null) {
+      chrome.storage.local.set({ trackerPlanCache: { unlocked: hasPlan, checkedAt: Date.now() } });
+      if (hasPlan && !trialInfo.unlocked) {
+        unlockPlan();
+        refreshLockState();
+        render();
+        updatePlanBadge();
+      }
+    }
+  } catch (err) {
+    // Clerk unreachable or timed out — keep the cache/trial state from first paint
+  }
 
   if (!tourSeen) {
     window.setTimeout(startTour, 400);
@@ -153,6 +185,8 @@ async function init() {
 function updatePlanBadge() {
   const badge = document.getElementById('planBadge');
   if (!badge) return;
+  document.getElementById('planLoader')?.remove();
+  badge.hidden = false;
   if (trialInfo.unlocked) {
     badge.textContent = 'Pro';
     badge.className = 'plan-badge pro';
