@@ -1,0 +1,130 @@
+:root {
+    --ink: #0A0D12;
+    --ink-raised: #11151D;
+    --paper: #F4F1E8;
+    --slate: #8890A0;
+    --amber: #FF8A3D;
+    --cyan: #4FD7E0;
+    --violet: #9B7BFF;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+.tile {
+    position: relative;
+    overflow: hidden;
+    font-family: 'Inter', sans-serif;
+    color: var(--paper);
+    -webkit-font-smoothing: antialiased;
+    background:
+        radial-gradient(900px 600px at 85% -10%, rgba(255, 138, 61, 0.10), transparent 60%),
+        radial-gradient(700px 500px at -8% 110%, rgba(79, 215, 224, 0.07), transparent 55%),
+        linear-gradient(160deg, #0D1118 0%, #0A0D12 55%, #07090D 100%);
+}
+
+.glow {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(110px);
+    pointer-events: none;
+}
+
+.glow.amber { background: rgba(255, 138, 61, 0.30); }
+.glow.cyan { background: rgba(79, 215, 224, 0.26); }
+.glow.violet { background: rgba(155, 123, 255, 0.26); }
+
+.lockup {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    z-index: 10;
+}
+
+.lockup img { border-radius: 7px; }
+
+.lockup .name {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+}
+
+.eyebrow.amber { color: var(--amber); }
+
+.display {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    line-height: 1.06;
+    letter-spacing: -0.015em;
+    color: var(--paper);
+}
+
+.display .accent-a { color: var(--amber); }
+.display .accent-c { color: var(--cyan); }
+
+.sub {
+    color: var(--slate);
+    line-height: 1.55;
+}
+
+.chips { display: flex; gap: 9px; }
+
+.chip {
+    font-family: 'JetBrains Mono', monospace;
+    color: rgba(244, 241, 232, 0.85);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 999px;
+}
+
+.footer {
+    position: absolute;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(136, 144, 160, 0.75);
+    z-index: 10;
+}
+
+.frame {
+    position: absolute;
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--ink-raised);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow:
+        0 40px 90px rgba(0, 0, 0, 0.60),
+        0 14px 34px rgba(0, 0, 0, 0.45);
+    z-index: 3;
+}
+
+.frame img.shot {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.page {
+    position: absolute;
+    overflow: hidden;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow:
+        0 30px 70px rgba(0, 0, 0, 0.55),
+        0 10px 24px rgba(0, 0, 0, 0.40);
+}
+
+.page img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top;
+}

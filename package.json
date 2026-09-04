@@ -6,7 +6,8 @@
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
-    "ldrs": "^1.1.9"
+    "ldrs": "^1.1.9",
+    "playwright": "^1.62.1"
   },
   "scripts": {
     "build:clerk": "node scripts/build-clerk.mjs",
