@@ -40,6 +40,7 @@ let currentView = 'board';
 let selectedAppId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+  trackEvent('tracker_opened');
   const boardView = document.getElementById('boardView');
   const graphView = document.getElementById('graphView');
   const addBtn = document.getElementById('addBtn');
@@ -634,6 +635,7 @@ function saveModal(isNew) {
       withdrawnAt: fromDateInput(getVal('m_withdrawnAt')),
     };
     applications.push(app);
+    trackEvent('application_added', { source: 'manual' });
     if (!trialInfo.startedAt) {
       trialInfo.startedAt = now;
       chrome.storage.local.set({ trackerTrialStartedAt: now });

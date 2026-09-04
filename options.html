@@ -1704,6 +1704,22 @@
 
       <div class="divider"></div>
 
+      <label>Privacy</label>
+      <div class="tracker-toggle-row">
+        <div class="tracker-toggle-text">
+          <p>Anonymous usage statistics<span class="info-tip" tabindex="0" aria-label="What usage statistics collect">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            <span class="info-tip-bubble">Helps improve PocketResume with anonymous counters (installs, resumes generated, feature usage). A random ID is used — never your resume content, job descriptions, or account info. Turn off anytime.</span>
+          </span></p>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="analyticsToggle">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="divider"></div>
+
       <label>Editor Mode</label>
       <div class="mode-toggle" id="modeToggle">
         <button type="button" class="mode-btn active" data-mode="resume">Resume Content</button>
@@ -1755,6 +1771,7 @@
   </div>
 
   <script src="cloud-sync.js"></script>
+  <script src="track-client.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

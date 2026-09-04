@@ -1,5 +1,6 @@
 // background.js
 import './cloud-sync.js';
+import { trackEvent } from './analytics.js';
 
 // Auto-push local resume changes when user has enabled cloud sync and is signed in.
 chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -697,10 +698,19 @@ async function generateCoverLetterText(context, userProfile, jobDescription, res
 
 // --- Message Listener ---
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'TRACK_EVENT') {
+        const payload = message.payload || {};
+        trackEvent(payload.name, payload.params || {}).catch(() => {});
+        sendResponse({ status: 'ok' });
+        return false;
+    }
+
     if (message.type === 'START_GENERATION') {
 
         // Async execution wrapper
         (async () => {
+            let provider = 'unknown';
+            let selectedResumeStyle = 'unknown';
             try {
                 const { tabId, resumeStyle, resumeType, resumeLayout, resumeId } = message.payload;
                 const requestedResumeStyle =
@@ -708,11 +718,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     (resumeLayout === 'deedy' ? 'deedy' :
                         resumeLayout === 'academic-cv' ? 'academic-cv' :
                             resumeType);
-                const selectedResumeStyle = normalizeResumeStyle(requestedResumeStyle);
+                selectedResumeStyle = normalizeResumeStyle(requestedResumeStyle);
 
                 // 1. Get Settings
                 const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS.concat(['resumes', 'userProfile', 'coverLetterEnabled']));
-                const provider = settings.apiProvider || 'google';
+                provider = settings.apiProvider || 'google';
                 validateProviderReady(settings, provider);
                 const context = createProviderContext(settings);
 
@@ -768,10 +778,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
                 // 6b. Success
                 console.info('[Tracker] Resume generation complete.');
+                trackEvent('resume_generated', {
+                    style: selectedResumeStyle,
+                    layout: getResumeStyleConfig(selectedResumeStyle).layout,
+                    provider,
+                });
+                if (coverLetterText) {
+                    trackEvent('cover_letter_generated', { style: selectedResumeStyle, provider });
+                }
                 sendResponse({ status: 'success', data: resumeText, coverLetterData: coverLetterText });
 
             } catch (error) {
                 console.error("Pipeline Error:", error);
+                trackEvent('generation_error', {
+                    provider,
+                    style: selectedResumeStyle,
+                    code: String((error && error.message) || 'unknown').slice(0, 40),
+                });
                 sendResponse({ status: 'error', message: error.message });
             }
         })();
@@ -828,4 +851,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         return true;
     }
+});
+
+// --- Lifecycle Analytics ---
+chrome.runtime.onInstalled.addListener((details) => {
+    if (details.reason === 'install') {
+        trackEvent('install').catch(() => {});
+    }
+});
+
+chrome.runtime.onStartup.addListener(() => {
+    trackEvent('active_day').catch(() => {});
 });

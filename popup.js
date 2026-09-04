@@ -1,5 +1,6 @@
 // popup.js
 document.addEventListener('DOMContentLoaded', () => {
+  trackEvent('popup_open');
   const generateBtn = document.getElementById('generateBtn');
   let statusTimer = null;
   let scrambleTimer = null;
@@ -464,25 +465,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- What's New modal (once per version) ---
   const whatsNewModal = document.getElementById('whatsNewModal');
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
-  const whatsNewSettingsBtn = document.getElementById('whatsNewSettingsBtn');
+  const whatsNewAnalyticsToggle = document.getElementById('whatsNewAnalyticsToggle');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '7.4';
+  const ANNOUNCEMENT_VERSION = '7.8';
+  const ANNOUNCEMENT_SEEN_VALUE = '7.8-r2';
 
   function dismissWhatsNew() {
-    chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_VERSION });
+    chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_SEEN_VALUE });
     if (whatsNewModal) whatsNewModal.style.display = 'none';
   }
 
-  chrome.storage.local.get('lastSeenAnnouncement', (data) => {
+  chrome.storage.local.get(['lastSeenAnnouncement', 'analyticsEnabled'], (data) => {
     if (!whatsNewModal) return;
-    if (data.lastSeenAnnouncement === ANNOUNCEMENT_VERSION) return;
+    if (data.lastSeenAnnouncement === ANNOUNCEMENT_SEEN_VALUE) return;
     if (whatsNewVersionEl) whatsNewVersionEl.textContent = ANNOUNCEMENT_VERSION;
+    if (whatsNewAnalyticsToggle) whatsNewAnalyticsToggle.checked = data.analyticsEnabled !== false;
     whatsNewModal.style.display = 'flex';
   });
   if (whatsNewGotBtn) whatsNewGotBtn.addEventListener('click', dismissWhatsNew);
-  if (whatsNewSettingsBtn) whatsNewSettingsBtn.addEventListener('click', () => {
-    dismissWhatsNew();
-    chrome.tabs.create({ url: chrome.runtime.getURL('options.html') });
+  if (whatsNewAnalyticsToggle) whatsNewAnalyticsToggle.addEventListener('change', () => {
+    chrome.storage.local.set({ analyticsEnabled: whatsNewAnalyticsToggle.checked });
   });
 
   function parseJobFromTitle(title) {
@@ -545,6 +547,7 @@ document.addEventListener('DOMContentLoaded', () => {
         apps[existingIdx] = { ...apps[existingIdx], ...application, id: apps[existingIdx].id, dateSaved: apps[existingIdx].dateSaved, updatedAt: Date.now() };
       } else {
         apps.push(application);
+        trackEvent('application_added', { source: 'generated' });
       }
       const writes = { applications: apps };
       if (!data.trackerTrialStartedAt) {

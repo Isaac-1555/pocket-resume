@@ -13,8 +13,9 @@ Key runtime entrypoints (declared in `manifest.json`):
 - **Popup UI**: `popup.html` + `popup.js` — user actions + PDF generation for PocketResume layouts
 - **Options page**: `options.html` + `options.js` — API keys + multiple resumes + toggles
 - **Resume renderers**: `resume-renderers.js` — Jake, Deedy, Academic CV PDF layouts
+- **Analytics**: `analytics.js` (service-worker client) + `track-client.js` (page-side helper) — anonymous usage stats sent to the Convex backend
 - **Cloud sync (optional)**: `src/cloud-sync.js` (source) → `cloud-sync.js` (bundle, gitignored)
-- **Convex backend (optional)**: `convex/` — auth config + resume schema/functions
+- **Convex backend (optional)**: `convex/` — auth config + resume schema/functions + analytics functions
 
 ## Common commands
 
@@ -200,12 +201,16 @@ PocketResume/
 ├── popup.html / popup.js    # Popup UI + PocketResume PDF generation
 ├── options.html / options.js# Settings: API keys, resumes, toggles
 ├── resume-renderers.js      # Jake / Deedy / Academic CV PDF layouts
+├── analytics.js             # Anonymous usage-stats client (imported by background.js)
+├── track-client.js          # Page-side trackEvent helper (popup/options/tracker)
 ├── src/cloud-sync.js        # Cloud sync source (bundled → cloud-sync.js)
 ├── cloud-sync.js            # [generated, gitignored] esbuild bundle
 ├── convex/                  # Convex backend
 │   ├── auth.config.ts
 │   ├── schema.ts
 │   ├── resumes.ts
+│   ├── analytics.ts
+│   ├── crons.ts
 │   └── _generated/          # [generated, gitignored]
 ├── libs/jspdf.umd.min.js    # Vendored jsPDF
 ├── libs/ldrs-newtons-cradle.js # [generated, gitignored? no—committed] vendored ldrs Newton's Cradle web component
@@ -228,6 +233,7 @@ PocketResume/
 - **Change settings UI / resume management**: `options.js` / `options.html`.
 - **Change popup UI**: `popup.html` / `popup.js`.
 - **Change popup error messages / mapping**: `popup.js` (`setError` / `mapErrorMessage`). The keyword-based map turns long provider errors into short friendly strings; un-matched messages truncate to ~200 chars.
+- **Change usage analytics events**: `analytics.js` (client: queue + consent + send), `convex/analytics.ts` (ingest + summary + cleanup), `track-client.js` (page-side `trackEvent` helper). Event names must be whitelisted in both `analytics.js` (`EVENT_NAMES`) and `convex/analytics.ts` (`EVENT_NAMES`).
 - **Change permissions or extension wiring**: `manifest.json`.
 - **Change cloud sync behavior**: `src/cloud-sync.js` (then `npm run build:clerk`).
 - **Change Convex schema or functions**: `convex/schema.ts`, `convex/resumes.ts`, `convex/auth.config.ts` (then `npx convex dev`).
@@ -256,4 +262,5 @@ PocketResume is privacy-first by default. See `privacy-policy.md` for the full p
 - Stores everything in `chrome.storage.local` unless the user explicitly enables cloud sync
 - Sends data only to the AI provider the user has selected
 - Requires the user to supply their own API key
-- Does not include telemetry, analytics, or third-party tracking
+- Collects anonymous usage statistics (random per-install UUID + event counters — never resume content, job text, or account info), on by default and opt-out via Options → Privacy; events go to the project's own Convex backend, raw events auto-delete after 180 days
+- Does not include third-party analytics or advertising trackers

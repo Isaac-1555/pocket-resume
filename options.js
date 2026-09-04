@@ -762,12 +762,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderEndpointsList();
   });
 
-  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'googleModel', 'openaiModel', 'anthropicModel', 'openrouterModel', 'customEndpoints', 'activeCustomEndpointId', 'apiProvider', 'userProfile', 'resumes', 'trackerCaptureEnabled']);
+  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'googleModel', 'openaiModel', 'anthropicModel', 'openrouterModel', 'customEndpoints', 'activeCustomEndpointId', 'apiProvider', 'userProfile', 'resumes', 'trackerCaptureEnabled', 'analyticsEnabled']);
   const trackerCaptureToggle = document.getElementById('trackerCaptureToggle');
   if (trackerCaptureToggle) {
     trackerCaptureToggle.checked = data.trackerCaptureEnabled !== false;
     trackerCaptureToggle.addEventListener('change', () => {
       chrome.storage.local.set({ trackerCaptureEnabled: trackerCaptureToggle.checked });
+    });
+  }
+
+  const analyticsToggle = document.getElementById('analyticsToggle');
+  if (analyticsToggle) {
+    analyticsToggle.checked = data.analyticsEnabled !== false;
+    analyticsToggle.addEventListener('change', () => {
+      chrome.storage.local.set({ analyticsEnabled: analyticsToggle.checked });
     });
   }
 
@@ -1185,6 +1193,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     try {
       await extractJsonForResume(resume);
+      trackEvent('extract_json_used');
       showStatus('JSON profile extracted and saved successfully.', 'success', 5000);
     } catch (error) {
       showStatus(`Error: ${error.message}`, 'error', 4500);
@@ -1201,6 +1210,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     refiningResumeId = resume.id;
+    trackEvent('refine_used');
     renderTabContent();
     showStatus('Refining resume into a reusable cross-style master version…', 'loading', 0);
 

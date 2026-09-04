@@ -1070,6 +1070,39 @@
       font-weight: 600;
     }
 
+    .whatsnew-collected {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 14px;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .whatsnew-collected li {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      padding: 9px 12px;
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      background: var(--glass-fill);
+    }
+
+    .whatsnew-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 11px 14px;
+      margin: 0 0 16px;
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      background: var(--glass-fill);
+      text-align: left;
+    }
+
     .onboarding-actions {
       display: flex;
       flex-direction: column;
@@ -1359,21 +1392,32 @@
     <div class="onboarding-backdrop"></div>
     <div class="onboarding-card">
       <div class="onboarding-icon" aria-hidden="true">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> — Model Selection &amp; Custom AI</h2>
+      <h2>New in <span id="whatsNewVersion"></span> — Anonymous analytics, better PocketResume</h2>
       <p class="error-message">
-        You're no longer locked to one model per provider. Pick any model from Gemini, OpenAI, Anthropic, or OpenRouter — or connect your own OpenAI-compatible endpoint, including fully local servers like Ollama and LM Studio.
+        Chrome Web Store gives us almost no insight into how PocketResume is used. To decide what to fix and build next, we now count a few anonymous events. That's the whole list:
       </p>
-      <ul class="onboarding-features">
-        <li>Override the model for any cloud provider — "Load Models" fetches the live list</li>
-        <li>New Custom / Local provider: presets for Ollama, LM Studio, and NVIDIA NIM, or any OpenAI-compatible Base URL</li>
-        <li>Run 100% local — no API key needed for Ollama or LM Studio</li>
-        <li>Test Connection before saving, plus optional Extra body JSON for advanced flags</li>
+      <ul class="whatsnew-collected">
+        <li>Number of resumes generated</li>
+        <li>Number of times the Job Tracker is used</li>
+        <li>Resume format used</li>
       </ul>
+      <p class="error-message">
+        Nothing more. All anonymous — never your resume text, job page content, or personal info.
+      </p>
+      <div class="whatsnew-toggle-row">
+        <div class="toggle-label">
+          <p class="toggle-label-text">Anonymous usage stats</p>
+          <p class="toggle-label-desc">Help improve PocketResume</p>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="whatsNewAnalyticsToggle">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
       <div class="onboarding-actions">
         <button id="whatsNewGotBtn" class="cloud-primary-btn">Got it</button>
-        <button id="whatsNewSettingsBtn" class="cloud-secondary-btn">Open Settings</button>
       </div>
     </div>
   </div>
@@ -1381,6 +1425,7 @@
   <script src="libs/jspdf.umd.min.js"></script>
   <script src="cloud-sync.js"></script>
   <script src="resume-renderers.js"></script>
+  <script src="track-client.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
