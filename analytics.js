@@ -23,6 +23,8 @@ const EVENT_NAMES = new Set([
     'application_added',
     'refine_used',
     'extract_json_used',
+    'form_filled',
+    'form_fill_error',
 ]);
 
 let flushing = false;

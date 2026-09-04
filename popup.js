@@ -2,8 +2,11 @@
 document.addEventListener('DOMContentLoaded', () => {
   trackEvent('popup_open');
   const generateBtn = document.getElementById('generateBtn');
+  const fillFormBtn = document.getElementById('fillFormBtn');
+  const fillFormLabel = document.getElementById('fillFormLabel');
   let statusTimer = null;
   let scrambleTimer = null;
+  let fillStatusTimer = null;
   let lastError = '';
   let lastErrorRaw = '';
   const settingsBtn = document.getElementById('settingsBtn');
@@ -11,14 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const resumeSelectorDiv = document.getElementById('resumeSelector');
   const coverLetterToggle = document.getElementById('coverLetterToggle');
   const generateLabel = document.getElementById('generateLabel');
-  const cloudMenuTitle = document.getElementById('cloudMenuTitle');
-  const cloudPlanBadge = document.getElementById('cloudPlanBadge');
-  const cloudAvatarBtn = document.getElementById('cloudAvatarBtn');
-  const cloudAvatarImg = document.getElementById('cloudAvatarImg');
-  const cloudAvatarInitials = document.getElementById('cloudAvatarInitials');
-  const cloudAccountMenu = document.getElementById('cloudAccountMenu');
-  const cloudMenuAuthBtn = document.getElementById('cloudMenuAuthBtn');
-  const cloudMenuPlansBtn = document.getElementById('cloudMenuPlansBtn');
   const errorInfoBtn = document.getElementById('errorInfoBtn');
   const errorModal = document.getElementById('errorModal');
   const errorBackdrop = document.getElementById('errorBackdrop');
@@ -44,8 +39,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Resume selector state ---
   let loadedResumes = [];
   let selectedResumeId = null;
-  let cloudSignedIn = false;
-
   // Custom Select Logic
   const customSelect = document.querySelector('.custom-select');
   const customOptions = document.querySelectorAll('.custom-option');
@@ -65,124 +58,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'professional';
     }
   }
-
-  function setCloudLinkState(linked) {
-    if (!cloudAvatarBtn) return;
-    cloudAvatarBtn.classList.toggle('unlinked', !linked);
-    if (linked) return;
-    if (cloudAvatarImg) {
-      cloudAvatarImg.removeAttribute('src');
-      cloudAvatarImg.style.display = 'none';
-    }
-    if (cloudAvatarInitials) cloudAvatarInitials.style.display = 'none';
-    if (cloudAccountMenu) cloudAccountMenu.classList.remove('open');
-  }
-
-  async function updateCloudAccountState() {
-    const configured = !!(window.CloudSync && window.CloudSync.isConfigured && window.CloudSync.isConfigured());
-    if (!configured || !cloudMenuTitle) {
-      setCloudLinkState(false);
-      return;
-    }
-
-    setCloudLinkState(true);
-    if (cloudPlanBadge) {
-      cloudPlanBadge.textContent = 'Checking Cloud Sync';
-      cloudPlanBadge.className = 'cloud-plan-badge inactive';
-    }
-
-    try {
-      await window.CloudSync.init();
-      cloudSignedIn = await window.CloudSync.isSignedIn();
-      const hasAccess = cloudSignedIn ? await window.CloudSync.hasCloudSyncAccess() : false;
-      const profile = cloudSignedIn && window.CloudSync.getUserProfile ? await window.CloudSync.getUserProfile() : null;
-
-      if (cloudSignedIn) {
-        cloudMenuTitle.textContent = profile?.name || 'Signed in';
-        cloudMenuAuthBtn.textContent = 'Sign Out';
-        cloudMenuPlansBtn.textContent = 'Change Plans';
-        setCloudAvatar(profile);
-      } else {
-        cloudMenuTitle.textContent = 'Cloud Sync';
-        cloudMenuAuthBtn.textContent = 'Sign In';
-        cloudMenuPlansBtn.textContent = 'See Plans';
-        setCloudAvatar(null);
-      }
-
-      if (hasAccess) {
-        cloudPlanBadge.textContent = 'Cloud Sync active';
-        cloudPlanBadge.className = 'cloud-plan-badge';
-      } else if (cloudSignedIn) {
-        cloudPlanBadge.textContent = 'Plan required';
-        cloudPlanBadge.className = 'cloud-plan-badge inactive';
-      } else {
-        cloudPlanBadge.textContent = 'Signed out';
-        cloudPlanBadge.className = 'cloud-plan-badge inactive';
-      }
-    } catch (error) {
-      cloudMenuTitle.textContent = 'Cloud Sync';
-      cloudPlanBadge.textContent = 'Unavailable';
-      cloudPlanBadge.className = 'cloud-plan-badge inactive';
-    }
-  }
-
-  function setCloudAvatar(profile) {
-    if (!cloudAvatarImg || !cloudAvatarInitials) return;
-    if (profile?.imageUrl) {
-      cloudAvatarImg.src = profile.imageUrl;
-      cloudAvatarImg.style.display = 'block';
-      cloudAvatarInitials.style.display = 'none';
-      return;
-    }
-    cloudAvatarImg.removeAttribute('src');
-    cloudAvatarImg.style.display = 'none';
-    cloudAvatarInitials.style.display = 'inline';
-    const source = profile?.name || profile?.email || 'Cloud Sync';
-    cloudAvatarInitials.textContent = source.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || '?';
-  }
-
-  function openPlansPage() {
-    chrome.tabs.create({ url: chrome.runtime.getURL('options.html#cloud-pricing') });
-  }
-
-  if (cloudAvatarBtn && cloudAccountMenu) {
-    cloudAvatarBtn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      if (cloudAvatarBtn.classList.contains('unlinked')) return;
-      cloudAccountMenu.classList.toggle('open');
-    });
-    window.addEventListener('click', (event) => {
-      if (!cloudAvatarBtn.contains(event.target) && !cloudAccountMenu.contains(event.target)) {
-        cloudAccountMenu.classList.remove('open');
-      }
-    });
-  }
-
-  if (cloudMenuAuthBtn) {
-    cloudMenuAuthBtn.addEventListener('click', async () => {
-      cloudAccountMenu.classList.remove('open');
-      try {
-        if (!window.CloudSync) return;
-        if (cloudSignedIn) {
-          await window.CloudSync.signOut();
-        } else {
-          await window.CloudSync.signIn();
-        }
-        setTimeout(updateCloudAccountState, 500);
-      } catch (error) {
-        setError(error?.message || 'Cloud sync error. Please try again.');
-      }
-    });
-  }
-
-  if (cloudMenuPlansBtn) {
-    cloudMenuPlansBtn.addEventListener('click', () => {
-      cloudAccountMenu.classList.remove('open');
-      openPlansPage();
-    });
-  }
-
-  updateCloudAccountState();
 
   function getResumeStyleConfig(selectedStyle) {
     switch (normalizeResumeStyle(selectedStyle)) {
@@ -271,6 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!hasApiKey || !hasResumes) {
       generateBtn.disabled = true;
+      if (fillFormBtn) fillFormBtn.disabled = true;
       renderSetupCard(hasApiKey, hasResumes, data.onboarding);
     } else if (!data.onboardingCompleted) {
       renderSetupCompleteCard();
@@ -446,6 +322,53 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // --- Fill Form (AI answers application questions on the active tab) ---
+  if (fillFormBtn) {
+    fillFormBtn.addEventListener('click', async () => {
+      if (fillFormBtn.disabled) return;
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab || !tab.id) {
+        setError('No active tab found. Open the page with the form and try again.');
+        return;
+      }
+
+      fillFormBtn.disabled = true;
+      lastError = '';
+      lastErrorRaw = '';
+      if (errorInfoBtn) errorInfoBtn.style.display = 'none';
+      closeErrorModal();
+      setFillStatus('filling');
+      if (fillFormLabel) fillFormLabel.textContent = 'Filling\u2026';
+
+      chrome.runtime.sendMessage({
+        type: 'FILL_APPLICATION_FORM',
+        payload: { tabId: tab.id, resumeId: selectedResumeId }
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          setError(chrome.runtime.lastError.message || 'Could not reach the background service. Please try again.');
+          setFillStatus('fill-failure');
+          if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
+          fillFormBtn.disabled = false;
+          return;
+        }
+
+        if (response && response.status === 'success') {
+          if (fillFormLabel) fillFormLabel.textContent = `Filled ${response.filled}/${response.total}`;
+          setFillStatus('fill-success');
+          setTimeout(() => {
+            if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
+            fillFormBtn.disabled = false;
+          }, 3500);
+        } else {
+          setError(response?.message || 'Something went wrong. Please try again.');
+          setFillStatus('fill-failure');
+          if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
+          fillFormBtn.disabled = false;
+        }
+      });
+    });
+  }
+
   // --- NEW badge on Job Tracker (permanently dismissed after first hover) ---
   const trackerNewBadge = document.getElementById('trackerNewBadge');
   chrome.storage.local.get('trackerNewBadgeDismissed', (data) => {
@@ -462,13 +385,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // --- NEW badge on Fill Form (permanently dismissed after first hover) ---
+  const fillFormNewBadge = document.getElementById('fillFormNewBadge');
+  chrome.storage.local.get('fillFormNewBadgeDismissed', (data) => {
+    if (data.fillFormNewBadgeDismissed) {
+      if (fillFormNewBadge) fillFormNewBadge.remove();
+    } else if (fillFormNewBadge) {
+      const dismiss = () => {
+        fillFormNewBadge.classList.add('gone');
+        fillFormNewBadge.addEventListener('transitionend', () => fillFormNewBadge.remove(), { once: true });
+        chrome.storage.local.set({ fillFormNewBadgeDismissed: true });
+      };
+      fillFormBtn.addEventListener('mouseenter', dismiss, { once: true });
+      fillFormBtn.addEventListener('focus', dismiss, { once: true });
+    }
+  });
+
   // --- What's New modal (once per version) ---
   const whatsNewModal = document.getElementById('whatsNewModal');
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewAnalyticsToggle = document.getElementById('whatsNewAnalyticsToggle');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '7.8';
-  const ANNOUNCEMENT_SEEN_VALUE = '7.8-r2';
+  const ANNOUNCEMENT_VERSION = '7.9';
+  const ANNOUNCEMENT_SEEN_VALUE = '7.9';
 
   function dismissWhatsNew() {
     chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_SEEN_VALUE });
@@ -564,6 +503,7 @@ document.addEventListener('DOMContentLoaded', () => {
     lastErrorRaw = '';
     if (errorInfoBtn) errorInfoBtn.style.display = 'none';
     closeErrorModal();
+    setFillStatus(null);
     const selectedStyle = normalizeResumeStyle(resumeType.value || 'professional');
     resumeType.value = selectedStyle;
     const styleConfig = getResumeStyleConfig(selectedStyle);
@@ -688,6 +628,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 34);
   }
 
+  function setFillStatus(state, persist = false) {
+    if (fillStatusTimer) {
+      clearTimeout(fillStatusTimer);
+      fillStatusTimer = null;
+    }
+    if (state) {
+      document.body.dataset.fillStatus = state;
+    } else {
+      delete document.body.dataset.fillStatus;
+    }
+    if (persist || state === 'filling' || state === 'fill-failure' || !state) return;
+    fillStatusTimer = setTimeout(() => {
+      delete document.body.dataset.fillStatus;
+      fillStatusTimer = null;
+    }, 4000);
+  }
+
   function setStatus(state, persist = false) {
     const uiState = state === 'error' ? 'failure' : state;
     document.body.dataset.status = uiState;
@@ -737,6 +694,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (/failed to fetch|network|cors|fetch failed|connection|timeout|unable to connect/i.test(lower)) {
       return 'Network error. Check your connection and try again.';
+    }
+    if (/no application form/i.test(lower)) {
+      return 'No application form found. Open the page with the form, then try again.';
+    }
+    if (/has no answers for this form|could not fill any fields/i.test(lower)) {
+      return 'Could not fill this form automatically. Fill the remaining fields manually.';
+    }
+    if (/no active tab/i.test(lower)) {
+      return 'No active tab found. Open the page with the form and try again.';
     }
     if (/parse|invalid json|unexpected token|json/i.test(lower)) {
       return 'Model returned invalid data. Please try again.';
@@ -1202,31 +1168,6 @@ document.addEventListener('DOMContentLoaded', () => {
     doc.save(clFilename);
   }
 
-  // --- Cloud Sync Onboarding ---
-  const modal = document.getElementById('cloudOnboardingModal');
-  const setupBtn = document.getElementById('cloudOnboardingSetupBtn');
-  const dismissBtn = document.getElementById('cloudOnboardingDismissBtn');
-
-  if (modal && setupBtn && dismissBtn && window.CloudSync) {
-    window.CloudSync.shouldShowOnboarding().then((show) => {
-      if (show) {
-        modal.style.display = 'flex';
-      }
-    });
-
-    setupBtn.addEventListener('click', () => {
-      modal.style.display = 'none';
-      chrome.runtime.openOptionsPage();
-    });
-
-    dismissBtn.addEventListener('click', () => {
-      modal.style.display = 'none';
-      if (window.CloudSync) {
-        window.CloudSync.dismissOnboarding();
-      }
-    });
-  }
-
   // --- Growth Prompts (Rating & Share) ---
   const STORE_URL = 'https://chromewebstore.google.com/detail/pocketresume/mdplmgfkpgalajmchilemiamifoaneip';
   const WEBSITE_URL = 'https://pocket-resume.xyz';
@@ -1278,10 +1219,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function isOverlayVisible() {
-    const cloudModal = document.getElementById('cloudOnboardingModal');
     const whatsNew = document.getElementById('whatsNewModal');
-    return (cloudModal && cloudModal.style.display === 'flex') ||
-      (whatsNew && whatsNew.style.display === 'flex') ||
+    return (whatsNew && whatsNew.style.display === 'flex') ||
       (errorModal && errorModal.style.display === 'flex');
   }
 

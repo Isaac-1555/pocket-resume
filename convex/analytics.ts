@@ -12,6 +12,8 @@ const EVENT_NAMES = [
   'application_added',
   'refine_used',
   'extract_json_used',
+  'form_filled',
+  'form_fill_error',
 ];
 
 const PARAM_FIELDS = ['style', 'provider', 'layout', 'source', 'code'] as const;

@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents and human contributors when work
 
 ## What this repo is
 
-PocketResume is a **Chrome Extension (Manifest V3)** built with **vanilla HTML/CSS/JS**. No bundler / build pipeline for app code; the only build step is `esbuild` for the cloud-sync bundle. Edit source files, reload the unpacked extension in Chrome.
+PocketResume is a **Chrome Extension (Manifest V3)** built with **vanilla HTML/CSS/JS**. No bundler / build pipeline for app code; the only build step is `esbuild` for the Pro (Clerk) bundle. Edit source files, reload the unpacked extension in Chrome.
 
 Key runtime entrypoints (declared in `manifest.json`):
 
@@ -14,7 +14,7 @@ Key runtime entrypoints (declared in `manifest.json`):
 - **Options page**: `options.html` + `options.js` — API keys + multiple resumes + toggles
 - **Resume renderers**: `resume-renderers.js` — Jake, Deedy, Academic CV PDF layouts
 - **Analytics**: `analytics.js` (service-worker client) + `track-client.js` (page-side helper) — anonymous usage stats sent to the Convex backend
-- **Cloud sync (optional)**: `src/cloud-sync.js` (source) → `cloud-sync.js` (bundle, gitignored)
+- **Pro (optional)**: `src/cloud-sync.js` (source) → `cloud-sync.js` (bundle, gitignored) — auth, plan gating, pricing, resume sync
 - **Convex backend (optional)**: `convex/` — auth config + resume schema/functions + analytics functions
 
 ## Common commands
@@ -29,9 +29,9 @@ npm ci
 npm install
 ```
 
-### Build cloud-sync bundle
+### Build the Pro (Clerk) bundle
 
-`src/cloud-sync.js` is bundled by esbuild into `cloud-sync.js` at the repo root (gitignored). Required env vars (`CLERK_PUBLISHABLE_KEY`, `CONVEX_URL`) are injected at build time. See `.env.example` and `package.json` → `scripts/build-clerk.mjs`.
+`src/cloud-sync.js` (Pro sign-in, plan gating, pricing table, resume sync) is bundled by esbuild into `cloud-sync.js` at the repo root (gitignored). Required env vars (`CLERK_PUBLISHABLE_KEY`, `CONVEX_URL`) are injected at build time. See `.env.example` and `package.json` → `scripts/build-clerk.mjs`.
 
 ```sh
 cp .env.example .env.local
@@ -130,6 +130,17 @@ New/unconfigured users get a setup card in the popup plus a spotlight tour on th
 3. Background calls the provider's `*ResumeExtraction(...)` function — extracts structured JSON profile from raw text.
 4. JSON is saved as `jsonContent` on the resume entry and persisted. Used as `jsonContent` in the generation pipeline.
 
+### Form filler flow
+
+1. User clicks "Fill Form" in the popup (next to the Job Tracker button).
+2. Popup sends `FILL_APPLICATION_FORM` to background with `{ tabId, resumeId }`.
+3. Background resolves the profile (same resolution as `START_GENERATION`), injects `form-filler.js` into all frames via `chrome.scripting.executeScript`, then runs `__PocketResumeForm.detect(...)` per frame and merges results (field ids are frame-token prefixed).
+4. Background calls `generateFormAnswers(...)` — one AI call returning strict JSON `{ answers: [{ id, answer }] }`. The prompt forces a human style: first person, plain words, no em dashes, no buzzwords, profile is the only source of facts, unanswerable fields return `""`.
+5. Background runs `__PocketResumeForm.fill(...)` per frame (native value setters + `input`/`change` events for React/Vue compatibility), toasts the result on the page's main frame, and replies `{ status: 'success', filled, total }`.
+6. Popup shows "Filled X/Y" on the button; errors go through the standard `setError` path. The popup background glows via `body[data-fill-status]`: `filling` (amber pulse) → `fill-success` (green, auto-reverts after 4s) or `fill-failure` (red, persists until the next Fill/Generate click). Kept separate from `body[data-status]` so the two flows never fight over the glow.
+
+Safety rules (enforced in `form-filler.js` + prompt): never submits the form, never overwrites already-filled fields, never touches checkboxes/consent widgets, skips hidden/disabled/readonly/captcha/search fields, caps at 30 fields. Detection covers text inputs, textareas, selects (only placeholder-unselected ones), radio groups, and contenteditables.
+
 ## Resume styles & layout mapping
 
 Configured by `getResumeStyleConfig(...)` in `background.js`:
@@ -156,9 +167,9 @@ Important keys:
 - `activeCustomEndpointId`: which custom endpoint is active when `apiProvider` is `"custom"`
 - `resumes`: array of `{ id, label, content, jsonContent, lastRefineBackup, lastRefineAppliedAt }` (up to 3)
 - `selectedResumeId`: which resume is active in the popup
+- `cloudSyncStatus`: `"idle" | "syncing" | "synced" | "error"` (Pro sync indicator, written by `src/cloud-sync.js`)
 - `resumeType`: `"basic" | "professional" | "faang" | "jake" | "deedy" | "academic-cv"`
 - `coverLetterEnabled`: boolean
-- `cloudSyncStatus`: `"idle" | "syncing" | "synced" | "error"` (cloud-sync feature only)
 
 Legacy migration: `userProfile` → `resumes[0].content`
 
@@ -174,20 +185,25 @@ Five providers supported, selected via `apiProvider`:
 
 Model overrides per provider are stored in the `*Model` keys; empty string falls back to the defaults in `PROVIDER_DEFAULT_MODELS` (`background.js`). The options page can fetch available models from each provider's list endpoint.
 
-All providers share one request path: `executeProviderChat(context, prompt, label)` in `background.js` handles the three wire formats (OpenAI-compatible chat completions, Anthropic messages, Gemini generateContent). The 4 pipelines call it via `generateTailoredResume`, `generateCoverLetterText`, `extractResumeProfileJson`, and `refineResumeSource`.
+All providers share one request path: `executeProviderChat(context, prompt, label)` in `background.js` handles the three wire formats (OpenAI-compatible chat completions, Anthropic messages, Gemini generateContent). The 5 pipelines call it via `generateTailoredResume`, `generateCoverLetterText`, `extractResumeProfileJson`, `refineResumeSource`, and `generateFormAnswers`.
 
 Custom endpoints require a runtime host permission for the endpoint's origin. `manifest.json` declares `optional_host_permissions: ["https://*/*", "http://*/*"]`; the options page calls `chrome.permissions.request({ origins: [origin + '/*'] })` when saving or testing an endpoint.
 
-## Cloud sync (optional feature)
+## PocketResume Pro (optional feature)
 
-When enabled, resumes sync across devices via [Clerk](https://clerk.com) (auth) + [Convex](https://convex.dev) (backend).
+One paid plan ("PocketResume Pro") gates everything: resume cloud sync, plan gating, and the full Job Tracker. Sign-in, the embedded pricing table, and sync run through [Clerk](https://clerk.com) + [Convex](https://convex.dev). The separate "Cloud Sync" plan was merged into PocketResume Pro in v7.9 (Clerk Billing now exposes a single paid plan; live in instance config under `billing.plans`, editable via `clerk config patch` / Dashboard); `hasCloudSyncAccess()` still honors legacy `cloud_sync`/`pro`/`premium` subscriptions and metadata for existing subscribers.
 
 Architecture:
 
-- `src/cloud-sync.js` — IIFE source, bundled by esbuild → `cloud-sync.js` (gitignored)
+- `src/cloud-sync.js` — IIFE source, bundled by esbuild → `cloud-sync.js` (gitignored). Loaded by `options.html` and `tracker.html` (popup no longer loads it). Provides auth (`signIn`/`isSignedIn`/`getUserProfile`), plan checks (`hasCloudSyncAccess`), the Clerk pricing table mount, and resume sync (`pushAllResumes`/`pullAllResumes`/`onLocalResumesChanged` via Convex)
+- `background.js` — auto-pushes resume changes when signed in (`chrome.storage.onChanged` → `onLocalResumesChanged`, debounced 2s)
+- `options.js` — account chip (Sign In / See Plans), Push Local to Cloud / Restore from Cloud, pricing table mount under Settings → PocketResume Pro
+- `tracker.js` — `checkPlanAccess()` gates the Job Tracker trial/lock via `window.CloudSync`
 - `convex/auth.config.ts` — Clerk → Convex auth wiring; requires `CLERK_FRONTEND_API_URL` env var
-- `convex/schema.ts` — `resumes` table shape
+- `convex/schema.ts` — `resumes` table shape + analytics tables
 - `convex/resumes.ts` — `list`, `upsert`, `remove` queries/mutations
+
+Sign-in behavior: all Clerk redirects (`signInForceRedirectUrl`, `signUpForceRedirectUrl`, `afterSignOutUrl`, `signOut redirectUrl`) point at `options.html` — never `popup.html` (navigating the Settings tab to the popup breaks the React tree with `removeChild` errors). The sign-in modal is themed dark via `appearance.variables` passed to `clerk.load(...)` — explicit input colors are required or typed text inherits the page's light color and becomes invisible inside Clerk's light-styled inputs.
 
 Credentials are **never** hardcoded. The build step injects `CLERK_PUBLISHABLE_KEY` and `CONVEX_URL` from `.env.local` into the bundle. Contributors must set up their own Clerk + Convex accounts.
 
@@ -198,12 +214,13 @@ PocketResume/
 ├── manifest.json            # Manifest V3 entrypoint wiring
 ├── background.js            # Service worker: pipeline + AI calls
 ├── content.js               # Content script: page text extraction
+├── form-filler.js           # [injected on demand] Form detect/fill/toast for the Fill Form feature
 ├── popup.html / popup.js    # Popup UI + PocketResume PDF generation
 ├── options.html / options.js# Settings: API keys, resumes, toggles
 ├── resume-renderers.js      # Jake / Deedy / Academic CV PDF layouts
 ├── analytics.js             # Anonymous usage-stats client (imported by background.js)
 ├── track-client.js          # Page-side trackEvent helper (popup/options/tracker)
-├── src/cloud-sync.js        # Cloud sync source (bundled → cloud-sync.js)
+├── src/cloud-sync.js        # Pro auth/plan/pricing/sync source (bundled → cloud-sync.js)
 ├── cloud-sync.js            # [generated, gitignored] esbuild bundle
 ├── convex/                  # Convex backend
 │   ├── auth.config.ts
@@ -214,7 +231,7 @@ PocketResume/
 │   └── _generated/          # [generated, gitignored]
 ├── libs/jspdf.umd.min.js    # Vendored jsPDF
 ├── libs/ldrs-newtons-cradle.js # [generated, gitignored? no—committed] vendored ldrs Newton's Cradle web component
-├── scripts/build-clerk.mjs  # Build script for cloud-sync bundle
+├── scripts/build-clerk.mjs  # Build script for the Pro (Clerk) bundle
 ├── .env.example             # Template for .env.local
 ├── AGENTS.md                # This file
 ├── CONTRIBUTING.md
@@ -226,8 +243,9 @@ PocketResume/
 
 ## Where to make common product changes
 
-- **Change AI model, prompts, or JSON schema**: `background.js` (`executeProviderChat` + the 4 pipeline functions). Update the style config table above if the schema or layout mapping changes.
+- **Change AI model, prompts, or JSON schema**: `background.js` (`executeProviderChat` + the 5 pipeline functions). Update the style config table above if the schema or layout mapping changes.
 - **Change what we extract from a page**: `content.js` (`extractPageText`) and the truncation logic in `background.js`.
+- **Change form detection / filling / safety rules**: `form-filler.js` (`detect` / `fill` / `toast`) and the `FILL_APPLICATION_FORM` handler + `generateFormAnswers` prompt in `background.js`.
 - **Change PocketResume PDF layout**: `popup.js` (`generatePDF` / `generateCoverLetterPDF`).
 - **Change Jake / Deedy / Academic CV PDF layouts**: `resume-renderers.js` (`renderJakeLayout` / `renderDeedyLayout` / `renderAcademicCvLayout`).
 - **Change settings UI / resume management**: `options.js` / `options.html`.
@@ -235,7 +253,7 @@ PocketResume/
 - **Change popup error messages / mapping**: `popup.js` (`setError` / `mapErrorMessage`). The keyword-based map turns long provider errors into short friendly strings; un-matched messages truncate to ~200 chars.
 - **Change usage analytics events**: `analytics.js` (client: queue + consent + send), `convex/analytics.ts` (ingest + summary + cleanup), `track-client.js` (page-side `trackEvent` helper). Event names must be whitelisted in both `analytics.js` (`EVENT_NAMES`) and `convex/analytics.ts` (`EVENT_NAMES`).
 - **Change permissions or extension wiring**: `manifest.json`.
-- **Change cloud sync behavior**: `src/cloud-sync.js` (then `npm run build:clerk`).
+- **Change Pro auth / plan gating / pricing / resume sync**: `src/cloud-sync.js` (then `npm run build:clerk`), `options.js` (account chip + Push/Restore), `background.js` (auto-push listener), `tracker.js` (`checkPlanAccess`).
 - **Change Convex schema or functions**: `convex/schema.ts`, `convex/resumes.ts`, `convex/auth.config.ts` (then `npx convex dev`).
 
 ## Coding conventions
@@ -259,7 +277,7 @@ PocketResume/
 
 PocketResume is privacy-first by default. See `privacy-policy.md` for the full policy. The Chrome extension:
 
-- Stores everything in `chrome.storage.local` unless the user explicitly enables cloud sync
+- Stores resumes locally in `chrome.storage.local`; cloud sync is opt-in via PocketResume Pro and only talks to the user's own Convex backend
 - Sends data only to the AI provider the user has selected
 - Requires the user to supply their own API key
 - Collects anonymous usage statistics (random per-install UUID + event counters — never resume content, job text, or account info), on by default and opt-out via Options → Privacy; events go to the project's own Convex backend, raw events auto-delete after 180 days

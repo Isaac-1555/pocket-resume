@@ -35,7 +35,7 @@ In scope:
 - Content script injection / XSS via crafted pages
 - Prompt injection against the AI provider calls
 - API key exposure in storage or logs
-- Cloud sync auth bypass (Clerk / Convex)
+- Pro auth / plan-check bypass (Clerk / Convex)
 - Permissions or host_permissions abuse in `manifest.json`
 - Unsafe PDF generation (code execution via crafted JSON)
 

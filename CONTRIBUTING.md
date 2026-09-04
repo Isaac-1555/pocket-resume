@@ -19,7 +19,7 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By particip
 - Node.js 18+ and npm
 - Chrome / Chromium / Edge / Brave
 - (Optional) API keys for at least one AI provider: Google Gemini, OpenAI, Anthropic, or OpenRouter
-- (Optional) Clerk + Convex accounts if you want to work on cloud sync
+- (Optional) Clerk + Convex accounts if you want to work on Pro auth/pricing or the analytics backend
 
 ### Install
 
@@ -48,9 +48,9 @@ PocketResume/
 ├── popup.html / popup.js    # Popup UI + PDF generation
 ├── options.html / options.js# Settings: API keys, resumes, toggles
 ├── resume-renderers.js      # Jake / Deedy / Academic CV PDF layouts
-├── src/cloud-sync.js        # Cloud sync source (bundled → cloud-sync.js)
+├── src/cloud-sync.js        # Pro auth/plan/pricing source (bundled → cloud-sync.js)
 ├── cloud-sync.js            # [generated] esbuild bundle of src/cloud-sync.js
-├── convex/                  # Convex backend (auth, resumes schema/functions)
+├── convex/                  # Convex backend (analytics + resumes schema)
 ├── libs/jspdf.umd.min.js    # Vendored jsPDF build
 ├── AGENTS.md                # AI agent + contributor guide
 └── package.json             # Build scripts only (no runtime deps)
@@ -80,9 +80,9 @@ If you change a prompt, model, or JSON schema, update both:
 
 Test with a real API key before opening a PR. JSON-only outputs (no markdown fences) are a hard requirement — the popup parser will fail otherwise.
 
-## Cloud Sync Changes
+## Pro / Analytics Backend Changes
 
-Cloud sync requires Clerk + Convex credentials. These are **not** checked into the repo.
+Pro sign-in, plan gating, and the pricing table use Clerk; usage analytics use Convex. Credentials are **not** checked into the repo.
 
 1. Copy `.env.example` to `.env.local` and fill in your own values
 2. Run `npm run build:clerk` to bundle `src/cloud-sync.js` → `cloud-sync.js` with your env vars injected

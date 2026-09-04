@@ -585,6 +585,8 @@
        Cloud Sync (collapsible)
        ============================ */
     .cloud-sync-details {
+      position: relative;
+      z-index: 50;
       border: 1px solid var(--glass-border);
       border-radius: var(--radius-md);
       background: var(--glass-fill);
@@ -645,6 +647,7 @@
 
     .cloud-account-chip {
       position: relative;
+      z-index: 100;
       width: fit-content;
       padding: 5px;
       border: 1px solid var(--glass-border);
@@ -760,6 +763,7 @@
       box-shadow: none;
     }
 
+
     .cloud-actions {
       display: flex;
       flex-wrap: wrap;
@@ -812,6 +816,15 @@
       box-shadow: var(--glass-inner-shadow);
     }
 
+
+    .cloud-pricing-panel {
+      padding: 10px;
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.04);
+      display: none;
+    }
+
     .cloud-restore-panel {
       padding: 10px;
       border: 1px solid var(--orange-border);
@@ -826,12 +839,10 @@
       font-size: 11px;
     }
 
-    .cloud-pricing-panel {
-      padding: 10px;
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-sm);
-      background: rgba(255, 255, 255, 0.04);
-      display: none;
+    .cloud-restore-panel p {
+      margin: 0 0 6px;
+      color: var(--text-dim);
+      font-size: 11px;
     }
 
     .cloud-pricing-panel-header {
@@ -868,11 +879,6 @@
       display: none;
     }
 
-    .cloud-restore-panel p {
-      margin: 0 0 6px;
-      color: var(--text-dim);
-      font-size: 11px;
-    }
 
     .tracker-toggle-row {
       position: relative;
@@ -1644,17 +1650,17 @@
       <div class="divider"></div>
 
       <details class="cloud-sync-details" id="cloudSyncDetails">
-        <summary>Cloud Sync</summary>
+        <summary>PocketResume Pro</summary>
         <div class="cloud-sync-body">
           <div id="cloudAccountChip" class="cloud-account-chip" style="display: none;">
-            <button type="button" id="cloudAvatarBtn" class="cloud-avatar-btn" aria-label="Cloud Sync account menu">
+            <button type="button" id="cloudAvatarBtn" class="cloud-avatar-btn" aria-label="Account menu">
               <img id="cloudAvatarImg" alt="">
               <span id="cloudAvatarInitials" class="cloud-avatar-initials">?</span>
             </button>
             <div id="cloudAccountMenu" class="cloud-account-menu">
               <div class="cloud-menu-header">
-                <p id="cloudMenuTitle" class="cloud-menu-title">Cloud Sync</p>
-                <span id="cloudAuthStatus" class="cloud-status-pill">Cloud sync unavailable</span>
+                <p id="cloudMenuTitle" class="cloud-menu-title">PocketResume Pro</p>
+                <span id="cloudAuthStatus" class="cloud-status-pill">Account unavailable</span>
               </div>
               <button type="button" id="cloudMenuAuthBtn" class="cloud-menu-btn">Sign In</button>
               <button type="button" id="cloudMenuPlansBtn" class="cloud-menu-btn">See Plans</button>
@@ -1667,8 +1673,8 @@
           <div id="cloudPricingPanel" class="cloud-pricing-panel">
             <div class="cloud-pricing-panel-header">
               <div>
-                <h3>Choose a Cloud Sync plan</h3>
-                <p>Subscribe to enable encrypted online resume backup and restore across devices.</p>
+                <h3>Choose a Pro plan</h3>
+                <p>One plan unlocks every Pro feature, including the full Job Tracker.</p>
               </div>
               <button type="button" id="cloudClosePricingBtn" class="ghost-btn">Close</button>
             </div>
