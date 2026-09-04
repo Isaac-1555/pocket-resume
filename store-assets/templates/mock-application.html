@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Apply — Senior Frontend Engineer | Northwind</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #16211c;
+    --text: #1d2a24;
+    --muted: #5f6f67;
+    --line: #e2e7e3;
+    --brand: #0e7a55;
+    --brand-soft: #e6f4ee;
+    --focus: rgba(14, 122, 85, 0.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #f4f6f4;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: 60px;
+  }
+  .topbar {
+    background: #ffffff;
+    border-bottom: 1px solid var(--line);
+    padding: 18px 0;
+  }
+  .topbar-inner {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo-lockup { display: flex; align-items: center; gap: 10px; }
+  .logo-dot {
+    width: 26px; height: 26px; border-radius: 8px;
+    background: linear-gradient(150deg, #12a06f, #0e7a55);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 13px;
+  }
+  .logo-name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; color: var(--ink); }
+  .powered { font-size: 11.5px; color: #9aa8a0; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
+  .page { max-width: 720px; margin: 0 auto; padding: 34px 28px 0; }
+  .job-eyebrow {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--brand); margin-bottom: 8px;
+  }
+  h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
+  .job-meta { display: flex; gap: 14px; margin-top: 10px; font-size: 13.5px; color: var(--muted); }
+  .job-meta span { display: flex; align-items: center; gap: 6px; }
+  .progress-wrap { margin: 26px 0 0; }
+  .progress-track { height: 5px; background: #e3e8e4; border-radius: 99px; overflow: hidden; }
+  .progress-fill { width: 100%; height: 100%; background: var(--brand); border-radius: 99px; }
+  .progress-label { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+  .card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    margin-top: 22px;
+    padding: 30px 32px 34px;
+    box-shadow: 0 1px 2px rgba(22, 33, 28, 0.04);
+  }
+  .section-title { font-size: 15px; font-weight: 700; color: var(--ink); margin: 26px 0 4px; }
+  .section-title:first-child { margin-top: 0; }
+  .section-hint { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .field { margin-bottom: 16px; }
+  label { display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+  .req { color: #c2410c; }
+  input[type="text"], input[type="tel"], input[type="number"], textarea, select {
+    width: 100%;
+    font: inherit;
+    font-size: 14px;
+    color: var(--text);
+    background: #fff;
+    border: 1px solid #cdd6d0;
+    border-radius: 9px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  textarea { min-height: 96px; resize: vertical; line-height: 1.5; }
+  input:focus, textarea:focus, select:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--focus); }
+  select { appearance: auto; }
+  .radio-row { display: flex; flex-direction: column; gap: 8px; }
+  .radio-opt {
+    display: flex; align-items: center; gap: 9px;
+    border: 1px solid #cdd6d0; border-radius: 9px; padding: 10px 12px;
+    font-size: 13.5px; cursor: pointer; background: #fff;
+  }
+  .radio-opt input { accent-color: var(--brand); width: 15px; height: 15px; }
+  .radio-opt.checked { border-color: var(--brand); background: var(--brand-soft); }
+  .dropzone {
+    border: 1.5px dashed #c3cec7;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13.5px;
+    background: #fafbf9;
+  }
+  .dropzone strong { color: var(--brand); font-weight: 600; }
+  .eeo-note { font-size: 12.5px; color: var(--muted); line-height: 1.55; }
+  .actions { display: flex; align-items: center; justify-content: space-between; margin-top: 26px; }
+  .submit-btn {
+    font: inherit; font-size: 14.5px; font-weight: 600;
+    color: #fff; background: var(--brand);
+    border: none; border-radius: 10px; padding: 12px 26px;
+    cursor: pointer;
+  }
+  .save-later { font-size: 13.5px; color: var(--muted); background: none; border: none; cursor: pointer; }
+  .pocketresume-chip {
+    position: fixed;
+    top: 74px; right: 26px;
+    display: flex; align-items: center; gap: 8px;
+    background: #0b0b0d;
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 12px;
+    padding: 9px 13px;
+    font-size: 12.5px; font-weight: 500;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.25);
+    z-index: 50;
+  }
+  .chip-ico {
+    width: 18px; height: 18px; border-radius: 6px;
+    background: linear-gradient(150deg, #ffb066, #f4772a);
+    display: flex; align-items: center; justify-content: center;
+    color: #1a0e04; font-size: 10px; font-weight: 800;
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="logo-lockup">
+        <div class="logo-dot">N</div>
+        <span class="logo-name">Northwind</span>
+      </div>
+      <span class="powered">Powered by Greenboard</span>
+    </div>
+  </div>
+
+  <div class="pocketresume-chip">
+    <span class="chip-ico">P</span>
+    Filled by PocketResume
+  </div>
+
+  <div class="page">
+    <p class="job-eyebrow">Engineering &middot; Full-time &middot; Hybrid</p>
+    <h1>Apply for Senior Frontend Engineer</h1>
+    <div class="job-meta">
+      <span>&#128205; San Francisco, CA</span>
+      <span>&#128176; $165k &ndash; $195k</span>
+      <span>&#128337; Posted 4 days ago</span>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-track"><div class="progress-fill"></div></div>
+      <p class="progress-label">Step 2 of 2 &mdash; Application questions</p>
+    </div>
+
+    <form class="card" id="applicationForm" autocomplete="off">
+      <h2 class="section-title">Personal information</h2>
+      <p class="section-hint">This is how we will contact you about your application.</p>
+      <div class="grid2">
+        <div class="field">
+          <label for="firstName">First name <span class="req">*</span></label>
+          <input type="text" id="firstName" name="first_name">
+        </div>
+        <div class="field">
+          <label for="lastName">Last name <span class="req">*</span></label>
+          <input type="text" id="lastName" name="last_name">
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label for="phone">Phone <span class="req">*</span></label>
+          <input type="tel" id="phone" name="phone">
+        </div>
+        <div class="field">
+          <label for="email">Email <span class="req">*</span></label>
+          <input type="text" id="email" name="email">
+        </div>
+      </div>
+      <div class="field">
+        <label for="linkedin">LinkedIn or portfolio URL</label>
+        <input type="text" id="linkedin" name="linkedin_url">
+      </div>
+      <div class="field">
+        <label for="location">Where are you based? <span class="req">*</span></label>
+        <select id="location" name="location">
+          <option value="">Select a location</option>
+          <option>San Francisco Bay Area, CA</option>
+          <option>New York, NY</option>
+          <option>Seattle, WA</option>
+          <option>Austin, TX</option>
+          <option>Remote &mdash; US</option>
+          <option>Other</option>
+        </select>
+      </div>
+
+      <h2 class="section-title">Application questions</h2>
+      <p class="section-hint">Answer a few questions so the team can get to know you.</p>
+
+      <div class="field">
+        <label for="years">How many years of professional frontend experience do you have? <span class="req">*</span></label>
+        <select id="years" name="years_experience">
+          <option value="">Select an option</option>
+          <option>1 - 2</option>
+          <option>3 - 5</option>
+          <option>6 - 9</option>
+          <option>10+</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Are you legally authorized to work in the United States? <span class="req">*</span></label>
+        <div class="radio-row" id="authGroup">
+          <label class="radio-opt"><input type="radio" name="work_authorization" value="yes"> Yes, I am authorized to work in the U.S.</label>
+          <label class="radio-opt"><input type="radio" name="work_authorization" value="no"> No, I would require sponsorship now or in the future</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="salary">What are your salary expectations for this role?</label>
+        <input type="text" id="salary" name="salary_expectations">
+      </div>
+
+      <div class="field">
+        <label for="why">Why do you want to work at Northwind? <span class="req">*</span></label>
+        <textarea id="why" name="why_northwind"></textarea>
+      </div>
+
+      <div class="field">
+        <label for="source">How did you hear about this role?</label>
+        <select id="source" name="source">
+          <option value="">Select an option</option>
+          <option>Company careers page</option>
+          <option>A teammate or friend</option>
+          <option>LinkedIn</option>
+          <option>Job board</option>
+          <option>Other</option>
+        </select>
+      </div>
+
+      <h2 class="section-title">Resume</h2>
+      <p class="section-hint">Attach your current resume. PDF preferred.</p>
+      <div class="field">
+        <div class="dropzone">Drag &amp; drop your resume here, or <strong>browse files</strong><br>PDF, DOC, DOCX up to 10 MB</div>
+      </div>
+
+      <h2 class="section-title">Voluntary self-identification</h2>
+      <p class="section-hint eeo-note">Northwind is an equal opportunity employer. Your answers are optional, kept separate from your application, and never shown to the hiring team.</p>
+
+      <div class="actions">
+        <button type="button" class="save-later">Save and finish later</button>
+        <button type="button" class="submit-btn">Submit application</button>
+      </div>
+    </form>
+  </div>
+
+<script>
+  document.querySelectorAll('.radio-opt input').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      document.querySelectorAll('.radio-opt').forEach((el) => el.classList.remove('checked'));
+      radio.closest('.radio-opt').classList.add('checked');
+    });
+  });
+</script>
+</body>
+</html>

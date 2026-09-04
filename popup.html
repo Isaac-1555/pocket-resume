@@ -28,6 +28,7 @@
       --glow-generating: 56, 132, 255;
       --glow-success: 43, 214, 132;
       --glow-failure: 255, 86, 86;
+      --glow-filling: 244, 147, 59;
 
       --ease: 180ms ease;
     }
@@ -91,6 +92,24 @@
       --wash-o: 0.32;
     }
 
+    body[data-fill-status="filling"] {
+      --glow-c: var(--glow-filling);
+      --glow-o: 1;
+      --wash-o: 0.32;
+    }
+
+    body[data-fill-status="fill-success"] {
+      --glow-c: var(--glow-success);
+      --glow-o: 1;
+      --wash-o: 0.32;
+    }
+
+    body[data-fill-status="fill-failure"] {
+      --glow-c: var(--glow-failure);
+      --glow-o: 1;
+      --wash-o: 0.32;
+    }
+
     body::before {
       content: "";
       position: absolute;
@@ -111,6 +130,15 @@
 
     body[data-status="success"]::before,
     body[data-status="failure"]::before {
+      animation: glowSettle 0.9s ease-out forwards;
+    }
+
+    body[data-fill-status="filling"]::before {
+      animation: glowPulse 1.6s ease-in-out infinite;
+    }
+
+    body[data-fill-status="fill-success"]::before,
+    body[data-fill-status="fill-failure"]::before {
       animation: glowSettle 0.9s ease-out forwards;
     }
 
@@ -136,7 +164,7 @@
     }
 
     .app-header, #resumeSelector, .toggle-group,
-    #generateBtn, #settingsBtn, #trackerBtn {
+    #generateBtn, #settingsBtn, .list-row-pair {
       position: relative;
       z-index: 1;
     }
@@ -214,53 +242,6 @@
       color: var(--text);
     }
 
-    .avatar {
-      position: absolute;
-      top: 8px;
-      right: 0;
-      width: 42px;
-      height: 42px;
-      border-radius: 13px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      cursor: pointer;
-      z-index: 5;
-      background: rgba(255, 255, 255, 0.10);
-      border-color: rgba(255, 255, 255, 0.19);
-      transition: background var(--ease), border-color var(--ease);
-    }
-
-    .avatar:hover {
-      background: rgba(255, 255, 255, 0.15);
-      border-color: rgba(255, 255, 255, 0.26);
-    }
-
-    .avatar img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: none;
-    }
-
-    .cloud-avatar-initials {
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-      color: var(--text);
-    }
-
-    .avatar-generic {
-      width: 20px;
-      height: 20px;
-      color: var(--text-dim);
-      display: none;
-    }
-
-    .avatar.unlinked .avatar-generic { display: block; }
-    .avatar.unlinked .cloud-avatar-initials { display: none; }
-
     .error-info-btn {
       position: absolute;
       top: -2px;
@@ -289,93 +270,6 @@
 
     .error-info-btn:active {
       transform: scale(0.94);
-    }
-
-    /* ============================
-       Cloud Account Menu
-       ============================ */
-    .cloud-account-menu {
-      position: absolute;
-      top: 56px;
-      right: 0;
-      z-index: 60;
-      width: 200px;
-      padding: 6px;
-      border-radius: 16px;
-      background: rgba(16, 16, 19, 0.94);
-      backdrop-filter: blur(24px) saturate(150%);
-      -webkit-backdrop-filter: blur(24px) saturate(150%);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 40px rgba(0, 0, 0, 0.55);
-      display: none;
-    }
-
-    .cloud-account-menu.open {
-      display: block;
-      animation: menuIn 150ms var(--ease);
-    }
-
-    @keyframes menuIn {
-      from { opacity: 0; transform: translateY(-4px) scale(0.97); }
-      to   { opacity: 1; transform: translateY(0) scale(1); }
-    }
-
-    .cloud-menu-header {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      padding: 9px 10px 10px;
-      margin-bottom: 4px;
-      border-bottom: 1px solid var(--glass-border);
-    }
-
-    .cloud-menu-title {
-      margin: 0;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .cloud-plan-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: var(--text-dim);
-    }
-
-    .cloud-plan-badge::before {
-      content: '';
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--text-faint);
-      flex-shrink: 0;
-    }
-
-    .cloud-plan-badge:not(.inactive)::before {
-      background: #2bd684;
-    }
-
-    .cloud-menu-btn {
-      width: 100%;
-      margin: 0;
-      padding: 9px 10px;
-      border-radius: 10px;
-      color: var(--text-dim);
-      font-size: 13px;
-      font-weight: 500;
-      text-align: left;
-      cursor: pointer;
-      transition: all var(--ease);
-    }
-
-    .cloud-menu-btn:hover {
-      background: var(--glass-fill-strong);
-      color: var(--text);
     }
 
     /* ============================
@@ -768,6 +662,42 @@
       transform: scale(0.99);
     }
 
+    .list-row-pair {
+      margin-top: 12px;
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+    }
+
+    .list-row-pair .list-row {
+      margin-top: 0;
+      flex: 1;
+      min-width: 0;
+      padding: 11px 12px;
+      font-size: 13px;
+      gap: 8px;
+    }
+
+    .list-row-pair .list-row-left {
+      gap: 9px;
+    }
+
+    .list-row-pair .row-icon {
+      width: 15px;
+      height: 15px;
+    }
+
+    .list-row-pair .list-row-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .list-row-pair .tracker-new-badge {
+      padding: 2px 7px;
+      font-size: 8.5px;
+    }
+
     .list-row-left {
       display: flex;
       align-items: center;
@@ -1047,27 +977,37 @@
       word-break: break-word;
     }
 
-    .onboarding-features {
+    .whatsnew-collected {
       list-style: none;
       padding: 0;
-      margin: 0 0 18px;
+      margin: 0 0 14px;
       text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }
 
-    .onboarding-features li {
-      font-size: 12px;
-      color: var(--text-dim);
-      padding: 4px 0;
-      padding-left: 18px;
-      position: relative;
+    .whatsnew-collected li {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      padding: 9px 12px;
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      background: var(--glass-fill);
     }
 
-    .onboarding-features li::before {
-      content: '✓';
-      position: absolute;
-      left: 0;
-      color: var(--orange);
-      font-weight: 600;
+    .whatsnew-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 11px 14px;
+      margin: 0 0 16px;
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      background: var(--glass-fill);
+      text-align: left;
     }
 
     .onboarding-actions {
@@ -1134,19 +1074,6 @@
 <body data-status="idle">
   <header class="app-header">
     <button id="errorInfoBtn" class="error-info-btn" type="button" aria-label="Show error details">?</button>
-    <button id="cloudAvatarBtn" class="avatar glass unlinked" type="button" aria-label="Cloud Sync account menu">
-      <img id="cloudAvatarImg" alt="">
-      <span id="cloudAvatarInitials" class="cloud-avatar-initials">?</span>
-      <svg class="avatar-generic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
-    </button>
-    <div class="cloud-account-menu" id="cloudAccountMenu">
-      <div class="cloud-menu-header">
-        <p id="cloudMenuTitle" class="cloud-menu-title">Cloud Sync</p>
-        <span id="cloudPlanBadge" class="cloud-plan-badge inactive">Signed out</span>
-      </div>
-      <button id="cloudMenuAuthBtn" class="cloud-menu-btn" type="button">Sign In</button>
-      <button id="cloudMenuPlansBtn" class="cloud-menu-btn" type="button">See Plans</button>
-    </div>
     <button class="logo-mark" id="logoLink" type="button" title="pocket-resume.xyz" aria-label="Visit pocket-resume.xyz">
       <img src="icon.png" alt="">
     </button>
@@ -1276,34 +1203,22 @@
     <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
   </button>
 
-  <button id="trackerBtn" class="list-row glass" type="button">
-    <span class="list-row-left">
-      <svg class="row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-      <span>Job Tracker</span>
-    </span>
-    <span id="trackerNewBadge" class="tracker-new-badge">New</span>
-  </button>
+  <div class="list-row-pair">
+    <button id="trackerBtn" class="list-row glass" type="button">
+      <span class="list-row-left">
+        <svg class="row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        <span class="list-row-label">Tracker</span>
+      </span>
+      <span id="trackerNewBadge" class="tracker-new-badge">New</span>
+    </button>
 
-  <!-- Cloud Sync Onboarding Modal -->
-  <div id="cloudOnboardingModal" class="onboarding-modal" style="display: none;">
-    <div class="onboarding-backdrop"></div>
-    <div class="onboarding-card">
-      <div class="onboarding-icon" aria-hidden="true">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
-      </div>
-      <h2>Sync Your Resumes to the Cloud</h2>
-      <p>Access your professional profiles across all your devices, plus a future web app. Your data stays private and secure.</p>
-      <ul class="onboarding-features">
-        <li>Access resumes from any device</li>
-        <li>Automatic backup as you work</li>
-        <li>Future companion web app</li>
-        <li>100% optional — local storage still works</li>
-      </ul>
-      <div class="onboarding-actions">
-        <button id="cloudOnboardingSetupBtn" class="cloud-primary-btn">Set Up Cloud Sync</button>
-        <button id="cloudOnboardingDismissBtn" class="cloud-secondary-btn">Not Now</button>
-      </div>
-    </div>
+    <button id="fillFormBtn" class="list-row glass" type="button">
+      <span class="list-row-left">
+        <svg class="row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        <span class="list-row-label" id="fillFormLabel">Fill Form</span>
+      </span>
+      <span id="fillFormNewBadge" class="tracker-new-badge">New</span>
+    </button>
   </div>
 
   <!-- Error Details Modal -->
@@ -1359,28 +1274,30 @@
     <div class="onboarding-backdrop"></div>
     <div class="onboarding-card">
       <div class="onboarding-icon" aria-hidden="true">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> — Model Selection &amp; Custom AI</h2>
+      <h2>New in <span id="whatsNewVersion"></span> — AI Form Filler</h2>
       <p class="error-message">
-        You're no longer locked to one model per provider. Pick any model from Gemini, OpenAI, Anthropic, or OpenRouter — or connect your own OpenAI-compatible endpoint, including fully local servers like Ollama and LM Studio.
+        Career sites love their essay questions. Now you don't have to write them. Open any application form, click <strong>Fill Form</strong> in the popup, and PocketResume answers the questions for you.
       </p>
-      <ul class="onboarding-features">
-        <li>Override the model for any cloud provider — "Load Models" fetches the live list</li>
-        <li>New Custom / Local provider: presets for Ollama, LM Studio, and NVIDIA NIM, or any OpenAI-compatible Base URL</li>
-        <li>Run 100% local — no API key needed for Ollama or LM Studio</li>
-        <li>Test Connection before saving, plus optional Extra body JSON for advanced flags</li>
+      <ul class="whatsnew-collected">
+        <li>Detects questions in the page, including embedded form iframes</li>
+        <li>Answers in your voice: first person, plain words, no AI tells</li>
+        <li>Only uses facts from your resume &mdash; nothing is invented</li>
+        <li>Never submits, never overwrites, never touches consent boxes</li>
       </ul>
+      <p class="error-message">
+        Review the filled answers and hit submit yourself. Questions your resume can't answer are left blank.
+      </p>
       <div class="onboarding-actions">
         <button id="whatsNewGotBtn" class="cloud-primary-btn">Got it</button>
-        <button id="whatsNewSettingsBtn" class="cloud-secondary-btn">Open Settings</button>
       </div>
     </div>
   </div>
 
   <script src="libs/jspdf.umd.min.js"></script>
-  <script src="cloud-sync.js"></script>
   <script src="resume-renderers.js"></script>
+  <script src="track-client.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         cloudPricingFallback.textContent = `Could not load Clerk pricing. Confirm Billing is enabled and at least one user plan is public in Clerk. Details: ${error.message}`;
         cloudPricingFallback.style.display = 'block';
       }
-      showStatus('Could not load pricing. Check the message in the Cloud Sync panel.', 'error', 7000);
+      showStatus('Could not load pricing. Check the message in the Pro panel.', 'error', 7000);
     }
   }
   if (cloudClosePricingBtn) {
@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     cloudAvatarImg.removeAttribute('src');
     cloudAvatarImg.style.display = 'none';
     cloudAvatarInitials.style.display = 'inline';
-    const source = profile?.name || profile?.email || 'Cloud Sync';
+    const source = profile?.name || profile?.email || 'Pro';
     cloudAvatarInitials.textContent = source.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || '?';
   }
 
@@ -283,18 +283,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         setCloudAvatar(profile);
         const hasAccess = await window.CloudSync.hasCloudSyncAccess();
         if (hasAccess) {
-          cloudAuthStatus.textContent = profile?.email || 'Cloud Sync active';
+          cloudAuthStatus.textContent = profile?.email || 'Pro active';
           cloudAuthStatus.className = 'cloud-status-pill synced';
           if (cloudPushBtn) cloudPushBtn.style.display = 'inline-block';
           if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'inline-block';
         } else {
-          cloudAuthStatus.textContent = 'Cloud Sync needs a paid plan';
+          cloudAuthStatus.textContent = 'Pro plan required';
           cloudAuthStatus.className = 'cloud-status-pill error';
           if (cloudPushBtn) cloudPushBtn.style.display = 'none';
           if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'none';
         }
       } else {
-        cloudMenuTitle.textContent = 'Cloud Sync';
+        cloudMenuTitle.textContent = 'PocketResume Pro';
         cloudMenuAuthBtn.textContent = 'Sign In';
         cloudMenuPlansBtn.textContent = 'See Plans';
         setCloudAvatar(null);
@@ -302,8 +302,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         cloudAuthStatus.className = 'cloud-status-pill';
       }
     } catch (error) {
-      cloudMenuTitle.textContent = 'Cloud Sync';
-      cloudAuthStatus.textContent = 'Cloud sync error';
+      cloudMenuTitle.textContent = 'PocketResume Pro';
+      cloudAuthStatus.textContent = 'Account error';
       cloudAuthStatus.className = 'cloud-status-pill error';
     }
   }
@@ -762,12 +762,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderEndpointsList();
   });
 
-  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'googleModel', 'openaiModel', 'anthropicModel', 'openrouterModel', 'customEndpoints', 'activeCustomEndpointId', 'apiProvider', 'userProfile', 'resumes', 'trackerCaptureEnabled']);
+  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'googleModel', 'openaiModel', 'anthropicModel', 'openrouterModel', 'customEndpoints', 'activeCustomEndpointId', 'apiProvider', 'userProfile', 'resumes', 'trackerCaptureEnabled', 'analyticsEnabled']);
   const trackerCaptureToggle = document.getElementById('trackerCaptureToggle');
   if (trackerCaptureToggle) {
     trackerCaptureToggle.checked = data.trackerCaptureEnabled !== false;
     trackerCaptureToggle.addEventListener('change', () => {
       chrome.storage.local.set({ trackerCaptureEnabled: trackerCaptureToggle.checked });
+    });
+  }
+
+  const analyticsToggle = document.getElementById('analyticsToggle');
+  if (analyticsToggle) {
+    analyticsToggle.checked = data.analyticsEnabled !== false;
+    analyticsToggle.addEventListener('change', () => {
+      chrome.storage.local.set({ analyticsEnabled: analyticsToggle.checked });
     });
   }
 
@@ -807,12 +815,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     cloudMenuAuthBtn.addEventListener('click', async () => {
       cloudAccountMenu.classList.remove('open');
       try {
-        if (!window.CloudSync) throw new Error('Cloud sync service failed to load.');
+        if (!window.CloudSync) throw new Error('Account service failed to load.');
         const signedIn = await window.CloudSync.isSignedIn();
         if (signedIn) {
+          showStatus('Signing out...', 'loading', 0);
           await window.CloudSync.signOut();
+          showStatus('Signed out.', 'success', 4000);
         } else {
+          showStatus('Opening sign-in...', 'loading', 0);
           await window.CloudSync.signIn();
+          showStatus('Complete sign-in in the window that just opened.', 'info', 6000);
         }
         setTimeout(updateCloudStatus, 500);
       } catch (error) {
@@ -833,7 +845,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         saveCurrentTabToState();
         await setLocalStorage(getSettingsPayload());
-        if (!window.CloudSync) throw new Error('Cloud sync service failed to load.');
+        if (!window.CloudSync) throw new Error('Pro service failed to load.');
         showStatus('Pushing resumes to cloud...', 'loading', 0);
         await window.CloudSync.init();
         await window.CloudSync.pushAllResumes(getPersistedResumes());
@@ -848,7 +860,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (cloudRestoreBtn) {
     cloudRestoreBtn.addEventListener('click', async () => {
       try {
-        if (!window.CloudSync) throw new Error('Cloud sync service failed to load.');
+        if (!window.CloudSync) throw new Error('Pro service failed to load.');
         showStatus('Loading cloud resumes...', 'loading', 0);
         await window.CloudSync.init();
         const cloudDocs = await window.CloudSync.pullAllResumes();
@@ -1185,6 +1197,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     try {
       await extractJsonForResume(resume);
+      trackEvent('extract_json_used');
       showStatus('JSON profile extracted and saved successfully.', 'success', 5000);
     } catch (error) {
       showStatus(`Error: ${error.message}`, 'error', 4500);
@@ -1201,6 +1214,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     refiningResumeId = resume.id;
+    trackEvent('refine_used');
     renderTabContent();
     showStatus('Refining resume into a reusable cross-style master version…', 'loading', 0);
 

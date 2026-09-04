@@ -1,7 +1,7 @@
-// Cloud Sync Service
-// Handles push/pull of resumes to Convex with Clerk auth
+// PocketResume Pro Service
+// Clerk auth, plan checks, pricing table, and resume cloud sync via Convex.
 // Bundled by esbuild into cloud-sync.js
-// Usage: load via <script src="cloud-sync.js"> in popup/options/background
+// Usage: load via <script src="cloud-sync.js"> in options/tracker
 
 (function () {
   'use strict';
@@ -9,14 +9,13 @@
   const CONFIG_KEYS = {
     resumes: 'resumes',
     cloudSyncStatus: 'cloudSyncStatus',
-    cloudOnboardingDismissed: 'cloudOnboardingDismissed',
-    cloudOnboardingDismissedVersion: 'cloudOnboardingDismissedVersion',
   };
 
   const CLOUD_CONFIG = {
     clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY || '',
     convexUrl: process.env.CONVEX_URL || '',
-    requiredPlan: 'cloud_sync',
+    requiredPlan: 'pocketresume_pro',
+    legacyPlans: ['cloud_sync', 'pro', 'premium'],
   };
 
   let convexClient = null;
@@ -27,7 +26,18 @@
   let authInfo = null;
 
   const EXTENSION_URL = chrome.runtime.getURL('.');
-  const POPUP_URL = EXTENSION_URL + 'popup.html';
+  const OPTIONS_URL = EXTENSION_URL + 'options.html';
+
+  // clerk-js session touch rethrows non-auth errors (e.g. offline) from its
+  // focus handler, surfacing as unhandled rejections. They are harmless —
+  // Clerk retries on the next focus — so log and swallow them.
+  globalThis.addEventListener('unhandledrejection', (event) => {
+    const msg = event.reason && event.reason.message ? String(event.reason.message) : String(event.reason || '');
+    if (msg.startsWith('ClerkJS: Network error')) {
+      event.preventDefault();
+      console.warn('[CloudSync] Suppressed Clerk session touch network error:', msg);
+    }
+  });
 
   // --- Clerk Setup ---
   async function getClerkPublishableKey() {
@@ -37,12 +47,12 @@
   async function hasCloudSyncAccess() {
     await init();
     if (!clerkClient || !clerkClient.user) return false;
+    const plansToCheck = [CLOUD_CONFIG.requiredPlan, ...CLOUD_CONFIG.legacyPlans];
     if (clerkClient.session && typeof clerkClient.session.checkAuthorization === 'function') {
       try {
-        if (clerkClient.session.checkAuthorization({ plan: CLOUD_CONFIG.requiredPlan })) return true;
-        if (clerkClient.session.checkAuthorization({ feature: CLOUD_CONFIG.requiredPlan })) return true;
-        if (clerkClient.session.checkAuthorization({ plan: 'pro' })) return true;
-        if (clerkClient.session.checkAuthorization({ plan: 'premium' })) return true;
+        for (const plan of plansToCheck) {
+          if (clerkClient.session.checkAuthorization({ plan })) return true;
+        }
       } catch (err) {
         console.warn('[CloudSync] Clerk billing authorization check failed, falling back to metadata:', err);
       }
@@ -51,12 +61,7 @@
     const unsafeMetadata = clerkClient.user.unsafeMetadata || {};
     const plan = metadata.plan || unsafeMetadata.plan || '';
     const features = metadata.features || unsafeMetadata.features || [];
-    return (
-      plan === CLOUD_CONFIG.requiredPlan ||
-      plan === 'pro' ||
-      plan === 'premium' ||
-      features.includes(CLOUD_CONFIG.requiredPlan)
-    );
+    return plansToCheck.includes(plan) || plansToCheck.some((p) => features.includes(p));
   }
 
   function isConfigured() {
@@ -70,7 +75,7 @@
   async function mountPricingTable(node, options = {}) {
     await init();
     if (!clerkClient) {
-      throw new Error('Cloud sync is not configured yet.');
+      throw new Error('Pro is not configured yet.');
     }
     if (!node) {
       throw new Error('Pricing table container is missing.');
@@ -130,16 +135,29 @@
         ? await import('@clerk/chrome-extension/background')
         : await import('@clerk/chrome-extension/client');
 
-      clerkClient = await clerkModule.createClerkClient({ 
+      clerkClient = await clerkModule.createClerkClient({
         publishableKey
       });
 
       if (typeof clerkClient.load === 'function') {
         await clerkClient.load({
-          afterSignOutUrl: POPUP_URL,
-          signInForceRedirectUrl: POPUP_URL,
-          signUpForceRedirectUrl: POPUP_URL,
+          afterSignOutUrl: OPTIONS_URL,
+          signInForceRedirectUrl: OPTIONS_URL,
+          signUpForceRedirectUrl: OPTIONS_URL,
           allowedRedirectProtocols: ['chrome-extension:'],
+          appearance: {
+            variables: {
+              colorBackground: '#16161a',
+              colorForeground: '#ffffff',
+              colorMutedForeground: 'rgba(255, 255, 255, 0.6)',
+              colorInput: 'rgba(255, 255, 255, 0.08)',
+              colorInputForeground: '#ffffff',
+              colorBorder: 'rgba(255, 255, 255, 0.2)',
+              colorPrimary: '#f4933b',
+              colorPrimaryForeground: '#1a1005',
+              borderRadius: '0.75rem'
+            }
+          }
         });
       }
 
@@ -231,14 +249,14 @@
   async function signIn() {
     await init();
     if (!clerkClient) {
-      throw new Error('Cloud sync is not configured yet.');
+      throw new Error('Pro is not configured yet.');
     }
     clerkClient.openSignIn({});
   }
 
   async function signOut() {
     if (!clerkClient) return;
-    await clerkClient.signOut({ redirectUrl: POPUP_URL });
+    await clerkClient.signOut({ redirectUrl: OPTIONS_URL });
   }
 
   async function pushResume(resume) {
@@ -247,7 +265,7 @@
       return;
     }
     if (!(await hasCloudSyncAccess())) {
-      throw new Error('Cloud Sync requires an active plan.');
+      throw new Error('This requires an active Pro plan.');
     }
 
     try {
@@ -275,7 +293,7 @@
       return;
     }
     if (!(await hasCloudSyncAccess())) {
-      throw new Error('Cloud Sync requires an active plan.');
+      throw new Error('This requires an active Pro plan.');
     }
 
     syncInProgress = true;
@@ -315,7 +333,7 @@
       return [];
     }
     if (!(await hasCloudSyncAccess())) {
-      throw new Error('Cloud Sync requires an active plan.');
+      throw new Error('This requires an active Pro plan.');
     }
 
     try {
@@ -331,7 +349,7 @@
   async function deleteCloudResume(resumeId) {
     if (!convexClient) return;
     if (!(await hasCloudSyncAccess())) {
-      throw new Error('Cloud Sync requires an active plan.');
+      throw new Error('This requires an active Pro plan.');
     }
 
     try {
@@ -361,43 +379,6 @@
     }, 2000);
   }
 
-  // --- Onboarding State ---
-  function dismissOnboarding() {
-    const obj = {};
-    obj[CONFIG_KEYS.cloudOnboardingDismissed] = true;
-    obj[CONFIG_KEYS.cloudOnboardingDismissedVersion] = '5.8';
-    chrome.storage.local.set(obj);
-  }
-
-  async function shouldShowOnboarding() {
-    return new Promise((resolve) => {
-      chrome.storage.local.get([
-        CONFIG_KEYS.cloudOnboardingDismissed,
-        CONFIG_KEYS.cloudOnboardingDismissedVersion,
-        CONFIG_KEYS.resumes,
-      ], (data) => {
-        if (data[CONFIG_KEYS.cloudOnboardingDismissed] &&
-            data[CONFIG_KEYS.cloudOnboardingDismissedVersion] === '5.8') {
-          resolve(false);
-          return;
-        }
-        if (!data[CONFIG_KEYS.resumes] || data[CONFIG_KEYS.resumes].length === 0) {
-          resolve(false);
-          return;
-        }
-        if (!isConfigured()) {
-          resolve(false);
-          return;
-        }
-        if (clerkClient && clerkClient.user) {
-          resolve(false);
-          return;
-        }
-        resolve(true);
-      });
-    });
-  }
-
   // --- Module export ---
   globalThis.CloudSync = {
     init,
@@ -417,7 +398,5 @@
     pullAllResumes,
     deleteCloudResume,
     onLocalResumesChanged,
-    dismissOnboarding,
-    shouldShowOnboarding,
   };
 })();
