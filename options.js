@@ -818,9 +818,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!window.CloudSync) throw new Error('Account service failed to load.');
         const signedIn = await window.CloudSync.isSignedIn();
         if (signedIn) {
+          showStatus('Signing out...', 'loading', 0);
           await window.CloudSync.signOut();
+          showStatus('Signed out.', 'success', 4000);
         } else {
+          showStatus('Opening sign-in...', 'loading', 0);
           await window.CloudSync.signIn();
+          showStatus('Complete sign-in in the window that just opened.', 'info', 6000);
         }
         setTimeout(updateCloudStatus, 500);
       } catch (error) {
