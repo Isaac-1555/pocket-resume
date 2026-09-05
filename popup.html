@@ -1133,6 +1133,14 @@
     <button type="button" id="setupResumeBtn" class="setup-goto setup-goto-wide">Resume setup</button>
   </div>
 
+  <div id="fillProfileCard" class="setup-card glass" style="display: none;">
+    <div class="setup-head">
+      <p class="setup-title">Form Filler needs a quick setup</p>
+    </div>
+    <p class="setup-done-text">Answer a few questions about you once (name, address, salary, work authorization). Every Fill Form reuses them.</p>
+    <button type="button" id="fillProfileSetupBtn" class="setup-goto setup-goto-wide">Complete setup</button>
+  </div>
+
   <div class="control-group">
     <div class="section-label">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
@@ -1276,21 +1284,22 @@
       <div class="onboarding-icon" aria-hidden="true">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> — AI Form Filler</h2>
+      <h2>New in <span id="whatsNewVersion"></span> — Application Questions</h2>
       <p class="error-message">
-        Career sites love their essay questions. Now you don't have to write them. Open any application form, click <strong>Fill Form</strong> in the popup, and PocketResume answers the questions for you.
+        Tell Form Filler about yourself once: name, address, salary expectations, work authorization, and the usual screening questions. Every form fill now starts from <strong>your saved answers</strong> instead of a blank page.
       </p>
       <ul class="whatsnew-collected">
-        <li>Detects questions in the page, including embedded form iframes</li>
-        <li>Answers in your voice: first person, plain words, no AI tells</li>
-        <li>Only uses facts from your resume &mdash; nothing is invented</li>
-        <li>Never submits, never overwrites, never touches consent boxes</li>
+        <li>First and last name get split correctly &mdash; no more full name in both boxes</li>
+        <li>Address, city, postal code and country come from your saved profile</li>
+        <li>Salary expectations answered with your number, not a guess or a blank</li>
+        <li>Company-specific questions still answered by AI from your resume</li>
       </ul>
       <p class="error-message">
-        Review the filled answers and hit submit yourself. Questions your resume can't answer are left blank.
+        Setup takes about two minutes. Everything stays local to your browser.
       </p>
       <div class="onboarding-actions">
-        <button id="whatsNewGotBtn" class="cloud-primary-btn">Got it</button>
+        <button id="whatsNewSetupBtn" class="cloud-primary-btn">Set up Form Filler</button>
+        <button id="whatsNewGotBtn" class="cloud-secondary-btn">Later</button>
       </div>
     </div>
   </div>

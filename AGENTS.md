@@ -130,16 +130,28 @@ New/unconfigured users get a setup card in the popup plus a spotlight tour on th
 3. Background calls the provider's `*ResumeExtraction(...)` function — extracts structured JSON profile from raw text.
 4. JSON is saved as `jsonContent` on the resume entry and persisted. Used as `jsonContent` in the generation pipeline.
 
+### Form filler setup (Application Questions, v8.0)
+
+One-time onboarding for Form Filler: the user answers common application-form questions once; fills reuse them.
+
+1. **Questionnaire**: Options page → "Form Filler Setup" section (`#appProfileDetails`, left panel). Groups: Basics (first/last name, email, phone), Location (street, apt, city, state, postal code, country), Work eligibility (authorized / sponsorship / 18+ / relocate / remote preference — Yes/No selects), Preferences (salary amount + currency + period, start date, years of experience), Links (LinkedIn, portfolio, GitHub), opt-in **EEO self-identification** (gender, race, hispanic/Latino, veteran, disability — only used when a form asks; local only), and **Custom Q&A** (free-form question/answer rows matched by question text).
+2. **"Auto-fill from my resume"**: options sends `PROFILE_AUTOFILL` with the active resume's `jsonContent` (fallback `content`). Background `generateApplicationProfileFromResume(...)` does one strict-JSON extraction call → options fills **empty inputs only** and reports "Filled X of Y fields".
+3. **Persistence**: saved as `applicationProfile` via the global Save Settings button. Completion = non-empty `firstName` + `lastName`; the section's status pill shows "Ready" / "Not set up".
+4. **Entry points**: the v8.0 What's New modal ("Set up Form Filler") and the popup fill-gating card both set `appProfileOnboarding: { active: true }` and open the options page; options consumes the flag and starts the **profile spotlight tour** (`PROFILE_TOUR_STEPS`, reuses the tour overlay via `tourOpenAt(step, 'profile')`). "Guide me" in the section restarts it. Saved answers keep working if the tour is skipped.
+5. **Fill gating**: popup Fill with an incomplete profile shows `#fillProfileCard` ("Complete setup" → same trigger) instead of running the fill. Generation flow is unaffected.
+
 ### Form filler flow
 
-1. User clicks "Fill Form" in the popup (next to the Job Tracker button).
+1. User clicks "Fill Form" in the popup (next to the Job Tracker button). Popup first checks `applicationProfile` completeness (see Form filler setup above) and blocks with the setup card if incomplete.
 2. Popup sends `FILL_APPLICATION_FORM` to background with `{ tabId, resumeId }`.
-3. Background resolves the profile (same resolution as `START_GENERATION`), injects `form-filler.js` into all frames via `chrome.scripting.executeScript`, then runs `__PocketResumeForm.detect(...)` per frame and merges results (field ids are frame-token prefixed).
-4. Background calls `generateFormAnswers(...)` — one AI call returning strict JSON `{ answers: [{ id, answer }] }`. The prompt forces a human style: first person, plain words, no em dashes, no buzzwords, profile is the only source of facts, unanswerable fields return `""`.
-5. Background runs `__PocketResumeForm.fill(...)` per frame (native value setters + `input`/`change` events for React/Vue compatibility), toasts the result on the page's main frame, and replies `{ status: 'success', filled, total }`.
-6. Popup shows "Filled X/Y" on the button; errors go through the standard `setError` path. The popup background glows via `body[data-fill-status]`: `filling` (amber pulse) → `fill-success` (green, auto-reverts after 4s) or `fill-failure` (red, persists until the next Fill/Generate click). Kept separate from `body[data-status]` so the two flows never fight over the glow.
+3. Background resolves the profile (same resolution as `START_GENERATION`), injects `form-filler.js` into all frames via `chrome.scripting.executeScript`, then runs `__PocketResumeForm.detect(...)` per frame and merges results (field ids are frame-token prefixed). Detection covers text inputs, textareas, selects (only placeholder-unselected ones; matched by option text **and** value), radio groups, checkbox groups, single question-style checkboxes (consent labels excluded), email/url/date inputs, and contenteditables.
+4. **Saved-answers-first resolution**: `resolveFormAnswers(fields, applicationProfile)` in `form-profile.js` splits fields. Tier 1: canonical label matchers → `applicationProfile` values (name split, address, salary formatting by field type incl. hourly conversion, yes/no, EEO gated by `eeoOptIn`). Tier 2: `customQA` match (normalized equality, containment, Jaccard ≥ 0.85). Select/radio/checkbox-group answers must fuzzy-match one of the field's options, else the field falls to AI. Single checkboxes get boolean intent (`Yes` → check, `No` → leave unchecked). Zero tokens for resolved fields.
+5. `generateFormAnswers(context, userProfile, unresolvedFields, applicationProfile)` — one AI call for **only the unresolved fields** (essays, company-specific questions). Same prompt + a `SAVED PROFILE` JSON line for grounding; skipped entirely when nothing is unresolved (0 tokens).
+6. Merged answers run through `normalizeFormAnswers` (id validation + maxLength truncation), then `__PocketResumeForm.fill(...)` per frame (native value setters + `input`/`change` events for React/Vue compatibility). Checkbox groups: only matching options are checked, never unchecked; already-ticked groups are skipped entirely.
+7. Background toasts on the page's main frame (`"... (N from saved answers)"`), replies `{ status: 'success', filled, total, cached }`, and logs `[FormFill] Filled X of Y fields. (Z saved, W AI)`. `form_filled` analytics carries `cached` (string count; whitelisted in `PARAM_FIELDS` on both sides).
+8. Popup shows "Filled X/Y" on the button; errors go through the standard `setError` path. The popup background glows via `body[data-fill-status]`: `filling` (amber pulse) → `fill-success` (green, auto-reverts after 4s) or `fill-failure` (red, persists until the next Fill/Generate click). Kept separate from `body[data-status]` so the two flows never fight over the glow.
 
-Safety rules (enforced in `form-filler.js` + prompt): never submits the form, never overwrites already-filled fields, never touches checkboxes/consent widgets, skips hidden/disabled/readonly/captcha/search fields, caps at 30 fields. Detection covers text inputs, textareas, selects (only placeholder-unselected ones), radio groups, and contenteditables.
+Safety rules (enforced in `form-filler.js` + prompt): never submits the form, never overwrites already-filled fields, never unchecks anything the user already ticked, checkbox/consent widgets with consent-style labels (consent/agree/terms/privacy/newsletter/marketing/subscribe/opt-in/gdpr/cookies) are never touched, skips hidden/disabled/readonly/captcha/search fields, caps at 30 fields. Known gap: custom div widgets (`[role="checkbox"]`/`[role="radio"]` without real inputs, legacy Workday) are not detected.
 
 ## Resume styles & layout mapping
 
@@ -170,6 +182,8 @@ Important keys:
 - `cloudSyncStatus`: `"idle" | "syncing" | "synced" | "error"` (Pro sync indicator, written by `src/cloud-sync.js`)
 - `resumeType`: `"basic" | "professional" | "faang" | "jake" | "deedy" | "academic-cv"`
 - `coverLetterEnabled`: boolean
+- `applicationProfile`: Form Filler answers — `{ firstName, lastName, email, phone, streetAddress, addressLine2, city, state, postalCode, country, salaryAmount, salaryCurrency, salaryPeriod, startDate, yearsExperience, workAuthorized, needsSponsorship, over18, willingToRelocate, remotePreference, linkedin, website, github, eeoOptIn, eeo: { gender, race, hispanicLatino, veteran, disability }, customQA: [{ id, question, answer }], updatedAt }`
+- `appProfileOnboarding`: `{ active: boolean }` — trigger for the Form Filler setup spotlight tour (set by the popup, consumed by the options page)
 
 Legacy migration: `userProfile` → `resumes[0].content`
 
@@ -185,7 +199,7 @@ Five providers supported, selected via `apiProvider`:
 
 Model overrides per provider are stored in the `*Model` keys; empty string falls back to the defaults in `PROVIDER_DEFAULT_MODELS` (`background.js`). The options page can fetch available models from each provider's list endpoint.
 
-All providers share one request path: `executeProviderChat(context, prompt, label)` in `background.js` handles the three wire formats (OpenAI-compatible chat completions, Anthropic messages, Gemini generateContent). The 5 pipelines call it via `generateTailoredResume`, `generateCoverLetterText`, `extractResumeProfileJson`, `refineResumeSource`, and `generateFormAnswers`.
+All providers share one request path: `executeProviderChat(context, prompt, label)` in `background.js` handles the three wire formats (OpenAI-compatible chat completions, Anthropic messages, Gemini generateContent). The 6 pipelines call it via `generateTailoredResume`, `generateCoverLetterText`, `extractResumeProfileJson`, `refineResumeSource`, `generateFormAnswers`, and `generateApplicationProfileFromResume`.
 
 Custom endpoints require a runtime host permission for the endpoint's origin. `manifest.json` declares `optional_host_permissions: ["https://*/*", "http://*/*"]`; the options page calls `chrome.permissions.request({ origins: [origin + '/*'] })` when saving or testing an endpoint.
 
@@ -215,6 +229,7 @@ PocketResume/
 ├── background.js            # Service worker: pipeline + AI calls
 ├── content.js               # Content script: page text extraction
 ├── form-filler.js           # [injected on demand] Form detect/fill/toast for the Fill Form feature
+├── form-profile.js          # Saved-answer resolver: canonical matchers + custom Q&A matching
 ├── popup.html / popup.js    # Popup UI + PocketResume PDF generation
 ├── options.html / options.js# Settings: API keys, resumes, toggles
 ├── resume-renderers.js      # Jake / Deedy / Academic CV PDF layouts
@@ -246,6 +261,8 @@ PocketResume/
 - **Change AI model, prompts, or JSON schema**: `background.js` (`executeProviderChat` + the 5 pipeline functions). Update the style config table above if the schema or layout mapping changes.
 - **Change what we extract from a page**: `content.js` (`extractPageText`) and the truncation logic in `background.js`.
 - **Change form detection / filling / safety rules**: `form-filler.js` (`detect` / `fill` / `toast`) and the `FILL_APPLICATION_FORM` handler + `generateFormAnswers` prompt in `background.js`.
+- **Change saved-answer resolution / canonical matchers**: `form-profile.js` (`CANONICAL_MATCHERS`, `resolveFormAnswers`) — imported by `background.js`.
+- **Change Form Filler onboarding / application profile**: `options.html` + `options.js` (`#appProfileDetails` section, `APP_PROFILE_FIELDS`, `PROFILE_TOUR_STEPS`), `background.js` (`PROFILE_AUTOFILL` handler + `generateApplicationProfileFromResume`), popup gating in `popup.js` (`isFormFillerProfileComplete` / `#fillProfileCard`).
 - **Change PocketResume PDF layout**: `popup.js` (`generatePDF` / `generateCoverLetterPDF`).
 - **Change Jake / Deedy / Academic CV PDF layouts**: `resume-renderers.js` (`renderJakeLayout` / `renderDeedyLayout` / `renderAcademicCvLayout`).
 - **Change settings UI / resume management**: `options.js` / `options.html`.

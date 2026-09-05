@@ -1,6 +1,7 @@
 // background.js
 import './cloud-sync.js';
 import { trackEvent } from './analytics.js';
+import { resolveFormAnswers } from './form-profile.js';
 
 // Auto-push local resume changes when user has enabled cloud sync and is signed in.
 chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -781,7 +782,7 @@ function truncateFormAnswer(answer, maxLength) {
     return answer.length > maxLength ? answer.slice(0, maxLength) : answer;
 }
 
-async function generateFormAnswers(context, userProfile, fields) {
+async function generateFormAnswers(context, userProfile, fields, applicationProfile) {
     const fieldSummaries = fields.map((field) => ({
         id: field.id,
         question: field.question,
@@ -790,12 +791,18 @@ async function generateFormAnswers(context, userProfile, fields) {
         maxLength: field.maxLength || undefined,
         required: field.required || undefined
     }));
+    const savedProfile = applicationProfile && typeof applicationProfile === 'object'
+        ? applicationProfile
+        : null;
 
     const prompt = `
     You are helping a real person fill out a job application form. Below is their resume/profile and the form fields detected on the page.
 
     MY PROFILE (source of truth):
     ${userProfile}
+
+    SAVED PROFILE (personal facts the person confirmed; authoritative when relevant):
+    ${savedProfile ? JSON.stringify(savedProfile) : '(none)'}
 
     FORM FIELDS (JSON):
     ${JSON.stringify(fieldSummaries)}
@@ -824,6 +831,64 @@ async function generateFormAnswers(context, userProfile, fields) {
     const rawText = await executeProviderChat(context, prompt, 'Form answers');
     const parsed = parseJsonText(rawText, 'Form answers');
     return normalizeFormAnswers(parsed, fields);
+}
+
+const APP_PROFILE_PROMPT_KEYS = [
+    'firstName', 'lastName', 'email', 'phone',
+    'streetAddress', 'addressLine2', 'city', 'state', 'postalCode', 'country',
+    'salaryAmount', 'salaryCurrency', 'salaryPeriod', 'startDate', 'yearsExperience',
+    'workAuthorized', 'needsSponsorship', 'over18', 'willingToRelocate', 'remotePreference',
+    'linkedin', 'website', 'github'
+];
+const APP_PROFILE_PROMPT_EEO_KEYS = ['gender', 'race', 'hispanicLatino', 'veteran', 'disability'];
+
+function normalizeApplicationProfile(raw) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const profile = {};
+    for (const key of APP_PROFILE_PROMPT_KEYS) {
+        const value = source[key];
+        if (key === 'salaryAmount' || key === 'yearsExperience') {
+            const num = Number(value);
+            profile[key] = Number.isFinite(num) ? num : null;
+        } else {
+            profile[key] = typeof value === 'string' ? value.trim() : '';
+        }
+    }
+    const eeoSource = source.eeo && typeof source.eeo === 'object' ? source.eeo : {};
+    profile.eeo = {};
+    for (const key of APP_PROFILE_PROMPT_EEO_KEYS) {
+        profile.eeo[key] = typeof eeoSource[key] === 'string' ? eeoSource[key].trim() : '';
+    }
+    return profile;
+}
+
+async function generateApplicationProfileFromResume(context, sourceText) {
+    const prompt = `
+    You are extracting structured personal data for job application forms from a person's resume.
+
+    SOURCE (the only source of facts):
+    ${sourceText}
+
+    TASK:
+    Extract the application profile fields below. Use ONLY facts present in the source.
+    If a field is not clearly present in the source, return "" (empty string) for text fields and null for number fields. Never guess or invent.
+
+    FIELD NOTES:
+    - firstName / lastName: split the person's full name correctly.
+    - salaryAmount: only if a number is stated (strip symbols, return a plain number). salaryCurrency: ISO code (default "USD" if a $ symbol is used). salaryPeriod: "year", "month", or "hour" (default "year").
+    - workAuthorized / needsSponsorship / over18 / willingToRelocate: return "yes", "no", or "" only.
+    - remotePreference: return "Remote", "Hybrid", "On-site", or "" only.
+    - linkedin / website / github: full URLs when present, else "".
+    - eeo.gender / eeo.race / eeo.hispanicLatino / eeo.veteran / eeo.disability: only if explicitly stated, else "". Use "Yes"/"No" for yes/no EEO fields.
+
+    OUTPUT:
+    - Output strictly valid JSON. No markdown fences, no commentary.
+    - Schema: {"firstName":"","lastName":"","email":"","phone":"","streetAddress":"","addressLine2":"","city":"","state":"","postalCode":"","country":"","salaryAmount":null,"salaryCurrency":"","salaryPeriod":"","startDate":"","yearsExperience":null,"workAuthorized":"","needsSponsorship":"","over18":"","willingToRelocate":"","remotePreference":"","linkedin":"","website":"","github":"","eeo":{"gender":"","race":"","hispanicLatino":"","veteran":"","disability":""}}
+  `;
+
+    const rawText = await executeProviderChat(context, prompt, 'Application profile');
+    const parsed = parseJsonText(rawText, 'Application profile');
+    return normalizeApplicationProfile(parsed);
 }
 
 
@@ -983,6 +1048,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    if (message.type === 'PROFILE_AUTOFILL') {
+        (async () => {
+            let provider = 'unknown';
+            try {
+                const sourceText = typeof message.payload?.sourceText === 'string' ? message.payload.sourceText : '';
+                if (!sourceText.trim()) {
+                    throw new Error('Add your resume content in the extension settings first, then run Auto-fill.');
+                }
+
+                const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS);
+                provider = settings.apiProvider || 'google';
+                validateProviderReady(settings, provider);
+                const context = createProviderContext(settings);
+
+                const profile = await generateApplicationProfileFromResume(context, sourceText);
+                sendResponse({ status: 'success', data: profile });
+            } catch (error) {
+                console.error('Profile Autofill Error:', error);
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+
+        return true;
+    }
+
     if (message.type === 'FILL_APPLICATION_FORM') {
         const tabId = typeof message.payload?.tabId === 'number' ? message.payload.tabId : null;
 
@@ -991,10 +1081,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             try {
                 if (!tabId) throw new Error('No active tab found. Open the page with the form and try again.');
 
-                const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS.concat(['resumes', 'userProfile']));
+                const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS.concat(['resumes', 'userProfile', 'applicationProfile']));
                 provider = settings.apiProvider || 'google';
                 validateProviderReady(settings, provider);
                 const context = createProviderContext(settings);
+                const applicationProfile = settings.applicationProfile && typeof settings.applicationProfile === 'object'
+                    ? settings.applicationProfile
+                    : null;
 
                 let userProfile = '';
                 if (settings.resumes && settings.resumes.length > 0) {
@@ -1013,7 +1106,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     throw new Error('No application form fields found on this page. Open the page with the form, then try again.');
                 }
 
-                const answers = await generateFormAnswers(context, userProfile, fields);
+                const { resolved, unresolved } = resolveFormAnswers(fields, applicationProfile);
+                let aiAnswers = [];
+                if (unresolved.length) {
+                    aiAnswers = await generateFormAnswers(context, userProfile, unresolved, applicationProfile);
+                }
+
+                const answers = normalizeFormAnswers({ answers: [...resolved, ...aiAnswers] }, fields);
                 if (!answers.length) {
                     throw new Error('Your resume has no answers for this form. Add more detail to it in the extension settings.');
                 }
@@ -1023,10 +1122,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     throw new Error('Could not fill any fields on this form. Please fill it manually.');
                 }
 
-                console.info('[FormFill] Filled', filled, 'of', fields.length, 'fields.');
-                trackEvent('form_filled', { provider });
-                await showFormToast(tabId, `PocketResume filled ${filled} field${filled === 1 ? '' : 's'}`);
-                sendResponse({ status: 'success', filled, total: fields.length });
+                console.info('[FormFill] Filled', filled, 'of', fields.length, 'fields.', `(${resolved.length} saved, ${aiAnswers.length} AI)`);
+                trackEvent('form_filled', { provider, cached: String(resolved.length) });
+                await showFormToast(tabId, `PocketResume filled ${filled} field${filled === 1 ? '' : 's'}${resolved.length ? ` (${resolved.length} from saved answers)` : ''}`);
+                sendResponse({ status: 'success', filled, total: fields.length, cached: resolved.length });
             } catch (error) {
                 console.error('Form Fill Error:', error);
                 trackEvent('form_fill_error', {

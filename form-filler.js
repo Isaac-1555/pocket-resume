@@ -12,12 +12,17 @@
         'input[type="text"]',
         'input[type="tel"]',
         'input[type="number"]',
+        'input[type="email"]',
+        'input[type="url"]',
+        'input[type="date"]',
         '[contenteditable="true"]',
         '[contenteditable=""]'
     ].join(', ');
 
     const MAX_QUESTION_LENGTH = 300;
     const MAX_OPTIONS = 30;
+
+    const CONSENT_PATTERN = /consent|agree|terms|privacy|policy|newsletter|marketing|subscribe|opt.?in|gdpr|communication|spam|cookies?/i;
 
     const FRAME_TOKEN = 'pf' + Math.random().toString(36).slice(2, 8);
     const ID_ATTR = 'data-pocketresume-id';
@@ -155,19 +160,19 @@
         return entry;
     }
 
-    function radioGroupQuestion(radios) {
-        const first = radios[0];
+    function inputGroupQuestion(inputs) {
+        const first = inputs[0];
         const legend = first.closest('fieldset')?.querySelector('legend');
         if (legend) return cleanText(legend.textContent);
 
-        for (const radio of radios) {
-            const aria = cleanText(radio.getAttribute('aria-label') || radio.title || '');
+        for (const input of inputs) {
+            const aria = cleanText(input.getAttribute('aria-label') || input.title || '');
             if (aria) return aria;
         }
 
-        const forIds = new Set(radios.map((r) => r.id).filter(Boolean));
+        const forIds = new Set(inputs.map((r) => r.id).filter(Boolean));
         let container = first.parentElement;
-        while (container && !container.matches('form, body, html') && !radios.every((r) => container.contains(r))) {
+        while (container && !container.matches('form, body, html') && !inputs.every((r) => container.contains(r))) {
             container = container.parentElement;
         }
         if (container && !container.matches('form, body, html')) {
@@ -224,12 +229,97 @@
                 id: `${FRAME_TOKEN}-r${index}`,
                 tag: 'radio',
                 type: 'radio',
-                question: truncate(radioGroupQuestion(visible), MAX_QUESTION_LENGTH),
+                question: truncate(inputGroupQuestion(visible), MAX_QUESTION_LENGTH),
                 options,
                 maxLength: null,
                 required: visible.some((r) => r.required)
             };
             for (const radio of visible) radio.setAttribute(ID_ATTR, entry.id);
+            entries.push(entry);
+        }
+        return entries;
+    }
+
+    function detectCheckboxGroups() {
+        const groups = new Map();
+        for (const box of document.querySelectorAll('input[type="checkbox"]')) {
+            if (!box.name) continue;
+            const key = `${box.form ? box.form.id || 'form' : 'doc'}::${box.name}`;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(box);
+        }
+
+        const entries = [];
+        let index = 0;
+        for (const boxes of groups.values()) {
+            index++;
+            const visible = boxes.filter((b) => isVisible(b) && !b.disabled);
+            if (visible.length < 2) continue;
+            if (boxes.some((b) => b.checked)) continue;
+
+            const first = visible[0];
+            if ((first.name + ' ' + first.id).toLowerCase().match(/captcha/)) continue;
+            if (first.closest('[class*="captcha" i], [id*="captcha" i]')) continue;
+
+            const question = inputGroupQuestion(visible);
+            if (CONSENT_PATTERN.test(question) || CONSENT_PATTERN.test(first.name + ' ' + first.id)) continue;
+
+            const options = [];
+            for (const box of visible) {
+                let text = labelForControl(box);
+                if (!text) text = humanizeName(box.value);
+                if (!text) continue;
+                if (options.some((o) => o.toLowerCase() === text.toLowerCase())) continue;
+                options.push(text);
+                if (options.length >= MAX_OPTIONS) break;
+            }
+            if (options.length < 2) continue;
+
+            const entry = {
+                id: `${FRAME_TOKEN}-c${index}`,
+                tag: 'checkbox-group',
+                type: 'checkbox',
+                question: truncate(question, MAX_QUESTION_LENGTH),
+                options,
+                maxLength: null,
+                multi: true,
+                required: visible.some((b) => b.required)
+            };
+            for (const box of visible) box.setAttribute(ID_ATTR, entry.id);
+            entries.push(entry);
+        }
+        return entries;
+    }
+
+    function detectSingleCheckboxes() {
+        const entries = [];
+        let index = 0;
+        for (const box of document.querySelectorAll('input[type="checkbox"]')) {
+            index++;
+            if (box.disabled || box.readOnly) continue;
+            if (box.checked || box.indeterminate) continue;
+            if (!box.isConnected || !isVisible(box)) continue;
+            if (box.name && box.closest('form')) {
+                const siblings = Array.from(
+                    (box.form || document).querySelectorAll(`input[type="checkbox"][name="${CSS.escape(box.name)}"]`)
+                );
+                if (siblings.length > 1) continue;
+            }
+            const question = labelForControl(box) || cleanText(box.getAttribute('aria-label') || box.title || '');
+            if (!question) continue;
+            if (CONSENT_PATTERN.test(question) || CONSENT_PATTERN.test((box.name || '') + ' ' + (box.id || ''))) continue;
+            if (box.closest('[class*="captcha" i], [id*="captcha" i]')) continue;
+
+            const entry = {
+                id: `${FRAME_TOKEN}-s${index}`,
+                tag: 'checkbox',
+                type: 'checkbox',
+                question: truncate(question, MAX_QUESTION_LENGTH),
+                options: null,
+                maxLength: null,
+                required: !!(box.required || box.getAttribute('aria-required') === 'true')
+            };
+            box.setAttribute(ID_ATTR, entry.id);
             entries.push(entry);
         }
         return entries;
@@ -247,6 +337,14 @@
             if (entry) fields.push(entry);
         }
         for (const group of detectRadioGroups()) {
+            if (fields.length >= limit) break;
+            fields.push(group);
+        }
+        for (const group of detectCheckboxGroups()) {
+            if (fields.length >= limit) break;
+            fields.push(group);
+        }
+        for (const group of detectSingleCheckboxes()) {
             if (fields.length >= limit) break;
             fields.push(group);
         }
@@ -275,9 +373,15 @@
         return options.findIndex((o) => cleanText(o).toLowerCase().includes(target));
     }
 
+    function matchSelectOption(el, answer) {
+        const byText = matchOption(answer, Array.from(el.options).map((o) => o.text));
+        if (byText >= 0) return byText;
+        return matchOption(answer, Array.from(el.options).map((o) => o.value));
+    }
+
     function fillField(el, answer) {
         if (el instanceof HTMLSelectElement) {
-            const idx = matchOption(answer, Array.from(el.options).map((o) => o.text));
+            const idx = matchSelectOption(el, answer);
             if (idx < 0) return false;
             el.selectedIndex = idx;
             dispatchEvents(el);
@@ -292,6 +396,35 @@
         setNativeValue(el, value);
         dispatchEvents(el);
         return el.value === value;
+    }
+
+    function fillCheckbox(el, answer) {
+        const wants = /^(yes|y|true|1)\b/i.test(cleanText(answer));
+        if (!wants) return true;
+        if (el.checked) return true;
+        el.checked = true;
+        dispatchEvents(el);
+        return true;
+    }
+
+    function fillCheckboxGroup(id, answer) {
+        const boxes = Array.from(document.querySelectorAll(`input[type="checkbox"][${ID_ATTR}="${CSS.escape(id)}"]`));
+        if (!boxes.length) return false;
+        const labels = boxes.map((b) => labelForControl(b) || humanizeName(b.value));
+        const tokens = cleanText(answer).split(',').map((t) => t.trim()).filter(Boolean);
+        let acted = false;
+        for (const token of tokens) {
+            const idx = matchOption(token, labels);
+            if (idx < 0) continue;
+            if (boxes[idx].checked) {
+                acted = true;
+                continue;
+            }
+            boxes[idx].checked = true;
+            dispatchEvents(boxes[idx]);
+            acted = true;
+        }
+        return acted;
     }
 
     function fillRadioGroup(id, answer) {
@@ -323,8 +456,27 @@
                 continue;
             }
 
+            const checkboxGroup = document.querySelector(`input[type="checkbox"][${ID_ATTR}="${CSS.escape(id)}"]`);
+            if (checkboxGroup) {
+                const boxes = Array.from(document.querySelectorAll(`input[type="checkbox"][${ID_ATTR}="${CSS.escape(id)}"]`));
+                if (boxes.length > 1) {
+                    attempted++;
+                    if (fillCheckboxGroup(id, answer)) filled++;
+                    continue;
+                }
+                attempted++;
+                if (fillCheckbox(checkboxGroup, answer)) filled++;
+                continue;
+            }
+
             const el = document.querySelector(`[${ID_ATTR}="${CSS.escape(id)}"]`);
             if (!el || el.disabled || el.readOnly) continue;
+            if (el.type === 'checkbox') {
+                if (el.checked) continue;
+                attempted++;
+                if (fillCheckbox(el, answer)) filled++;
+                continue;
+            }
             const current = el.isContentEditable ? el.textContent : el.value;
             if (current && current.trim()) continue;
             attempted++;

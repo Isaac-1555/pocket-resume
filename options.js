@@ -52,6 +52,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   const modeToggle = document.getElementById('modeToggle');
   const refineModal = document.getElementById('refineModal');
   const refineModalContent = document.getElementById('refineModalContent');
+  const appProfileDetails = document.getElementById('appProfileDetails');
+  const appProfileStatePill = document.getElementById('appProfileStatePill');
+  const profileAutofillBtn = document.getElementById('profileAutofillBtn');
+  const profileTourBtn = document.getElementById('profileTourBtn');
+  const apEeoToggle = document.getElementById('apEeoToggle');
+  const apEeoGrid = document.getElementById('apEeoGrid');
+  const customQaList = document.getElementById('customQaList');
+  const customQaQuestionInput = document.getElementById('customQaQuestionInput');
+  const customQaAnswerInput = document.getElementById('customQaAnswerInput');
+  const customQaAddBtn = document.getElementById('customQaAddBtn');
 
   let apiKeys = {
     google: '',
@@ -73,6 +83,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   let extractingResumeId = null;
   let statusTimeoutId = null;
   let editorMode = 'resume';
+  let appProfileCustomQa = [];
+  let appProfileAutofilling = false;
+  let appProfileWasComplete = false;
 
   function generateId() {
     return 'r_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
@@ -227,6 +240,142 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  const APP_PROFILE_FIELDS = [
+    ['apFirstName', 'firstName'],
+    ['apLastName', 'lastName'],
+    ['apEmail', 'email'],
+    ['apPhone', 'phone'],
+    ['apStreet', 'streetAddress'],
+    ['apStreet2', 'addressLine2'],
+    ['apCity', 'city'],
+    ['apState', 'state'],
+    ['apPostal', 'postalCode'],
+    ['apCountry', 'country'],
+    ['apSalary', 'salaryAmount', 'number'],
+    ['apCurrency', 'salaryCurrency'],
+    ['apSalaryPeriod', 'salaryPeriod'],
+    ['apStartDate', 'startDate'],
+    ['apYears', 'yearsExperience', 'number'],
+    ['apWorkAuthorized', 'workAuthorized'],
+    ['apSponsorship', 'needsSponsorship'],
+    ['apOver18', 'over18'],
+    ['apRelocate', 'willingToRelocate'],
+    ['apRemote', 'remotePreference'],
+    ['apLinkedin', 'linkedin'],
+    ['apWebsite', 'website'],
+    ['apGithub', 'github'],
+    ['apEeoGender', 'eeo.gender'],
+    ['apEeoRace', 'eeo.race'],
+    ['apEeoHispanic', 'eeo.hispanicLatino'],
+    ['apEeoVeteran', 'eeo.veteran'],
+    ['apEeoDisability', 'eeo.disability']
+  ];
+
+  function setProfilePath(obj, path, value) {
+    const parts = path.split('.');
+    let node = obj;
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (!node[parts[i]] || typeof node[parts[i]] !== 'object') node[parts[i]] = {};
+      node = node[parts[i]];
+    }
+    node[parts[parts.length - 1]] = value;
+  }
+
+  function getProfilePath(obj, path) {
+    let node = obj;
+    for (const part of path.split('.')) {
+      if (!node || typeof node !== 'object') return undefined;
+      node = node[part];
+    }
+    return node;
+  }
+
+  function isAppProfileComplete(profile) {
+    return !!(profile &&
+      typeof profile.firstName === 'string' && profile.firstName.trim() &&
+      typeof profile.lastName === 'string' && profile.lastName.trim());
+  }
+
+  function readAppProfileFromForm() {
+    const profile = {};
+    for (const [id, key, kind] of APP_PROFILE_FIELDS) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      if (kind === 'number') {
+        const num = el.value === '' ? null : Number(el.value);
+        setProfilePath(profile, key, Number.isFinite(num) ? num : null);
+      } else {
+        setProfilePath(profile, key, el.value.trim());
+      }
+    }
+    profile.eeoOptIn = !!(apEeoToggle && apEeoToggle.checked);
+    profile.customQA = appProfileCustomQa
+      .map((row) => ({ id: row.id, question: (row.question || '').trim(), answer: (row.answer || '').trim() }))
+      .filter((row) => row.question && row.answer);
+    profile.updatedAt = Date.now();
+    return profile;
+  }
+
+  function fillAppProfileForm(profile) {
+    for (const [id, key, kind] of APP_PROFILE_FIELDS) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      const value = profile ? getProfilePath(profile, key) : '';
+      if (kind === 'number') {
+        el.value = value === null || value === undefined || value === '' ? '' : String(value);
+      } else {
+        el.value = value === null || value === undefined ? '' : String(value);
+      }
+    }
+    if (apEeoToggle) {
+      apEeoToggle.checked = !!(profile && profile.eeoOptIn);
+      if (apEeoGrid) apEeoGrid.style.display = apEeoToggle.checked ? 'grid' : 'none';
+    }
+    appProfileCustomQa = profile && Array.isArray(profile.customQA)
+      ? profile.customQA.map((row) => ({
+          id: row.id || ('q_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+          question: row.question || '',
+          answer: row.answer || ''
+        }))
+      : [];
+    renderCustomQa();
+    updateAppProfilePill();
+  }
+
+  function updateAppProfilePill() {
+    if (!appProfileStatePill) return;
+    const complete = isAppProfileComplete(readAppProfileFromForm());
+    appProfileStatePill.textContent = complete ? 'Ready' : 'Not set up';
+    appProfileStatePill.className = complete ? 'cloud-status-pill synced' : 'cloud-status-pill';
+  }
+
+  function renderCustomQa() {
+    if (!customQaList) return;
+    customQaList.innerHTML = '';
+    appProfileCustomQa.forEach((row, index) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'custom-qa-row';
+      wrap.innerHTML = `
+        <input type="text" maxlength="200" placeholder="Question" value="${escapeAttr(row.question)}" data-qa-field="question">
+        <textarea rows="2" placeholder="Answer" data-qa-field="answer">${escapeHtml(row.answer)}</textarea>
+        <div class="custom-qa-row-actions">
+          <button type="button" class="ghost-btn" data-qa-remove="${index}">Remove</button>
+        </div>
+      `;
+      wrap.querySelectorAll('[data-qa-field]').forEach((el) => {
+        el.addEventListener('input', () => {
+          appProfileCustomQa[index][el.dataset.qaField] = el.value;
+        });
+      });
+      wrap.querySelector('[data-qa-remove]').addEventListener('click', () => {
+        appProfileCustomQa.splice(index, 1);
+        renderCustomQa();
+        updateAppProfilePill();
+      });
+      customQaList.appendChild(wrap);
+    });
+  }
+
   function getSettingsPayload() {
     return {
       apiProvider: activeProvider,
@@ -240,6 +389,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       openrouterModel: providerModels.openrouter,
       customEndpoints: customEndpoints,
       activeCustomEndpointId: activeCustomEndpointId,
+      applicationProfile: readAppProfileFromForm(),
       resumes: getPersistedResumes()
     };
   }
@@ -762,7 +912,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderEndpointsList();
   });
 
-  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'googleModel', 'openaiModel', 'anthropicModel', 'openrouterModel', 'customEndpoints', 'activeCustomEndpointId', 'apiProvider', 'userProfile', 'resumes', 'trackerCaptureEnabled', 'analyticsEnabled']);
+  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'googleModel', 'openaiModel', 'anthropicModel', 'openrouterModel', 'customEndpoints', 'activeCustomEndpointId', 'apiProvider', 'userProfile', 'resumes', 'trackerCaptureEnabled', 'analyticsEnabled', 'applicationProfile']);
   const trackerCaptureToggle = document.getElementById('trackerCaptureToggle');
   if (trackerCaptureToggle) {
     trackerCaptureToggle.checked = data.trackerCaptureEnabled !== false;
@@ -915,6 +1065,88 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!resumes.length) {
     resumes = [createResumeEntry('Resume 1', '')];
   }
+
+  // --- Form Filler setup (Application Questions) ---
+  fillAppProfileForm(data.applicationProfile || null);
+  appProfileWasComplete = isAppProfileComplete(data.applicationProfile || null);
+
+  if (apEeoToggle) {
+    apEeoToggle.addEventListener('change', () => {
+      if (apEeoGrid) apEeoGrid.style.display = apEeoToggle.checked ? 'grid' : 'none';
+    });
+  }
+
+  if (customQaAddBtn) {
+    customQaAddBtn.addEventListener('click', () => {
+      const question = customQaQuestionInput.value.trim();
+      const answer = customQaAnswerInput.value.trim();
+      if (!question || !answer) {
+        showStatus('Add both a question and an answer.', 'info', 3000);
+        return;
+      }
+      appProfileCustomQa.push({
+        id: 'q_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        question,
+        answer
+      });
+      customQaQuestionInput.value = '';
+      customQaAnswerInput.value = '';
+      renderCustomQa();
+      updateAppProfilePill();
+    });
+  }
+
+  if (appProfileDetails) {
+    appProfileDetails.addEventListener('input', updateAppProfilePill);
+    appProfileDetails.addEventListener('change', updateAppProfilePill);
+  }
+
+  async function handleProfileAutofill() {
+    if (appProfileAutofilling) return;
+    saveCurrentTabToState();
+    const resume = getActiveResume();
+    const sourceText = (resume?.jsonContent || '').trim() || (resume?.content || '').trim();
+    if (!sourceText) {
+      showStatus('Paste your resume in the Resume Content tab first, then run Auto-fill.', 'error', 4500);
+      return;
+    }
+    appProfileAutofilling = true;
+    if (profileAutofillBtn) profileAutofillBtn.disabled = true;
+    showStatus('Extracting your answers from your resume...', 'loading', 0);
+    try {
+      const response = await sendRuntimeMessage({ type: 'PROFILE_AUTOFILL', payload: { sourceText } });
+      if (!response || response.status !== 'success' || !response.data) {
+        throw new Error(response?.message || 'Unknown extraction error');
+      }
+      const extracted = response.data;
+      let offered = 0;
+      let filled = 0;
+      for (const [id, key] of APP_PROFILE_FIELDS) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const value = getProfilePath(extracted, key);
+        if (value === null || value === undefined || value === '') continue;
+        offered++;
+        if (el.value.trim()) continue;
+        el.value = String(value);
+        filled++;
+      }
+      updateAppProfilePill();
+      if (offered) {
+        showStatus(`Filled ${filled} of ${offered} fields from your resume. Review and click Save Settings.`, 'success', 6000);
+      } else {
+        showStatus('Your resume had no details for these questions. Fill the boxes manually.', 'info', 5000);
+      }
+      trackEvent('form_profile_autofill');
+    } catch (error) {
+      showStatus(`Error: ${error.message}`, 'error', 5000);
+    } finally {
+      appProfileAutofilling = false;
+      if (profileAutofillBtn) profileAutofillBtn.disabled = false;
+    }
+  }
+
+  if (profileAutofillBtn) profileAutofillBtn.addEventListener('click', handleProfileAutofill);
 
   function saveCurrentTabToState() {
     const resume = getActiveResume();
@@ -1309,10 +1541,51 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   ];
 
+  const PROFILE_TOUR_STEPS = [
+    {
+      target: '#appProfileDetails',
+      title: 'Form Filler setup',
+      body: 'Answer these once. Fill Form starts from your saved answers on every application, so common questions get filled instantly and correctly.'
+    },
+    {
+      target: '#profileAutofillBtn',
+      title: 'Auto-fill from your resume',
+      body: 'One click pulls what it can from your resume into the empty boxes. You review and correct before saving.'
+    },
+    {
+      target: '#apFirstName',
+      title: 'Your name',
+      body: 'First and last name are kept separate, so "First name" and "Last name" boxes on forms each get the right part.'
+    },
+    {
+      target: '#apCity',
+      title: 'Where you live',
+      body: 'Street, city, postal code and country are reused for address questions. Salary and start date live just below.'
+    },
+    {
+      target: '#apWorkAuthorized',
+      title: 'Screening questions',
+      body: 'Set Yes/No once for work authorization, sponsorship, relocation and similar questions most application forms ask.'
+    },
+    {
+      target: '#customQaQuestionInput',
+      title: 'Anything else',
+      body: 'Add custom questions you see often, with your usual answer. They match by question text.'
+    },
+    {
+      target: '#save',
+      title: 'Save Settings',
+      body: 'Click Save Settings to store your answers. Fill Form is then ready to go.'
+    }
+  ];
+
   let tourActive = false;
   let tourStepIndex = 0;
+  let tourSteps = TOUR_STEPS;
+  let tourMode = 'setup';
 
   function tourPersistStep() {
+    if (tourMode !== 'setup') return;
     const step = tourStepIndex < TOUR_STEPS.length ? tourStepIndex + 1 : null;
     chrome.storage.local.set({ onboarding: { step, dismissed: false } });
   }
@@ -1320,13 +1593,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   function tourDismiss() {
     tourActive = false;
     tourOverlay.classList.remove('open');
+    if (tourMode === 'profile') {
+      chrome.storage.local.set({ appProfileOnboarding: { active: false } });
+      return;
+    }
     chrome.storage.local.set({ onboarding: { step: null, dismissed: true } });
   }
 
   function positionTourCard(rect) {
     const margin = 14;
     let top;
-    if (tourStepIndex >= TOUR_STEPS.length || !rect) {
+    if (tourStepIndex >= tourSteps.length || !rect) {
       top = Math.max(margin, (window.innerHeight - tourCard.offsetHeight) / 2);
     } else {
       top = rect.bottom + 14;
@@ -1343,11 +1620,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function renderTourStep() {
-    if (tourStepIndex >= TOUR_STEPS.length) {
+    if (tourStepIndex >= tourSteps.length) {
       tourHighlight.style.display = 'none';
       tourStepLabel.textContent = 'Setup complete';
-      tourTitle.textContent = 'You\'re all set';
-      tourBody.textContent = 'Open the PocketResume popup and click Generate PDF Resume.';
+      tourTitle.textContent = tourMode === 'profile' ? 'Form Filler is ready' : "You're all set";
+      tourBody.textContent = tourMode === 'profile'
+        ? 'Click Save Settings to keep your answers. Fill Form will start from them on every application.'
+        : 'Open the PocketResume popup and click Generate PDF Resume.';
       tourHint.style.display = 'none';
       tourBackBtn.style.visibility = 'hidden';
       tourNextBtn.textContent = 'Done';
@@ -1355,14 +1634,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const step = TOUR_STEPS[tourStepIndex];
+    const step = tourSteps[tourStepIndex];
     if (step.target === '#resumeContentTextarea' && editorMode !== 'resume') {
       setEditorMode('resume');
     }
     const el = document.querySelector(step.target);
     if (el) el.scrollIntoView({ block: 'center' });
     tourHighlight.style.display = el ? 'block' : 'none';
-    tourStepLabel.textContent = `Step ${tourStepIndex + 1} of ${TOUR_STEPS.length}`;
+    tourStepLabel.textContent = `Step ${tourStepIndex + 1} of ${tourSteps.length}`;
     tourTitle.textContent = step.title;
     tourBody.textContent = step.body;
     tourHint.style.display = step.validate === 'apiKey' && !apiKeyInput.value.trim() ? 'block' : 'none';
@@ -1383,22 +1662,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  function tourOpenAt(index) {
+  function tourOpenAt(index, mode) {
+    tourMode = mode === 'profile' ? 'profile' : 'setup';
+    tourSteps = tourMode === 'profile' ? PROFILE_TOUR_STEPS : TOUR_STEPS;
     tourActive = true;
-    tourStepIndex = Math.max(0, Math.min(index, TOUR_STEPS.length));
+    tourStepIndex = Math.max(0, Math.min(index, tourSteps.length));
     tourOverlay.classList.add('open');
     renderTourStep();
   }
 
   function tourNotifySaved() {
-    if (tourActive && tourStepIndex < TOUR_STEPS.length) {
+    if (!tourActive || tourMode !== 'setup') return;
+    if (tourStepIndex < TOUR_STEPS.length) {
       tourStepIndex = TOUR_STEPS.length;
       renderTourStep();
     }
   }
 
   tourNextBtn.addEventListener('click', () => {
-    if (tourStepIndex >= TOUR_STEPS.length) {
+    if (tourStepIndex >= tourSteps.length) {
       tourDismiss();
       return;
     }
@@ -1419,15 +1701,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (e.key === 'Escape' && tourActive) tourDismiss();
   });
 
+  if (profileTourBtn) {
+    profileTourBtn.addEventListener('click', () => {
+      if (appProfileDetails) appProfileDetails.open = true;
+      tourOpenAt(0, 'profile');
+    });
+  }
+
+  function startProfileTourFromTrigger() {
+    if (tourActive) return;
+    if (appProfileDetails) appProfileDetails.open = true;
+    chrome.storage.local.set({ appProfileOnboarding: { active: false } });
+    tourOpenAt(0, 'profile');
+  }
+
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'local' || !changes.onboarding || tourActive) return;
-    const ob = changes.onboarding.newValue;
-    if (ob && typeof ob.step === 'number') tourOpenAt(ob.step - 1);
+    if (area !== 'local' || tourActive) return;
+    if (changes.onboarding) {
+      const ob = changes.onboarding.newValue;
+      if (ob && typeof ob.step === 'number') tourOpenAt(ob.step - 1);
+    }
+    if (changes.appProfileOnboarding) {
+      const pv = changes.appProfileOnboarding.newValue;
+      if (pv && pv.active) startProfileTourFromTrigger();
+    }
   });
 
   const obData = await chrome.storage.local.get(['onboarding']);
   if (obData.onboarding && typeof obData.onboarding.step === 'number') {
     tourOpenAt(obData.onboarding.step - 1);
+  }
+
+  const profileObData = await chrome.storage.local.get(['appProfileOnboarding']);
+  if (profileObData.appProfileOnboarding && profileObData.appProfileOnboarding.active) {
+    startProfileTourFromTrigger();
   }
 
   saveButton.addEventListener('click', async () => {
@@ -1461,6 +1768,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         entry._lastSavedContent = entry.content;
       });
       tourNotifySaved();
+
+      const nowProfileComplete = isAppProfileComplete(readAppProfileFromForm());
+      if (nowProfileComplete) {
+        if (!appProfileWasComplete) trackEvent('form_filler_setup', { source: 'options' });
+        chrome.storage.local.set({ appProfileOnboarding: { active: false } });
+        if (tourActive && tourMode === 'profile' && tourStepIndex < tourSteps.length) {
+          tourStepIndex = tourSteps.length;
+          renderTourStep();
+        }
+      }
+      appProfileWasComplete = nowProfileComplete;
     } catch (error) {
       showStatus(`Error: ${error.message}`, 'error', 4500);
       saveButton.disabled = false;

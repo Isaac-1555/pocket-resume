@@ -25,6 +25,8 @@ const EVENT_NAMES = new Set([
     'extract_json_used',
     'form_filled',
     'form_fill_error',
+    'form_filler_setup',
+    'form_profile_autofill',
 ]);
 
 let flushing = false;

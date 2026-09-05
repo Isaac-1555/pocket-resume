@@ -14,9 +14,11 @@ const EVENT_NAMES = [
   'extract_json_used',
   'form_filled',
   'form_fill_error',
+  'form_filler_setup',
+  'form_profile_autofill',
 ];
 
-const PARAM_FIELDS = ['style', 'provider', 'layout', 'source', 'code'] as const;
+const PARAM_FIELDS = ['style', 'provider', 'layout', 'source', 'code', 'cached'] as const;
 
 const MAX_EVENTS_PER_BATCH = 50;
 const MAX_EVENTS_PER_CLIENT_PER_MINUTE = 30;
@@ -75,6 +77,7 @@ export const ingestBatch = mutation({
         layout: v.optional(v.string()),
         source: v.optional(v.string()),
         code: v.optional(v.string()),
+        cached: v.optional(v.string()),
       })
     ),
   },

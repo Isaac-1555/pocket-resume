@@ -314,6 +314,23 @@ document.addEventListener('DOMContentLoaded', () => {
     setupResumeBtn.addEventListener('click', () => startSetupTour(1));
   }
 
+  // --- Form Filler profile gating ---
+  const fillProfileCard = document.getElementById('fillProfileCard');
+  const fillProfileSetupBtn = document.getElementById('fillProfileSetupBtn');
+
+  function isFormFillerProfileComplete(profile) {
+    return !!(profile &&
+      typeof profile.firstName === 'string' && profile.firstName.trim() &&
+      typeof profile.lastName === 'string' && profile.lastName.trim());
+  }
+
+  if (fillProfileSetupBtn) {
+    fillProfileSetupBtn.addEventListener('click', () => {
+      if (fillProfileCard) fillProfileCard.style.display = 'none';
+      startProfileSetup();
+    });
+  }
+
 
   const trackerBtn = document.getElementById('trackerBtn');
   if (trackerBtn) {
@@ -326,6 +343,14 @@ document.addEventListener('DOMContentLoaded', () => {
   if (fillFormBtn) {
     fillFormBtn.addEventListener('click', async () => {
       if (fillFormBtn.disabled) return;
+
+      const profileData = await chrome.storage.local.get('applicationProfile');
+      if (!isFormFillerProfileComplete(profileData.applicationProfile)) {
+        if (fillProfileCard) fillProfileCard.style.display = 'block';
+        return;
+      }
+      if (fillProfileCard) fillProfileCard.style.display = 'none';
+
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab || !tab.id) {
         setError('No active tab found. Open the page with the form and try again.');
@@ -404,10 +429,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- What's New modal (once per version) ---
   const whatsNewModal = document.getElementById('whatsNewModal');
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
+  const whatsNewSetupBtn = document.getElementById('whatsNewSetupBtn');
   const whatsNewAnalyticsToggle = document.getElementById('whatsNewAnalyticsToggle');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '7.9';
-  const ANNOUNCEMENT_SEEN_VALUE = '7.9';
+  const ANNOUNCEMENT_VERSION = '8.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '8.0';
+
+  function startProfileSetup() {
+    chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
+      chrome.runtime.openOptionsPage();
+    });
+  }
 
   function dismissWhatsNew() {
     chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_SEEN_VALUE });
@@ -422,6 +454,12 @@ document.addEventListener('DOMContentLoaded', () => {
     whatsNewModal.style.display = 'flex';
   });
   if (whatsNewGotBtn) whatsNewGotBtn.addEventListener('click', dismissWhatsNew);
+  if (whatsNewSetupBtn) {
+    whatsNewSetupBtn.addEventListener('click', () => {
+      dismissWhatsNew();
+      startProfileSetup();
+    });
+  }
   if (whatsNewAnalyticsToggle) whatsNewAnalyticsToggle.addEventListener('change', () => {
     chrome.storage.local.set({ analyticsEnabled: whatsNewAnalyticsToggle.checked });
   });
