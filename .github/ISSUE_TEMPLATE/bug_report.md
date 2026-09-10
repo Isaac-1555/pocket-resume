@@ -27,7 +27,7 @@ What you expected to happen.
 - **Chrome version:** (e.g. 128.0.6613.85)
 - **Extension version:** (visible in `chrome://extensions`)
 - **AI provider + model:** (e.g. Google Gemini, gemini-2.5-flash)
-- **Resume style:** (basic / professional / faang / jake / deedy / academic-cv)
+- **Resume style:** (professional / faang / deedy / academic-cv)
 - **Operating system:**
 
 ## Console output

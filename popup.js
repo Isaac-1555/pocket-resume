@@ -52,8 +52,6 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'professional':
       case 'faang':
         return selectedStyle;
-      case 'basic':
-      case 'jake':
       default:
         return 'professional';
     }

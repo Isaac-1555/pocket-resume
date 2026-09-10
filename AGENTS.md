@@ -99,8 +99,8 @@ None configured. No test runner or linter. Validate by hand: load unpacked, gene
    - Strips accidental Markdown fences.
    - `JSON.parse(...)` the model output.
    - Generates / downloads PDFs via jsPDF:
-     - PocketResume layouts (basic / professional / faang): `generatePDF(...)` in `popup.js`
-     - Alternative layouts (jake / deedy / academic-cv): `window.ResumeRenderers.generateResumePDF(...)` in `resume-renderers.js`
+      - PocketResume layouts (professional / faang): `generatePDF(...)` in `popup.js`
+      - Alternative layouts (deedy / academic-cv): `window.ResumeRenderers.generateResumePDF(...)` in `resume-renderers.js`
    - Cover letter: `generateCoverLetterPDF(...)` in `popup.js`
 6. Popup (error): `setError()` stores the raw message, maps it to a short human-readable string via `mapErrorMessage(...)`, and persists the red `data-status="error"` state until the popup closes or Generate is clicked again. It also reveals the "?" button (`#errorInfoBtn`), which opens the error modal (`#errorModal`) with the mapped message plus a Copy Details button for the full raw error. Exception: a missing/unconfigured API key or resume no longer produces the red error — the setup card shows instead (see onboarding flow below).
 
@@ -159,14 +159,14 @@ Configured by `getResumeStyleConfig(...)` in `background.js`:
 
 | UI Style     | promptStyle  | layout       | PDF Renderer                                                       |
 | ------------ | ------------ | ------------ | ------------------------------------------------------------------ |
-| basic        | basic        | pocketresume | `popup.js` → `generatePDF`                                         |
 | professional | professional | pocketresume | `popup.js` → `generatePDF`                                         |
 | faang        | faang        | pocketresume | `popup.js` → `generatePDF`                                         |
-| jake         | professional | jake         | `resume-renderers.js` → `renderJakeLayout`                         |
 | deedy        | faang        | deedy        | `resume-renderers.js` → `renderDeedyLayout`                        |
 | academic-cv  | academic-cv  | academic-cv  | `resume-renderers.js` → `renderAcademicCvLayout`                   |
 
-Bullet-format rules in `generateTailoredResume(...)` (`background.js`): `professional` promptStyle (Professional, Jake) gets an exact 2-bullet problem/solution format per experience and project; `faang` promptStyle (FAANG, Deedy) gets an exact 3-bullet problem/solution/impact-metric format per experience and project, with estimated metrics allowed only there; `basic` and `academic-cv` keep the original prompt with no bullet-format rule.
+Bullet-format rules in `generateTailoredResume(...)` (`background.js`): `professional` promptStyle gets an exact 2-bullet problem/solution format per experience and project; `faang` promptStyle (FAANG, Double Sided) gets an exact 3-bullet problem/solution/impact-metric format per experience and project, with estimated metrics allowed only there; `academic-cv` keeps the original prompt with no bullet-format rule.
+
+The stored `"deedy"` value corresponds to the UI label "Double Sided" — renaming the value would break existing users' saved settings, so keep `"deedy"` as the internal id.
 
 ## Settings + persistence
 
@@ -182,7 +182,7 @@ Important keys:
 - `resumes`: array of `{ id, label, content, jsonContent, lastRefineBackup, lastRefineAppliedAt }` (up to 3)
 - `selectedResumeId`: which resume is active in the popup
 - `cloudSyncStatus`: `"idle" | "syncing" | "synced" | "error"` (Pro sync indicator, written by `src/cloud-sync.js`)
-- `resumeType`: `"basic" | "professional" | "faang" | "jake" | "deedy" | "academic-cv"`
+- `resumeType`: `"professional" | "faang" | "deedy" | "academic-cv"`
 - `coverLetterEnabled`: boolean
 - `applicationProfile`: Form Filler answers — `{ firstName, lastName, email, phone, streetAddress, addressLine2, city, state, postalCode, country, salaryAmount, salaryCurrency, salaryPeriod, startDate, yearsExperience, workAuthorized, needsSponsorship, over18, willingToRelocate, remotePreference, linkedin, website, github, eeoOptIn, eeo: { gender, race, hispanicLatino, veteran, disability }, customQA: [{ id, question, answer }], updatedAt }`
 - `appProfileOnboarding`: `{ active: boolean }` — trigger for the Form Filler setup spotlight tour (set by the popup, consumed by the options page)
@@ -266,7 +266,7 @@ PocketResume/
 - **Change saved-answer resolution / canonical matchers**: `form-profile.js` (`CANONICAL_MATCHERS`, `resolveFormAnswers`) — imported by `background.js`.
 - **Change Form Filler onboarding / application profile**: `options.html` + `options.js` (`#appProfileDetails` section, `APP_PROFILE_FIELDS`, `PROFILE_TOUR_STEPS`), `background.js` (`PROFILE_AUTOFILL` handler + `generateApplicationProfileFromResume`), popup gating in `popup.js` (`isFormFillerProfileComplete` / `#fillProfileCard`).
 - **Change PocketResume PDF layout**: `popup.js` (`generatePDF` / `generateCoverLetterPDF`).
-- **Change Jake / Deedy / Academic CV PDF layouts**: `resume-renderers.js` (`renderJakeLayout` / `renderDeedyLayout` / `renderAcademicCvLayout`).
+- **Change Double Sided / Academic CV PDF layouts**: `resume-renderers.js` (`renderDeedyLayout` / `renderAcademicCvLayout`).
 - **Change settings UI / resume management**: `options.js` / `options.html`.
 - **Change popup UI**: `popup.html` / `popup.js`.
 - **Change popup error messages / mapping**: `popup.js` (`setError` / `mapErrorMessage`). The keyword-based map turns long provider errors into short friendly strings; un-matched messages truncate to ~200 chars.

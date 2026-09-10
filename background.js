@@ -21,9 +21,6 @@ function normalizeResumeStyle(selectedStyle) {
         case "professional":
         case "faang":
             return selectedStyle;
-        case "basic":
-            return "basic";
-        case "jake":
         default:
             return "professional";
     }
@@ -37,8 +34,6 @@ function getResumeStyleConfig(selectedStyle) {
             return { promptStyle: "academic-cv", layout: "academic-cv" };
         case "faang":
             return { promptStyle: "faang", layout: "pocketresume" };
-        case "basic":
-            return { promptStyle: "basic", layout: "pocketresume" };
         case "professional":
         default:
             return { promptStyle: "professional", layout: "pocketresume" };
@@ -667,10 +662,8 @@ async function generateCoverLetterText(context, userProfile, jobDescription, res
     let toneGuide = "";
     if (styleConfig.promptStyle === "faang") {
         toneGuide = "Use a confident, results-driven tone. Emphasize measurable impact, technical depth, and scale of systems worked on.";
-    } else if (styleConfig.promptStyle === "professional" || styleConfig.promptStyle === "academic-cv") {
-        toneGuide = "Use a polished, corporate tone. Emphasize leadership, strategic thinking, and professional accomplishments.";
     } else {
-        toneGuide = "Use a clear, approachable, and professional tone. Keep it straightforward and sincere.";
+        toneGuide = "Use a polished, corporate tone. Emphasize leadership, strategic thinking, and professional accomplishments.";
     }
 
     const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
