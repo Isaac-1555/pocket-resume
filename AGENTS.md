@@ -166,6 +166,8 @@ Configured by `getResumeStyleConfig(...)` in `background.js`:
 
 Bullet-format rules in `generateTailoredResume(...)` (`background.js`): `professional` promptStyle gets an exact 2-bullet problem/solution format per experience and project; `faang` promptStyle (FAANG, Double Sided) gets an exact 3-bullet problem/solution/impact-metric format per experience and project, with estimated metrics allowed only there; `academic-cv` keeps the original prompt with no bullet-format rule.
 
+Cover letter tone in `generateCoverLetterText(...)` (`background.js`, `buildCoverLetterToneGuide`) forks on the **raw UI style** (not `promptStyle`, because `deedy` maps to a `faang` promptStyle but gets the corporate letter): `professional` + `deedy` → corporate story tone (why company/role, skills-to-need, no resume recitation, portfolio-website emphasis); `faang` → para 1 corporate-style fit, para 2 metrics-heavy results proof (metrics grounded in the `tailoredResumeJson` passed at the call site; fallback to raw profile; never invent numbers); `academic-cv` → research/scholar tone (methods + tools + JD research-area fit, learner posture). Shared: 250-350 words, JSON-only, no invented facts, same JSON schema.
+
 The stored `"deedy"` value corresponds to the UI label "Double Sided" — renaming the value would break existing users' saved settings, so keep `"deedy"` as the internal id.
 
 ## Settings + persistence

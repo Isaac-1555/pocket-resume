@@ -656,43 +656,103 @@ async function refineResumeSource(context, userProfile) {
     };
 }
 
-async function generateCoverLetterText(context, userProfile, jobDescription, resumeStyle) {
-    const styleConfig = getResumeStyleConfig(resumeStyle);
+function buildCoverLetterToneGuide(resumeStyle) {
+    switch (normalizeResumeStyle(resumeStyle)) {
+        case "faang":
+            return {
+                title: "FAANG RESULTS TONE",
+                body: `
+    TONE & STYLE (FAANG results letter):
+    - Confident, direct, data-heavy tone. Engineers and recruiters at big tech read fast; every sentence must earn its place.
+    - Use active voice and strong verbs: led, architected, shipped, cut, scaled, reduced.
+    - No filler intensifiers ("very", "really", "extremely"). No buzzwords like "passionate", "team player", "results-driven".
+    - Be precise with numbers: prefer exact figures ("42%") over ranges ("40-45%"); exact durations ("2 hours to 15 minutes") over vague ones.
 
-    let toneGuide = "";
-    if (styleConfig.promptStyle === "faang") {
-        toneGuide = "Use a confident, results-driven tone. Emphasize measurable impact, technical depth, and scale of systems worked on.";
-    } else {
-        toneGuide = "Use a polished, corporate tone. Emphasize leadership, strategic thinking, and professional accomplishments.";
+    STRUCTURE - exactly two body content blocks plus the opening and closing paragraphs:
+    1. OPENING PARAGRAPH (3-4 sentences): Why this company and this role specifically. Name the company. Reference something concrete from the job description or what the team works on, and connect it to what you have done. State in one sentence why your skills are a good fit for the role's problems. Do NOT start with "I am writing to apply for..." - lead with something specific.
+    2. METRICS PARAGRAPH (main body_paragraphs[0]): Proof through numbers. Pick the STRONGEST quantified results from the TAILORED RESUME DATA and weave 2-4 of them into a cohesive narrative paragraph - not a bullet dump. Frame each metric as a real-world result: latency improvements, scale (users/requests served), uptime, cost savings, ship velocity, growth. Map the results to the type of problems this role will face at this company.
+    3. CLOSING PARAGRAPH: One or two sentences tying your trajectory to their scale/challenges, then a direct forward-looking call to action (welcome a conversation, available at specific channels already in the contact info). Never end with a passive "I look forward to hearing from you".
+
+    Integrating metrics from the tailored resume is REQUIRED for this style:
+    - If TAILORED RESUME DATA contains quantified results, use those exact numbers - they are the ground truth.
+    - Only fall back to the raw profile for metrics if the tailored data has none.
+    - NEVER invent, estimate, or round up metrics that are not present in either source.
+    - Prefer the tailored data over the raw profile when both contain a fact.`
+            };
+        case "academic-cv":
+            return {
+                title: "ACADEMIC / RESEARCH TONE",
+                body: `
+    TONE & STYLE (research internship / research-oriented role):
+    - Scholarly-professional: measured, substantive, peer-to-peer. Not sales talk, not corporate fluff.
+    - Show intellectual curiosity for the actual research area. Reference the team's work or research focus when the job description reveals it.
+    - Ground claims in concrete detail: name methods, tools, lab techniques, coursework, publications, presentations, and collaborators from the profile. Specifics over superlatives.
+    - Ban filler words: "very", "really", "genuinely". Do not claim to be "passionate" - demonstrate it through what you have studied and built.
+    - Learner posture appropriate to internships and early-stage research roles: emphasize eagerness to learn the group's methods, ability to work both independently and as part of a research team, and readiness to take on defined tasks.
+    - Close modestly but confidently: affirm fit and interest in contributing, without sales pressure.
+
+    STRUCTURE - 4 paragraphs, each with a clear purpose:
+    1. OPENING PARAGRAPH (3-4 sentences): State the role/position and a specific, honest reason for applying to this team or research area (drawn from the job description). One sentence on who you are (degree/program/stage if present in the profile) and why it is a fit.
+    2. RESEARCH & METHODS PARAGRAPH (main body content): Your most relevant research experience from the profile - projects, lab work, publications, presentations. Describe what you actually did: methods used, tools/equipment, your specific contributions, outcomes or findings. Prove capability with detail rather than adjectives.
+    3. RELEVANCE PARAGRAPH (supporting body content if used): Connect your preparation (skills, coursework, techniques) directly to the job description's stated research areas or duties. Address the 2-4 most important listed requirements, choosing the ones where your profile gives you real substance.
+    4. CLOSING PARAGRAPH: Brief restatement of fit and enthusiasm for contributing, gratitude-free, with a professional call to action.`
+            };
+        default:
+            return {
+                title: "CORPORATE STORY TONE",
+                body: `
+    TONE & STYLE (story-driven corporate letter):
+    - Write a cohesive story that SELLS the candidate to the recruiter. The letter must flow as one narrative arc, not a list of qualifications.
+    - The resume attached to this letter already contains all projects and work history. DO NOT recite, summarize, or restate the resume. No paragraph may read like a resume in prose form.
+    - Speak about skills and abilities ONLY through the lens of what they mean for this role and this company (e.g., what the candidate's strengths will do for the reader's team), never as a skills inventory.
+    - Illuminate the "why": why this company, why this position, why now in the candidate's career. Make the reader believe the candidate chose them deliberately and will shine in the role.
+    - Confident but human tone. Concrete and specific; avoid clichés ("team player", "hard-working", "detail-oriented") and filler intensifiers ("very", "really", "extremely").
+
+    STRUCTURE - one continuous narrative:
+    1. OPENING PARAGRAPH: Why the candidate picked this company and this position specifically. Reference the company and role by name, and ground the reason in specifics from the job description rather than generic admiration.
+    2. SKILLS-TO-NEED PARAGRAPH (main body content): How the candidate's skills will help the company with the problems this role exists to solve. Choose the 1-2 requirements from the job description the candidate is best equipped for, and connect the candidate's abilities to them from the employer's perspective.
+    3. SHINE PARAGRAPH (supporting body content if used): Why the candidate will excel and stand out in this specific position - working style, drive, and how those traits translate into impact for the team.
+    4. CLOSING PARAGRAPH: Reiterate fit, express eagerness to discuss further, and include a professional call to action.
+
+    PORTFOLIO WEBSITE EMPHASIS:
+    - If the profile contains a portfolio / personal website / GitHub URL, mention it ONCE, partway through the letter, and frame it as an active invitation: encourage the recruiter to go see the work themselves (e.g., "the portfolio linked in this letter walks through" / "I invite you to explore the site linked in my signature").
+    - Position it as proof instead of claims: it lets the reader verify talent rather than take the letter's word for it.`
+            };
     }
+}
+
+async function generateCoverLetterText(context, userProfile, jobDescription, resumeStyle, tailoredResumeJson) {
+    const tone = buildCoverLetterToneGuide(resumeStyle);
+    const tailoredDataBlock = (tailoredResumeJson && normalizeResumeStyle(resumeStyle) === 'faang')
+        ? `\n    TAILORED RESUME DATA (ground truth for metrics; use these numbers, do not contradict them):\n    ${tailoredResumeJson}\n`
+        : '';
 
     const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
     const prompt = `
     You are an expert Cover Letter Writer.
-    
+
+    LETTER STYLE: ${tone.title}
+
     TODAY'S DATE: ${today}
 
-    MY PROFILE:
+    MY PROFILE (resume source text):
     ${userProfile}
-
+${tailoredDataBlock}
     JOB DESCRIPTION (extracted text):
     ${jobDescription}
 
     TASK:
     Write a professional cover letter for this specific job based on my profile.
-    ${toneGuide}
-    
-    CONSTRAINTS:
+${tone.body}
+
+    SHARED CONSTRAINTS:
     - Target length: 250-350 words (3-4 short paragraphs).
     - Absolute maximum: 400 words.
     - The letter MUST fit on a single page. Do NOT write a multi-page letter.
-    - Professional, corporate tone appropriate for business correspondence.
-    - Do NOT invent facts. Use only information from the provided profile.
+    - Professional tone appropriate for business correspondence.
+    - Do NOT invent facts, employers, titles, dates, or metrics. Use only information from the profile (and tailored resume data when provided).
     - Tailor the letter specifically to the job description. Reference the company and role.
-    - Opening paragraph: Express enthusiasm for the specific role and company. Briefly state why you are a strong fit.
-    - Body paragraphs (1-2): Highlight relevant experience, skills, and accomplishments that directly match the JD requirements. Use specific examples from the profile.
-    - Closing paragraph: Reiterate interest, express eagerness to discuss further, and include a professional call to action.
 
     IMPORTANT:
     - Output strictly valid JSON.
@@ -709,8 +769,8 @@ async function generateCoverLetterText(context, userProfile, jobDescription, res
       "company_address": "String (Company address from JD if available, else empty string)",
       "job_title": "String (Position title being applied for)",
       "greeting": "String (e.g. 'Dear Hiring Manager,' or 'Dear Mr./Ms. LastName,')",
-      "opening_paragraph": "String (First paragraph - enthusiasm and fit)",
-      "body_paragraphs": ["String (Supporting paragraph 1)", "String (Optional supporting paragraph 2)"],
+      "opening_paragraph": "String (First paragraph)",
+      "body_paragraphs": ["String (main supporting paragraph(s))"],
       "closing_paragraph": "String (Final paragraph - call to action)",
       "sign_off": "String (e.g. 'Sincerely,')"
     }
@@ -993,7 +1053,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // 6. Conditionally generate cover letter
                 let coverLetterText = null;
                 if (settings.coverLetterEnabled) {
-                    coverLetterText = await generateCoverLetterText(context, userProfile, jobText, selectedResumeStyle);
+                    coverLetterText = await generateCoverLetterText(context, userProfile, jobText, selectedResumeStyle, resumeText);
                 }
 
                 // 6b. Success
