@@ -22,6 +22,7 @@ function normalizeResumeStyle(selectedStyle) {
         case "faang":
             return selectedStyle;
         case "basic":
+            return "basic";
         case "jake":
         default:
             return "professional";
@@ -36,6 +37,8 @@ function getResumeStyleConfig(selectedStyle) {
             return { promptStyle: "academic-cv", layout: "academic-cv" };
         case "faang":
             return { promptStyle: "faang", layout: "pocketresume" };
+        case "basic":
+            return { promptStyle: "basic", layout: "pocketresume" };
         case "professional":
         default:
             return { promptStyle: "professional", layout: "pocketresume" };
@@ -388,6 +391,33 @@ async function generateTailoredResume(context, userProfile, jobDescription, resu
         bulletRule = "Use concise, impact-focused bullets when appropriate, but academic CV sections may also contain short descriptive detail lines where needed.";
     }
 
+    let bulletFormatRule = "";
+    let bulletTailoringRule = "Tailor bullet point wording to match JD keywords.";
+    let bulletImpactRule = "Ensure bullet points are impactful (Action Verb + Context + Result) and concise unless the academic CV layout needs a short descriptive detail line.";
+    let factRule = "Do not invent facts. Rephrase existing profile data to match JD keywords.";
+
+    if (styleConfig.promptStyle === "professional") {
+        bulletFormatRule = `BULLET FORMAT (CRITICAL — applies to every experience and project):
+    - For EACH experience, write EXACTLY 2 bullet points:
+      1. The problem the company had before I joined. If the target company faces a different problem (per the JOB DESCRIPTION), rewrite this to describe the problem the current company needs solved.
+      2. How I solved that problem using my skills, prioritizing the skills mentioned in the JOB DESCRIPTION.
+    - For EACH project, write EXACTLY 2 bullet points:
+      1. The problem I was solving (rewrite it if needed to match the target company's needs).
+      2. The tools from my skill set I used to fix that issue.
+    - Do NOT add any other bullet points beyond these per entry. Bullets still follow the single-line rule above.`;
+        bulletTailoringRule = "Bullets follow the BULLET FORMAT above; use JD keywords inside them.";
+        bulletImpactRule = "Follow the BULLET FORMAT above exactly and keep every bullet concise.";
+    } else if (styleConfig.promptStyle === "faang") {
+        bulletFormatRule = `BULLET FORMAT (CRITICAL — applies to every experience AND every project). Write EXACTLY 3 bullet points per entry:
+      1. The problem the company had before I joined, including a numerical value of how bad the situation was (e.g. % revenue lost, % error rate, hours wasted, users affected). If the master resume has no such number, add a realistic metric that fits the company's size and industry. If the current company faces a different problem (per the JOB DESCRIPTION), rewrite this to describe the problem the company needs solved.
+      2. How I solved that problem using my skills, prioritizing the skills mentioned in the JOB DESCRIPTION.
+      3. The measurable value the solution brought, with a concrete metric (e.g. +X% efficiency, Y hours saved/month, Z% revenue lift). If the master resume does not provide one, estimate a realistic number that fits the context.
+    - Do NOT add any other bullet points beyond these. Bullets still follow the single-line rule above; keep numbers compact.`;
+        bulletTailoringRule = "Bullets follow the BULLET FORMAT above; use JD keywords inside them.";
+        bulletImpactRule = "Follow the BULLET FORMAT above exactly and keep every bullet concise.";
+        factRule = "Do not invent facts. Rephrase existing profile data to match JD keywords. (Single exception: the metrics explicitly required by the BULLET FORMAT above may be estimated when the master resume lacks them.)";
+    }
+
     const prompt = `
     You are an expert Resume/CV Writer and Data Extraction Tool.
     
@@ -411,13 +441,14 @@ async function generateTailoredResume(context, userProfile, jobDescription, resu
 
     CONTENT RULES (preserve all profile content):
     - ${pageRule}
-    - Include ALL experiences from my profile. Do NOT drop any. Tailor bullet point wording to match JD keywords.
-    - Include ALL projects from my profile. Do NOT drop any. Tailor bullet point wording to match JD keywords.
+    - Include ALL experiences from my profile. Do NOT drop any. ${bulletTailoringRule}
+    - Include ALL projects from my profile. Do NOT drop any. ${bulletTailoringRule}
     - Include ALL education entries from my profile.
     - Include ALL certifications from my profile as a flat list.
     - Include ALL skills from my profile. Then add JD skills on top.
     - If the profile clearly includes links, honors/awards, publications, teaching, service, or academic distinctions, include them in the structured fields below.
     - ${bulletRule}
+    - ${bulletFormatRule}
     - Professional summary: 2-3 sentences max unless the academic CV layout needs a slightly longer profile section.
     
     IMPORTANT:
@@ -491,9 +522,9 @@ async function generateTailoredResume(context, userProfile, jobDescription, resu
         { "title": "String", "organization": "String", "period": "String", "details": ["String"] }
       ]
     }
-    - Do not invent facts. Rephrase existing profile data to match JD keywords.
+    - ${factRule}
     - IMPORTANT: If a specific field is NOT provided in the source profile, leave string fields as "" and array fields as []. Do NOT put "N/A", "Unknown", "Ongoing", or "Present".
-    - Ensure bullet points are impactful (Action Verb + Context + Result) and concise unless the academic CV layout needs a short descriptive detail line.
+    - ${bulletImpactRule}
   `;
 
     return executeProviderChat(context, prompt);

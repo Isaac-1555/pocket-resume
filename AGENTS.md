@@ -162,9 +162,11 @@ Configured by `getResumeStyleConfig(...)` in `background.js`:
 | basic        | basic        | pocketresume | `popup.js` → `generatePDF`                                         |
 | professional | professional | pocketresume | `popup.js` → `generatePDF`                                         |
 | faang        | faang        | pocketresume | `popup.js` → `generatePDF`                                         |
-| jake         | faang        | jake         | `resume-renderers.js` → `renderJakeLayout`                         |
+| jake         | professional | jake         | `resume-renderers.js` → `renderJakeLayout`                         |
 | deedy        | faang        | deedy        | `resume-renderers.js` → `renderDeedyLayout`                        |
 | academic-cv  | academic-cv  | academic-cv  | `resume-renderers.js` → `renderAcademicCvLayout`                   |
+
+Bullet-format rules in `generateTailoredResume(...)` (`background.js`): `professional` promptStyle (Professional, Jake) gets an exact 2-bullet problem/solution format per experience and project; `faang` promptStyle (FAANG, Deedy) gets an exact 3-bullet problem/solution/impact-metric format per experience and project, with estimated metrics allowed only there; `basic` and `academic-cv` keep the original prompt with no bullet-format rule.
 
 ## Settings + persistence
 
