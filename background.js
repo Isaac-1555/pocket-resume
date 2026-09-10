@@ -1,5 +1,7 @@
 // background.js
 import './cloud-sync.js';
+import { trackEvent } from './analytics.js';
+import { resolveFormAnswers } from './form-profile.js';
 
 // Auto-push local resume changes when user has enabled cloud sync and is signed in.
 chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -694,13 +696,217 @@ async function generateCoverLetterText(context, userProfile, jobDescription, res
     return executeProviderChat(context, prompt, 'Cover Letter');
 }
 
+// --- Form Filler Pipeline ---
+const FORM_FIELD_LIMIT = 30;
+
+async function ensureFormFillerInjected(tabId) {
+    await chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        files: ['form-filler.js']
+    });
+}
+
+async function detectFormFields(tabId) {
+    try {
+        const results = await chrome.scripting.executeScript({
+            target: { tabId, allFrames: true },
+            func: (maxFields) => globalThis.__PocketResumeForm.detect(maxFields),
+            args: [FORM_FIELD_LIMIT]
+        });
+        const fields = [];
+        for (const frame of results || []) {
+            if (frame && Array.isArray(frame.result)) fields.push(...frame.result);
+        }
+        return fields.slice(0, FORM_FIELD_LIMIT);
+    } catch (error) {
+        console.error('Form field detection failed:', error);
+        return [];
+    }
+}
+
+async function fillFormFields(tabId, answers) {
+    const results = await chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        func: (payload) => globalThis.__PocketResumeForm.fill(payload),
+        args: [answers]
+    });
+    let filled = 0;
+    let attempted = 0;
+    for (const frame of results || []) {
+        if (frame && frame.result) {
+            filled += frame.result.filled || 0;
+            attempted += frame.result.attempted || 0;
+        }
+    }
+    return { filled, attempted };
+}
+
+async function showFormToast(tabId, text) {
+    try {
+        await chrome.scripting.executeScript({
+            target: { tabId, frameIds: [0] },
+            func: (msg) => globalThis.__PocketResumeForm.toast(msg),
+            args: [text]
+        });
+    } catch (error) {
+        // Main frame may be gone or inaccessible; the popup still shows the result.
+    }
+}
+
+function normalizeFormAnswers(parsed, fields) {
+    const knownIds = new Set(fields.map((field) => field.id));
+    const maxLengths = new Map(fields.map((field) => [field.id, field.maxLength]));
+    let rawAnswers = [];
+    if (Array.isArray(parsed)) {
+        rawAnswers = parsed;
+    } else if (parsed && Array.isArray(parsed.answers)) {
+        rawAnswers = parsed.answers;
+    } else if (parsed && typeof parsed === 'object') {
+        rawAnswers = Object.entries(parsed).map(([id, answer]) => ({ id, answer }));
+    }
+
+    const answers = [];
+    const seenIds = new Set();
+    for (const item of rawAnswers) {
+        const id = String(item?.id || '').trim();
+        const answer = typeof item?.answer === 'string' ? item.answer.trim() : '';
+        if (!id || !answer || !knownIds.has(id) || seenIds.has(id)) continue;
+        seenIds.add(id);
+        answers.push({ id, answer: truncateFormAnswer(answer, maxLengths.get(id)) });
+    }
+    return answers;
+}
+
+function truncateFormAnswer(answer, maxLength) {
+    if (!maxLength || maxLength <= 0) return answer;
+    return answer.length > maxLength ? answer.slice(0, maxLength) : answer;
+}
+
+async function generateFormAnswers(context, userProfile, fields, applicationProfile) {
+    const fieldSummaries = fields.map((field) => ({
+        id: field.id,
+        question: field.question,
+        type: field.type,
+        options: field.options || undefined,
+        maxLength: field.maxLength || undefined,
+        required: field.required || undefined
+    }));
+    const savedProfile = applicationProfile && typeof applicationProfile === 'object'
+        ? applicationProfile
+        : null;
+
+    const prompt = `
+    You are helping a real person fill out a job application form. Below is their resume/profile and the form fields detected on the page.
+
+    MY PROFILE (source of truth):
+    ${userProfile}
+
+    SAVED PROFILE (personal facts the person confirmed; authoritative when relevant):
+    ${savedProfile ? JSON.stringify(savedProfile) : '(none)'}
+
+    FORM FIELDS (JSON):
+    ${JSON.stringify(fieldSummaries)}
+
+    TASK:
+    For each field, write the answer the person would type themselves.
+
+    HOW TO WRITE (very important):
+    - Write in first person, like the person typing it themselves right now.
+    - Plain everyday words. Short sentences. Contractions are fine ("I've", "I'm").
+    - NEVER use em dashes or en dashes. Use commas or periods instead.
+    - No corporate buzzwords or AI-sounding words: never use "leverage", "passionate", "delve", "moreover", "furthermore", "spearheaded", "utilize", "seamless".
+    - Short questions get 1-3 sentences. Essay questions get 2-5 sentences. Respect maxLength if given.
+    - Use ONLY facts from the profile. Never invent employers, dates, numbers, skills, or achievements.
+    - Open-ended questions (fit, motivation, AI usage, etc.): answer honestly using the person's actual skills and experience from the profile. Stay grounded in the profile.
+    - If the profile has nothing usable for a field, return "" for that field.
+    - For select or radio fields: return the exact option text from the provided options.
+    - For yes/no questions: return "Yes" or "No".
+
+    OUTPUT:
+    - Output strictly valid JSON. No markdown fences, no commentary.
+    - Schema: {"answers":[{"id":"<field id>","answer":"<string>"}]}
+    - Include every field id exactly once.
+  `;
+
+    const rawText = await executeProviderChat(context, prompt, 'Form answers');
+    const parsed = parseJsonText(rawText, 'Form answers');
+    return normalizeFormAnswers(parsed, fields);
+}
+
+const APP_PROFILE_PROMPT_KEYS = [
+    'firstName', 'lastName', 'email', 'phone',
+    'streetAddress', 'addressLine2', 'city', 'state', 'postalCode', 'country',
+    'salaryAmount', 'salaryCurrency', 'salaryPeriod', 'startDate', 'yearsExperience',
+    'workAuthorized', 'needsSponsorship', 'over18', 'willingToRelocate', 'remotePreference',
+    'linkedin', 'website', 'github'
+];
+const APP_PROFILE_PROMPT_EEO_KEYS = ['gender', 'race', 'hispanicLatino', 'veteran', 'disability'];
+
+function normalizeApplicationProfile(raw) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const profile = {};
+    for (const key of APP_PROFILE_PROMPT_KEYS) {
+        const value = source[key];
+        if (key === 'salaryAmount' || key === 'yearsExperience') {
+            const num = Number(value);
+            profile[key] = Number.isFinite(num) ? num : null;
+        } else {
+            profile[key] = typeof value === 'string' ? value.trim() : '';
+        }
+    }
+    const eeoSource = source.eeo && typeof source.eeo === 'object' ? source.eeo : {};
+    profile.eeo = {};
+    for (const key of APP_PROFILE_PROMPT_EEO_KEYS) {
+        profile.eeo[key] = typeof eeoSource[key] === 'string' ? eeoSource[key].trim() : '';
+    }
+    return profile;
+}
+
+async function generateApplicationProfileFromResume(context, sourceText) {
+    const prompt = `
+    You are extracting structured personal data for job application forms from a person's resume.
+
+    SOURCE (the only source of facts):
+    ${sourceText}
+
+    TASK:
+    Extract the application profile fields below. Use ONLY facts present in the source.
+    If a field is not clearly present in the source, return "" (empty string) for text fields and null for number fields. Never guess or invent.
+
+    FIELD NOTES:
+    - firstName / lastName: split the person's full name correctly.
+    - salaryAmount: only if a number is stated (strip symbols, return a plain number). salaryCurrency: ISO code (default "USD" if a $ symbol is used). salaryPeriod: "year", "month", or "hour" (default "year").
+    - workAuthorized / needsSponsorship / over18 / willingToRelocate: return "yes", "no", or "" only.
+    - remotePreference: return "Remote", "Hybrid", "On-site", or "" only.
+    - linkedin / website / github: full URLs when present, else "".
+    - eeo.gender / eeo.race / eeo.hispanicLatino / eeo.veteran / eeo.disability: only if explicitly stated, else "". Use "Yes"/"No" for yes/no EEO fields.
+
+    OUTPUT:
+    - Output strictly valid JSON. No markdown fences, no commentary.
+    - Schema: {"firstName":"","lastName":"","email":"","phone":"","streetAddress":"","addressLine2":"","city":"","state":"","postalCode":"","country":"","salaryAmount":null,"salaryCurrency":"","salaryPeriod":"","startDate":"","yearsExperience":null,"workAuthorized":"","needsSponsorship":"","over18":"","willingToRelocate":"","remotePreference":"","linkedin":"","website":"","github":"","eeo":{"gender":"","race":"","hispanicLatino":"","veteran":"","disability":""}}
+  `;
+
+    const rawText = await executeProviderChat(context, prompt, 'Application profile');
+    const parsed = parseJsonText(rawText, 'Application profile');
+    return normalizeApplicationProfile(parsed);
+}
+
 
 // --- Message Listener ---
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'TRACK_EVENT') {
+        const payload = message.payload || {};
+        trackEvent(payload.name, payload.params || {}).catch(() => {});
+        sendResponse({ status: 'ok' });
+        return false;
+    }
+
     if (message.type === 'START_GENERATION') {
 
         // Async execution wrapper
         (async () => {
+            let provider = 'unknown';
+            let selectedResumeStyle = 'unknown';
             try {
                 const { tabId, resumeStyle, resumeType, resumeLayout, resumeId } = message.payload;
                 const requestedResumeStyle =
@@ -708,11 +914,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     (resumeLayout === 'deedy' ? 'deedy' :
                         resumeLayout === 'academic-cv' ? 'academic-cv' :
                             resumeType);
-                const selectedResumeStyle = normalizeResumeStyle(requestedResumeStyle);
+                selectedResumeStyle = normalizeResumeStyle(requestedResumeStyle);
 
                 // 1. Get Settings
                 const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS.concat(['resumes', 'userProfile', 'coverLetterEnabled']));
-                const provider = settings.apiProvider || 'google';
+                provider = settings.apiProvider || 'google';
                 validateProviderReady(settings, provider);
                 const context = createProviderContext(settings);
 
@@ -768,10 +974,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
                 // 6b. Success
                 console.info('[Tracker] Resume generation complete.');
+                trackEvent('resume_generated', {
+                    style: selectedResumeStyle,
+                    layout: getResumeStyleConfig(selectedResumeStyle).layout,
+                    provider,
+                });
+                if (coverLetterText) {
+                    trackEvent('cover_letter_generated', { style: selectedResumeStyle, provider });
+                }
                 sendResponse({ status: 'success', data: resumeText, coverLetterData: coverLetterText });
 
             } catch (error) {
                 console.error("Pipeline Error:", error);
+                trackEvent('generation_error', {
+                    provider,
+                    style: selectedResumeStyle,
+                    code: String((error && error.message) || 'unknown').slice(0, 40),
+                });
                 sendResponse({ status: 'error', message: error.message });
             }
         })();
@@ -828,4 +1047,107 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         return true;
     }
+
+    if (message.type === 'PROFILE_AUTOFILL') {
+        (async () => {
+            let provider = 'unknown';
+            try {
+                const sourceText = typeof message.payload?.sourceText === 'string' ? message.payload.sourceText : '';
+                if (!sourceText.trim()) {
+                    throw new Error('Add your resume content in the extension settings first, then run Auto-fill.');
+                }
+
+                const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS);
+                provider = settings.apiProvider || 'google';
+                validateProviderReady(settings, provider);
+                const context = createProviderContext(settings);
+
+                const profile = await generateApplicationProfileFromResume(context, sourceText);
+                sendResponse({ status: 'success', data: profile });
+            } catch (error) {
+                console.error('Profile Autofill Error:', error);
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+
+        return true;
+    }
+
+    if (message.type === 'FILL_APPLICATION_FORM') {
+        const tabId = typeof message.payload?.tabId === 'number' ? message.payload.tabId : null;
+
+        (async () => {
+            let provider = 'unknown';
+            try {
+                if (!tabId) throw new Error('No active tab found. Open the page with the form and try again.');
+
+                const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS.concat(['resumes', 'userProfile', 'applicationProfile']));
+                provider = settings.apiProvider || 'google';
+                validateProviderReady(settings, provider);
+                const context = createProviderContext(settings);
+                const applicationProfile = settings.applicationProfile && typeof settings.applicationProfile === 'object'
+                    ? settings.applicationProfile
+                    : null;
+
+                let userProfile = '';
+                if (settings.resumes && settings.resumes.length > 0) {
+                    const selected = settings.resumes.find(r => r.id === message.payload.resumeId) || settings.resumes[0];
+                    userProfile = selected.jsonContent ? selected.jsonContent : (selected.content || '');
+                } else if (settings.userProfile) {
+                    userProfile = settings.userProfile;
+                }
+                if (!userProfile.trim()) {
+                    throw new Error("Please add your resume/profile content in the extension settings.");
+                }
+
+                await ensureFormFillerInjected(tabId);
+                const fields = await detectFormFields(tabId);
+                if (!fields.length) {
+                    throw new Error('No application form fields found on this page. Open the page with the form, then try again.');
+                }
+
+                const { resolved, unresolved } = resolveFormAnswers(fields, applicationProfile);
+                let aiAnswers = [];
+                if (unresolved.length) {
+                    aiAnswers = await generateFormAnswers(context, userProfile, unresolved, applicationProfile);
+                }
+
+                const answers = normalizeFormAnswers({ answers: [...resolved, ...aiAnswers] }, fields);
+                if (!answers.length) {
+                    throw new Error('Your resume has no answers for this form. Add more detail to it in the extension settings.');
+                }
+
+                const { filled } = await fillFormFields(tabId, answers);
+                if (!filled) {
+                    throw new Error('Could not fill any fields on this form. Please fill it manually.');
+                }
+
+                console.info('[FormFill] Filled', filled, 'of', fields.length, 'fields.', `(${resolved.length} saved, ${aiAnswers.length} AI)`);
+                trackEvent('form_filled', { provider, cached: String(resolved.length) });
+                await showFormToast(tabId, `PocketResume filled ${filled} field${filled === 1 ? '' : 's'}${resolved.length ? ` (${resolved.length} from saved answers)` : ''}`);
+                sendResponse({ status: 'success', filled, total: fields.length, cached: resolved.length });
+            } catch (error) {
+                console.error('Form Fill Error:', error);
+                trackEvent('form_fill_error', {
+                    provider,
+                    code: String((error && error.message) || 'unknown').slice(0, 40),
+                });
+                if (tabId) await showFormToast(tabId, 'PocketResume could not fill this form');
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+
+        return true;
+    }
+});
+
+// --- Lifecycle Analytics ---
+chrome.runtime.onInstalled.addListener((details) => {
+    if (details.reason === 'install') {
+        trackEvent('install').catch(() => {});
+    }
+});
+
+chrome.runtime.onStartup.addListener(() => {
+    trackEvent('active_day').catch(() => {});
 });

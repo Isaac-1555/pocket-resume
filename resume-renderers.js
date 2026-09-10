@@ -214,6 +214,7 @@
       skills,
       skillGroups,
       links: normalizeLinks(data.links, data.contact),
+      hasExplicitLinks: Array.isArray(data.links) && data.links.length > 0,
       experience: normalizeExperience(data.experience),
       projects,
       openSourceProjects: openSourceProjects.length
@@ -614,10 +615,9 @@
     const headerLine = [formatContactLine(data), data.location].filter(Boolean).join(' | ');
     if (headerLine) addParagraph(headerLine, 10, 'normal', 4);
 
-    if (data.links.length) {
+    if (data.links.length && data.hasExplicitLinks) {
       addParagraph(data.links.map((link) => link.label ? `${link.label}: ${link.text}` : link.text).join(' | '), 9.5, 'normal', 8);
     }
-
     if (data.summary) {
       addSection('Profile');
       addParagraph(data.summary, 10.5, 'normal', 2);

@@ -1,6 +1,6 @@
 # Privacy Policy for Pocket Resume
 
-**Last updated:** May 2026
+**Last updated:** August 2026
 
 Pocket Resume is a Chrome extension designed to help users create, store, and view resumes and cover letters directly within their browser, with AI-powered generation capabilities.
 
@@ -18,7 +18,29 @@ Pocket Resume collects and processes the following user data to provide its core
 
 ### How Data is Used
 
-This data is used solely to generate tailored resumes and cover letters based on your profile and the job description you are viewing. No data is collected for advertising, analytics, or tracking purposes.
+This data is used solely to generate tailored resumes and cover letters based on your profile and the job description you are viewing. No data is collected for advertising purposes. For anonymous usage statistics, see the section below — you can opt out at any time.
+
+## Anonymous Usage Statistics
+
+PocketResume collects a small set of anonymous usage counters so the developer can understand which features are used (e.g. how many resumes were generated, whether the job tracker is opened). By default this is **enabled**, and you can turn it off at any time via **Settings → Privacy → Anonymous usage statistics**.
+
+### What Is Collected
+
+* **Anonymous install ID**: a random UUID generated on your device. It is not linked to your identity, account, email, or browsing history
+* **Extension version**
+* **Event counters**: installs, popup opens, resumes generated, cover letters generated, generation errors (error message category only), job tracker opens, applications added, and usage of the resume refinement / JSON extraction tools
+* **Categorical parameters**: which resume layout you used, which AI provider you selected
+
+### What Is Never Collected
+
+* Your resume or profile content
+* Job description text or page screenshots
+* URLs, company names, or recruiter details
+* Your API keys or AI request content
+
+### Where It Is Stored
+
+Usage events are sent over HTTPS to the developer's own Convex backend. Raw events are retained for 180 days and then automatically deleted. Aggregate counters are kept longer.
 
 ## Data Transmission to Third-Party Services
 
@@ -69,7 +91,7 @@ This locally stored data:
 
 * All data transmitted to AI APIs is sent over secure HTTPS connections
 * Your API keys and profile data are stored locally in Chrome's secure extension storage
-* No data is stored on external servers controlled by the extension developer
+* Your resume content, job descriptions, and API keys are never stored on external servers controlled by the extension developer (only the anonymous usage counters described above touch the developer's backend)
 
 ## Permissions
 
@@ -94,6 +116,7 @@ You can:
 * View and edit your stored profile at any time through the extension settings
 * Delete all locally stored data by clearing extension data or uninstalling the extension
 * Choose when to initiate resume generation (data is only sent when you click the generate button)
+* Turn anonymous usage statistics on or off in the extension settings (Privacy section)
 
 ## Changes to This Policy
 

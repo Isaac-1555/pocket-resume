@@ -5,10 +5,13 @@
     "jspdf": "^4.0.0"
   },
   "devDependencies": {
-    "esbuild": "^0.28.1"
+    "esbuild": "^0.28.1",
+    "ldrs": "^1.1.9",
+    "playwright": "^1.62.1"
   },
   "scripts": {
     "build:clerk": "node scripts/build-clerk.mjs",
+    "build:ldrs": "esbuild node_modules/ldrs/dist/auto/newtonsCradle.js --bundle --minify --format=iife --outfile=libs/ldrs-newtons-cradle.js",
     "clean": "rm -f cloud-sync.js && rm -rf convex/_generated"
   }
 }

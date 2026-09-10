@@ -152,6 +152,10 @@
     .plan-badge.trial { color: var(--orange); border-color: var(--orange-border); background: var(--orange-fill); }
     .plan-badge.pro { color: var(--green); border-color: rgba(43, 214, 132, 0.45); background: rgba(43, 214, 132, 0.08); }
 
+    .plan-loader {
+      flex-shrink: 0;
+    }
+
     .btn {
       appearance: none;
       font: inherit;
@@ -726,7 +730,8 @@
 
     <div class="header-actions">
       <button class="btn btn-ghost" id="tourReplayBtn" title="Replay tour" aria-label="Replay tour">?</button>
-      <span class="plan-badge" id="planBadge">Loading…</span>
+      <l-newtons-cradle id="planLoader" class="plan-loader" size="26" color="#f4933b" speed="1.2"></l-newtons-cradle>
+      <span class="plan-badge" id="planBadge" hidden></span>
       <button class="btn btn-primary" id="addBtn">+ Add job</button>
       <button class="btn" id="openSettingsBtn">Settings</button>
     </div>
@@ -772,6 +777,8 @@
   </div>
 
   <script src="cloud-sync.js"></script>
+  <script src="libs/ldrs-newtons-cradle.js"></script>
+  <script src="track-client.js"></script>
   <script src="tracker.js"></script>
 </body>
 </html>

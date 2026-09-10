@@ -1,0 +1,646 @@
+%PDF-1.3
+%ºß¬à
+3 0 obj
+<</Type /Page
+/Parent 1 0 R
+/Resources 2 0 R
+/MediaBox [0 0 612. 792.]
+/Contents 4 0 R
+>>
+endobj
+4 0 obj
+<<
+/Length 7664
+>>
+stream
+0.200025 w
+0 G
+BT
+/F2 26 Tf
+29.8999999999999986 TL
+0 g
+28. 756. Td
+(Maya Chen) Tj
+ET
+BT
+/F1 10.9 Tf
+12.5350000000000001 TL
+0. g
+28. 738. Td
+(Senior Frontend Engineer) Tj
+ET
+BT
+/F1 10.9 Tf
+12.5350000000000001 TL
+0. g
+28. 722.4650000000000318 Td
+(maya.chen@hey.com | \(415\) 555-0192 | linkedin.com/in/mayachen | github.com/mayachen) Tj
+ET
+BT
+/F2 11 Tf
+12.6499999999999986 TL
+0. g
+28. 679.4650000000000318 Td
+(SKILLS) Tj
+ET
+0.6 w
+0. G
+28. 676.4650000000000318 m
+200.3599999999999852 676.4650000000000318 l
+S
+BT
+/F2 8.9 Tf
+10.2349999999999994 TL
+0. g
+28. 666.4650000000000318 Td
+(Languages) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+28. 655.2300000000000182 Td
+(TypeScript  JavaScript \(ES2023\)  HTML  CSS) Tj
+ET
+BT
+/F2 8.9 Tf
+10.2349999999999994 TL
+0. g
+28. 642.7999999999999545 Td
+(Frameworks) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+28. 631.5650000000000546 Td
+(React  Next.js  Vite  Node.js  GraphQL) Tj
+ET
+BT
+/F2 8.9 Tf
+10.2349999999999994 TL
+0. g
+28. 619.1349999999999909 Td
+(Craft) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+28. 607.8999999999999773 Td
+(Design Systems  Accessibility \(WCAG 2.2\) ) Tj
+T* (Performance Profiling  Testing \(Playwright,) Tj
+T* (Vitest\)) Tj
+ET
+BT
+/F2 8.9 Tf
+10.2349999999999994 TL
+0. g
+28. 576.6100000000000136 Td
+(Platform) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+28. 565.375 Td
+(CI/CD  Storybook  Figma  AWS) Tj
+ET
+BT
+/F2 11 Tf
+12.6499999999999986 TL
+0. g
+28. 550.9449999999999363 Td
+(LINKS) Tj
+ET
+0.6 w
+0. G
+28. 547.9449999999999363 m
+200.3599999999999852 547.9449999999999363 l
+S
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+28. 537.9449999999999363 Td
+(maya.chen@hey.com) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+28. 526.5149999999999864 Td
+(\(415\) 555-0192) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+28. 515.0850000000000364 Td
+(linkedin.com/in/mayachen) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+28. 503.6549999999999727 Td
+(github.com/mayachen) Tj
+ET
+BT
+/F2 11 Tf
+12.6499999999999986 TL
+0. g
+28. 490.2249999999999659 Td
+(EDUCATION) Tj
+ET
+0.6 w
+0. G
+28. 487.2249999999999659 m
+200.3599999999999852 487.2249999999999659 l
+S
+BT
+/F2 8.9 Tf
+10.2349999999999994 TL
+0. g
+28. 477.2249999999999659 Td
+(University of California, Berkeley) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+28. 465.9899999999999523 Td
+(B.S. Computer Science) Tj
+ET
+BT
+/F3 8.2 Tf
+9.4299999999999979 TL
+0. g
+28. 455.5599999999999454 Td
+(2018) Tj
+ET
+BT
+/F2 11 Tf
+12.6499999999999986 TL
+0. g
+28. 441.1299999999999386 Td
+(CERTIFICATIONS) Tj
+ET
+0.6 w
+0. G
+28. 438.1299999999999386 m
+200.3599999999999852 438.1299999999999386 l
+S
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+28. 428.1299999999999386 Td
+(AWS Certified Developer - Associate \(2023\)) Tj
+ET
+BT
+/F2 11 Tf
+12.6499999999999986 TL
+0. g
+217.3599999999999852 679.4650000000000318 Td
+(SUMMARY) Tj
+ET
+0.6 w
+0. G
+217.3599999999999852 676.4650000000000318 m
+584. 676.4650000000000318 l
+S
+BT
+/F1 8.9 Tf
+10.2349999999999994 TL
+0. g
+217.3599999999999852 666.4650000000000318 Td
+(Frontend engineer with 7 years of experience building design systems and data-heavy) Tj
+T* (interfaces used by millions. Shipped the component library behind two Series B products and) Tj
+T* (cut page load times by 40%+. I care about fast, accessible UI that teams can build on without) Tj
+T* (fighting it.) Tj
+ET
+BT
+/F2 11 Tf
+12.6499999999999986 TL
+0. g
+217.3599999999999852 621.5249999999999773 Td
+(EXPERIENCE) Tj
+ET
+0.6 w
+0. G
+217.3599999999999852 618.5249999999999773 m
+584. 618.5249999999999773 l
+S
+BT
+/F2 8.9 Tf
+10.2349999999999994 TL
+0. g
+217.3599999999999852 608.5249999999999773 Td
+(Brightline) Tj
+ET
+BT
+/F1 8.9 Tf
+10.2349999999999994 TL
+0. g
+526.0610000000000355 608.5249999999999773 Td
+(2022 - Present) Tj
+ET
+BT
+/F3 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 598.2899999999999636 Td
+(Senior Frontend Engineer | San Francisco, CA) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 587.8600000000000136 Td
+(Led the design system rewrite \(React + TypeScript\) adopted by 6 product teams, cutting new-feature) Tj
+T* (UI time from 2 weeks to 3 days) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 568. Td
+(Cut Largest Contentful Paint 43% via route-level code splitting, image pipeline rework, and bundle) Tj
+T* (analysis in CI) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 548.1400000000001 Td
+(Shipped a WYSIWYG report builder used by 90k monthly users, with keyboard-first editing and full) Tj
+T* (screen-reader support) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 528.2799999999999727 Td
+(Mentored 4 engineers; instituted the accessibility review that took the app from 61 to 98 Lighthouse) Tj
+T* (a11y score) Tj
+ET
+BT
+/F2 8.9 Tf
+10.2349999999999994 TL
+0. g
+217.3599999999999852 501.4200000000000159 Td
+(Parcelly) Tj
+ET
+BT
+/F1 8.9 Tf
+10.2349999999999994 TL
+0. g
+536.9189999999999827 501.4200000000000159 Td
+(2020 - 2022) Tj
+ET
+BT
+/F3 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 491.1850000000000023 Td
+(Frontend Engineer | Remote) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 480.7549999999999955 Td
+(Built the real-time tracking dashboard \(React, GraphQL subscriptions\) handling 2M+ events/day at) Tj
+T* (p95 under 100ms re-render) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 460.8949999999999818 Td
+(Migrated 140k lines of JS to TypeScript incrementally with zero downtime, enabling dead-code) Tj
+T* (elimination of 18% of the bundle) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 441.0349999999999682 Td
+(Introduced Playwright e2e coverage on critical flows, dropping regression incidents from 3-4 per) Tj
+T* (quarter to under 1) Tj
+ET
+BT
+/F2 8.9 Tf
+10.2349999999999994 TL
+0. g
+217.3599999999999852 414.1749999999999545 Td
+(Fable & Co.) Tj
+ET
+BT
+/F1 8.9 Tf
+10.2349999999999994 TL
+0. g
+536.9189999999999827 414.1749999999999545 Td
+(2018 - 2020) Tj
+ET
+BT
+/F3 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 403.9399999999999409 Td
+(Software Engineer | New York, NY) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 393.5099999999999341 Td
+(Shipped the customer-facing storefront refresh for a 400k-user ecommerce platform, lifting mobile) Tj
+T* (conversion 11%) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 373.6499999999999204 Td
+(Owned the checkout flow rewrite; reduced cart abandonment 8% by cutting steps and adding inline) Tj
+T* (validation) Tj
+ET
+BT
+/F2 11 Tf
+12.6499999999999986 TL
+0. g
+217.3599999999999852 344.7899999999999068 Td
+(SELECTED PROJECTS) Tj
+ET
+0.6 w
+0. G
+217.3599999999999852 341.7899999999999068 m
+584. 341.7899999999999068 l
+S
+BT
+/F2 8.9 Tf
+10.2349999999999994 TL
+0. g
+217.3599999999999852 331.7899999999999068 Td
+(Gridworks) Tj
+ET
+BT
+/F3 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 320.5549999999998931 Td
+(Open Source - 4.2k GitHub stars | 2023 - Present) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 310.1249999999998863 Td
+(Headless React data-grid library focused on accessibility; used in production by 30+ companies) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 299.6949999999998795 Td
+(Virtualized rendering keeps 100k-row datasets at 60fps with a 12kb gzipped core) Tj
+ET
+BT
+/F2 8.9 Tf
+10.2349999999999994 TL
+0. g
+217.3599999999999852 282.2649999999998727 Td
+(Typefish) Tj
+ET
+BT
+/F3 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 271.029999999999859 Td
+(Dev Tool | 2021) Tj
+ET
+BT
+/F1 8.2 Tf
+9.4299999999999979 TL
+0. g
+217.3599999999999852 260.5999999999999091 Td
+(CLI that generates TypeScript types from live GraphQL APIs; 1.8k weekly npm downloads) Tj
+ET
+endstream
+endobj
+1 0 obj
+<</Type /Pages
+/Kids [3 0 R ]
+/Count 1
+>>
+endobj
+5 0 obj
+<<
+/Type /Font
+/BaseFont /Helvetica
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+6 0 obj
+<<
+/Type /Font
+/BaseFont /Helvetica-Bold
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+7 0 obj
+<<
+/Type /Font
+/BaseFont /Helvetica-Oblique
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+8 0 obj
+<<
+/Type /Font
+/BaseFont /Helvetica-BoldOblique
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+9 0 obj
+<<
+/Type /Font
+/BaseFont /Courier
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+10 0 obj
+<<
+/Type /Font
+/BaseFont /Courier-Bold
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+11 0 obj
+<<
+/Type /Font
+/BaseFont /Courier-Oblique
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+12 0 obj
+<<
+/Type /Font
+/BaseFont /Courier-BoldOblique
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+13 0 obj
+<<
+/Type /Font
+/BaseFont /Times-Roman
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+14 0 obj
+<<
+/Type /Font
+/BaseFont /Times-Bold
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+15 0 obj
+<<
+/Type /Font
+/BaseFont /Times-Italic
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+16 0 obj
+<<
+/Type /Font
+/BaseFont /Times-BoldItalic
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+17 0 obj
+<<
+/Type /Font
+/BaseFont /ZapfDingbats
+/Subtype /Type1
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+18 0 obj
+<<
+/Type /Font
+/BaseFont /Symbol
+/Subtype /Type1
+/FirstChar 32
+/LastChar 255
+>>
+endobj
+2 0 obj
+<<
+/ProcSet [/PDF /Text /ImageB /ImageC /ImageI]
+/Font <<
+/F1 5 0 R
+/F2 6 0 R
+/F3 7 0 R
+/F4 8 0 R
+/F5 9 0 R
+/F6 10 0 R
+/F7 11 0 R
+/F8 12 0 R
+/F9 13 0 R
+/F10 14 0 R
+/F11 15 0 R
+/F12 16 0 R
+/F13 17 0 R
+/F14 18 0 R
+>>
+/XObject <<
+>>
+>>
+endobj
+19 0 obj
+<<
+/Producer (jsPDF 4.0.0)
+/CreationDate (D:20260904134509-06'00')
+>>
+endobj
+20 0 obj
+<<
+/Type /Catalog
+/Pages 1 0 R
+/OpenAction [3 0 R /FitH null]
+/PageLayout /OneColumn
+>>
+endobj
+xref
+0 21
+0000000000 65535 f 
+0000007836 00000 n 
+0000009653 00000 n 
+0000000015 00000 n 
+0000000120 00000 n 
+0000007893 00000 n 
+0000008018 00000 n 
+0000008148 00000 n 
+0000008281 00000 n 
+0000008418 00000 n 
+0000008541 00000 n 
+0000008670 00000 n 
+0000008802 00000 n 
+0000008938 00000 n 
+0000009066 00000 n 
+0000009193 00000 n 
+0000009322 00000 n 
+0000009455 00000 n 
+0000009557 00000 n 
+0000009901 00000 n 
+0000009987 00000 n 
+trailer
+<<
+/Size 21
+/Root 20 0 R
+/Info 19 0 R
+/ID [ <92B2ECD84B0F435B420ED50F58B614BD> <92B2ECD84B0F435B420ED50F58B614BD> ]
+>>
+startxref
+10091
+%%EOF
