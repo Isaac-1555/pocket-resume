@@ -430,11 +430,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewSetupBtn = document.getElementById('whatsNewSetupBtn');
   const whatsNewAnalyticsToggle = document.getElementById('whatsNewAnalyticsToggle');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '8.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '8.0';
+  const ANNOUNCEMENT_VERSION = '8.2';
+  const ANNOUNCEMENT_SEEN_VALUE = '8.2';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
+      chrome.runtime.openOptionsPage();
+    });
+  }
+
+  function startAtsNudge() {
+    chrome.storage.local.set({ atsNudge: { active: true } }, () => {
       chrome.runtime.openOptionsPage();
     });
   }
@@ -455,7 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (whatsNewSetupBtn) {
     whatsNewSetupBtn.addEventListener('click', () => {
       dismissWhatsNew();
-      startProfileSetup();
+      startAtsNudge();
     });
   }
   if (whatsNewAnalyticsToggle) whatsNewAnalyticsToggle.addEventListener('change', () => {

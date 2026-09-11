@@ -586,12 +586,103 @@ async function extractResumeProfileJson(context, sourceText) {
     return executeProviderChat(context, prompt, 'Resume Extraction');
 }
 
-async function refineResumeSource(context, userProfile) {
+async function normalizeRefineAnswers(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map((item) => {
+            if (!item || typeof item !== 'object') return null;
+            const question = typeof item.question === 'string' ? item.question.trim() : '';
+            if (!question) return null;
+            const answer = typeof item.answer === 'string' ? item.answer.trim() : '';
+            return {
+                question,
+                answer,
+                skipped: item.skipped === true || !answer
+            };
+        })
+        .filter(Boolean)
+        .slice(0, 10);
+}
+
+function buildRefineAnswersPromptBlock(answers) {
+    const normalized = normalizeRefineAnswers(answers);
+    if (!normalized.length) return '';
+    const lines = normalized.map((item) => {
+        if (item.skipped) {
+            return `- [UNANSWERED - AI MAY FILL] ${item.question}`;
+        }
+        return `- ${item.question}\n    USER'S ANSWER (verified fact): ${item.answer}`;
+    });
+    return `
+    USER CONTEXT (answers provided by the resume owner):
+    ${lines.join('\n')}
+  `;
+}
+
+function buildAtsScoringRules() {
+    return `
+    ATS SCORING RULES:
+    - Score 0-100 for ATS parser-readiness. 100 = a plain-text parser extracts every section, employer, title, date, contact field, and skill without confusion.
+    - What hurts the score (each becomes a critical issue when severe):
+      - Missing or inconsistent section headings (Experience, Education, Skills, ...).
+      - Dates not machine-readable (no numeric month/year, ranges like "couple of years", inconsistent separators).
+      - Contact line not parseable (no clear email/phone, name merged with other text, info inside paragraphs).
+      - Dense paragraphs that hide employers, titles, or shipped work.
+      - Table-like column layouts, markdown tables/bullets (*) decorated with === or ---, code fences, or non-text glyphs.
+      - Sections ATS tools commonly need but are absent (Skills or Education) when they would not be inferable elsewhere.
+    - criticalIssues: only problems a real ATS would flag, most impactful first (max 6). Empty array when none.
+      - issue: what is wrong, in one sentence.
+      - whyFlagged: why an ATS parser trips on it.
+      - suggestedFix: the concrete edit that fixes it (AI-fixable formatting/wording only).
+      - userMustFix: things only the resume owner can resolve (confirm a date, name a missing employer, explain a gap). Empty string when not applicable.
+      - userMustFix items must be reported EVEN IF the score is 100.
+  `;
+}
+
+function clampAtsScore(value) {
+    const n = typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : NaN;
+    if (Number.isNaN(n)) return null;
+    return Math.max(0, Math.min(100, n));
+}
+
+function normalizeAtsIssues(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map((item) => {
+            if (!item || typeof item !== 'object') return null;
+            const issue = typeof item.issue === 'string' ? item.issue.trim() : '';
+            if (!issue) return null;
+            const stage = ['before', 'after', 'both'].includes(item.stage) ? item.stage : 'both';
+            return {
+                stage,
+                issue,
+                whyFlagged: typeof item.whyFlagged === 'string' ? item.whyFlagged.trim() : '',
+                suggestedFix: typeof item.suggestedFix === 'string' ? item.suggestedFix.trim() : '',
+                userMustFix: typeof item.userMustFix === 'string' ? item.userMustFix.trim() : ''
+            };
+        })
+        .filter(Boolean)
+        .slice(0, 6);
+}
+
+function normalizeAtsBlock(value, fallbackBefore, fallbackAfter) {
+    const before = clampAtsScore(value?.before) ?? fallbackBefore;
+    const after = clampAtsScore(value?.after) ?? fallbackAfter;
+    return {
+        before,
+        after,
+        criticalIssues: normalizeAtsIssues(value?.criticalIssues)
+    };
+}
+
+async function refineResumeSource(context, userProfile, answers = []) {
+    const answersBlock = buildRefineAnswersPromptBlock(answers);
     const prompt = `
     You are a strict resume normalization assistant.
 
     SOURCE RESUME:
     ${userProfile}
+  ${answersBlock}
 
     TASK:
     Rewrite the source into a single cross-style master resume that stays truthful and can be used to generate all supported PocketResume layouts.
@@ -603,6 +694,8 @@ async function refineResumeSource(context, userProfile) {
 
     NON-NEGOTIABLE RULES:
     - The source resume is the only authority. Do not invent, infer, or embellish missing facts.
+    - USER CONTEXT answers are verified facts supplied by the resume owner. Treat them as having the same or higher authority than the source resume, and weave them into the relevant sections.
+    - For questions the owner left unanswered: you may fill the gap yourself with brief, in-scope, conservative content inferred from the rest of the source (role level, industry, project scope). Never invent specific numbers, percentages, company names, client names, or titles. Keep the filler modest and plausible, and every such addition must be reported in the aiFilled list.
     - Preserve every supported fact from the source somewhere in the refined text: names, contact info, employers, titles, locations, dates, projects, publications, awards, degrees, certifications, skills, links, teaching, service, and research details.
     - Never add or guess metrics, dates, technologies, employers, titles, publications, awards, links, citations, star counts, or claims that are not explicitly supported by the source.
     - You may reorganize content into clearer sections, split dense paragraphs into bullets, normalize wording, and improve readability.
@@ -611,7 +704,7 @@ async function refineResumeSource(context, userProfile) {
     - Use plain text with obvious section headings and bullets. No markdown tables. No code fences.
     - Keep formatting ATS-friendly and easy for downstream parsing.
     - If information is ambiguous, incomplete, or unverifiable, keep the wording conservative and include the issue in warnings instead of guessing.
-
+  ${buildAtsScoringRules()}
     PREFERRED SECTION ORDER WHEN SUPPORTED BY THE SOURCE:
     Name / Contact
     Summary
@@ -631,13 +724,21 @@ async function refineResumeSource(context, userProfile) {
     {
       "refinedText": "String - plain text only",
       "warnings": ["String"],
-      "changeSummary": ["String"]
+      "changeSummary": ["String"],
+      "aiFilled": ["String"],
+      "ats": {
+        "before": Number,
+        "after": Number,
+        "criticalIssues": [{ "stage": "before|after|both", "issue": "String", "whyFlagged": "String", "suggestedFix": "String", "userMustFix": "String" }]
+      }
     }
 
     OUTPUT REQUIREMENTS:
     - refinedText must be plain text only and must not be empty.
     - warnings should contain only real ambiguities or unverifiable gaps. Use [] when there are none.
     - changeSummary should contain 3-8 concise bullets describing the structural or editorial changes you made.
+    - aiFilled must list one short entry per unanswered question you filled yourself, naming the gap that was filled. Use [] when none were filled.
+    - ats.before scores SOURCE RESUME as-is; ats.after scores the refinedText you return. criticalIssues describe what remains wrong in either (stage before/after/both); issues fully resolved by your rewrite only appear with stage "before" or are omitted.
     - Return raw JSON only. Do not wrap it in markdown.
   `;
 
@@ -649,10 +750,107 @@ async function refineResumeSource(context, userProfile) {
         throw new Error("Resume refinement returned empty content.");
     }
 
+    let ats = { before: null, after: null, criticalIssues: [] };
+    if (parsed.ats && typeof parsed.ats === 'object') {
+        ats = normalizeAtsBlock(parsed.ats, null, null);
+    }
+
     return {
         refinedText,
         warnings: normalizeStringArray(parsed.warnings),
-        changeSummary: normalizeStringArray(parsed.changeSummary).slice(0, 8)
+        changeSummary: normalizeStringArray(parsed.changeSummary).slice(0, 8),
+        aiFilled: normalizeStringArray(parsed.aiFilled).slice(0, 10),
+        ats
+    };
+}
+
+async function generateRefineQuestions(context, userProfile) {
+    const prompt = `
+    You are a resume interviewer preparing to rewrite a master resume.
+
+    SOURCE RESUME:
+    ${userProfile}
+
+    TASK:
+    Read the source and decide which missing pieces of context would most improve the rewrite, then return the questions to ask the resume owner.
+
+    GOOD QUESTIONS (ask only about these kinds of gaps):
+    - What problem did the company/team have before this person joined, and what changed?
+    - Team size, leadership scope, or collaboration context for an experience entry.
+    - Scale or prominence of a project (users, size of rollout, purpose).
+    - What the person actually owned or was responsible for in a vague entry.
+    - Motivation or significance of a project or role that is unclear.
+
+    RULES:
+    - Every question must be grounded in something concrete in the source (quote or reference the relevant entry, employer, or project in the question).
+    - Never ask for facts the source already contains.
+    - Never ask for specific metrics the person may not know. Prefer open context questions.
+    - Ask at most 5 questions, ordered by impact. A complete resume should return no questions.
+    - Each question must be answerable in one or two sentences by the resume owner.
+
+    OUTPUT:
+    Return strictly valid JSON with this schema:
+    {
+      "questions": [{ "id": "q1", "question": "String", "why": "String" }]
+    }
+
+    OUTPUT REQUIREMENTS:
+    - question: the question text, self-contained and referencing the relevant resume entry.
+    - why: one short sentence explaining how the answer will improve the resume.
+    - Return raw JSON only. Do not wrap it in markdown.
+  `;
+
+    const rawText = await executeProviderChat(context, prompt, 'Refine Questions');
+    const parsed = parseJsonText(rawText, 'Refine questions response');
+    const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
+
+    return questions
+        .map((item, index) => {
+            if (!item || typeof item !== 'object') return null;
+            const question = typeof item.question === 'string' ? item.question.trim() : '';
+            if (!question) return null;
+            return {
+                id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `q${index + 1}`,
+                question,
+                why: typeof item.why === 'string' ? item.why.trim() : ''
+            };
+        })
+        .filter(Boolean)
+        .slice(0, 5);
+}
+
+async function generateAtsCheck(context, userProfile) {
+    const prompt = `
+    You are a strict ATS (Applicant Tracking System) readiness auditor.
+
+    RESUME UNDER AUDIT:
+    ${userProfile}
+
+    TASK:
+    Score how well an automated ATS parser would read this resume and list the concrete problems it would flag.
+
+  ${buildAtsScoringRules()}
+
+    OUTPUT:
+    Return strictly valid JSON with this schema:
+    {
+      "score": Number,
+      "criticalIssues": [{ "stage": "before", "issue": "String", "whyFlagged": "String", "suggestedFix": "String", "userMustFix": "String" }]
+    }
+
+    OUTPUT REQUIREMENTS:
+    - score: the ATS parse-readiness of the resume as-is, 0-100.
+    - criticalIssues: use stage "before" for every entry (single-document audit).
+    - Return raw JSON only. Do not wrap it in markdown.
+  `;
+
+    const rawText = await executeProviderChat(context, prompt, 'ATS Check');
+    const parsed = parseJsonText(rawText, 'ATS check response');
+    const score = clampAtsScore(parsed.score) ?? 0;
+
+    return {
+        score,
+        criticalIssues: normalizeAtsIssues(parsed.criticalIssues)
     };
 }
 
@@ -1082,6 +1280,56 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true; // Keep channel open
     }
 
+    if (message.type === 'CHECK_ATS') {
+        (async () => {
+            try {
+                const payload = message.payload || {};
+                const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS);
+                const provider = settings.apiProvider || 'google';
+                validateProviderReady(settings, provider);
+                const context = createProviderContext(settings, typeof payload.apiKey === 'string' ? payload.apiKey : '');
+                const sourceText = typeof payload.sourceText === 'string' ? payload.sourceText : '';
+
+                if (!sourceText.trim()) {
+                    throw new Error("Please add your resume/profile content before checking its ATS score.");
+                }
+
+                const result = await generateAtsCheck(context, sourceText);
+                sendResponse({ status: 'success', data: result });
+            } catch (error) {
+                console.error("ATS Check Error:", error);
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+
+        return true;
+    }
+
+    if (message.type === 'GET_REFINE_QUESTIONS') {
+        (async () => {
+            try {
+                const payload = message.payload || {};
+                const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS);
+                const provider = settings.apiProvider || 'google';
+                validateProviderReady(settings, provider);
+                const context = createProviderContext(settings, typeof payload.apiKey === 'string' ? payload.apiKey : '');
+                const sourceText = typeof payload.sourceText === 'string' ? payload.sourceText : '';
+
+                if (!sourceText.trim()) {
+                    throw new Error("Please add your resume/profile content before refining it.");
+                }
+
+                const questions = await generateRefineQuestions(context, sourceText);
+                sendResponse({ status: 'success', data: { questions } });
+            } catch (error) {
+                console.error("Refine Questions Error:", error);
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+
+        return true;
+    }
+
     if (message.type === 'REFINE_RESUME') {
         (async () => {
             try {
@@ -1096,7 +1344,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     throw new Error("Please add your resume/profile content before refining it.");
                 }
 
-                const refinement = await refineResumeSource(context, sourceText);
+                const refinement = await refineResumeSource(context, sourceText, payload.answers);
                 sendResponse({ status: 'success', data: refinement });
             } catch (error) {
                 console.error("Refinement Error:", error);

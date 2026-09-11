@@ -1347,6 +1347,278 @@
       margin: 0;
     }
 
+    #refineQuestionsContent {
+      max-width: 560px;
+      padding: 22px 24px 20px;
+    }
+
+    #refineQuestionsContent h3 {
+      margin-bottom: 10px;
+    }
+
+    .refine-question-card {
+      padding: 14px 16px;
+      margin-bottom: 14px;
+    }
+
+    .refine-question-card h4 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-dim);
+      margin: 0 0 8px;
+    }
+
+    .refine-question-text {
+      margin: 0 0 10px;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.5;
+      color: var(--text);
+    }
+
+    .refine-question-why {
+      font-size: 11.5px;
+      margin-bottom: 12px;
+    }
+
+    .refine-question-card label {
+      display: block;
+      margin: 0 0 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .refine-question-input {
+      height: 110px;
+      font-size: 12.5px;
+      padding: 10px 12px;
+    }
+
+    .refine-question-actions {
+      justify-content: flex-start;
+      margin-top: 4px;
+    }
+
+    .refine-question-actions .ghost-btn:last-child {
+      margin-left: auto;
+    }
+
+    #atsResultContent {
+      max-width: 560px;
+      padding: 22px 24px 20px;
+    }
+
+    #atsResultContent h3 {
+      margin-bottom: 10px;
+    }
+
+    .ats-hero {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 16px 18px;
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm);
+      background: var(--glass-fill);
+      margin-bottom: 14px;
+    }
+
+    .ats-gauge-wrap {
+      position: relative;
+      width: 92px;
+      height: 92px;
+      flex-shrink: 0;
+    }
+
+    .ats-gauge-wrap svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .ats-gauge-track {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.08);
+      stroke-width: 8;
+    }
+
+    .ats-gauge-value {
+      fill: none;
+      stroke-linecap: round;
+      stroke-width: 8;
+      transition: stroke-width 0.2s;
+      stroke: #2bd684;
+    }
+
+    .ats-gauge-value.ats-amber { stroke: #f4933b; }
+    .ats-gauge-value.ats-red { stroke: #ff5656; }
+    .ats-gauge-value.ats-green { stroke: #2bd684; }
+
+    .ats-gauge-number {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .ats-hero-text h4 {
+      margin: 0 0 4px;
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    .ats-hero-text p {
+      margin: 0;
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: var(--text-dim);
+    }
+
+    .ats-score-summary {
+      margin-top: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .ats-summary-green { color: #2bd684; }
+    .ats-summary-amber { color: #f4933b; }
+    .ats-summary-red { color: #ff5656; }
+
+    .ats-issues {
+      border: 1px solid rgba(255, 86, 86, 0.35);
+      background: rgba(255, 86, 86, 0.07);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      margin-bottom: 14px;
+    }
+
+    .ats-issues h4 {
+      margin: 0 0 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .ats-issue-row {
+      padding: 8px 0;
+      border-top: 1px solid rgba(255, 86, 86, 0.18);
+    }
+
+    .ats-issue-row:first-of-type {
+      border-top: none;
+    }
+
+    .ats-issue-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .ats-issue-stage {
+      flex-shrink: 0;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 2px 6px;
+      border-radius: 999px;
+      margin-top: 1px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-dim);
+    }
+
+    .ats-issue-stage.ats-stage-after { background: rgba(255, 86, 86, 0.18); color: #ffa0a2; }
+
+    .ats-issue-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .ats-issue-body strong {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+
+    .ats-issue-body span {
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--text-dim);
+      display: block;
+    }
+
+    .ats-fix-toggle {
+      flex-shrink: 0;
+      margin: 0;
+      font-size: 11px;
+      padding: 4px 10px;
+    }
+
+    .ats-fix-reveal {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--glass-border);
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: var(--text);
+    }
+
+    .ats-fix-reveal em {
+      color: var(--text-dim);
+      font-style: normal;
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .ats-user-fix {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      background: var(--orange-fill);
+      border: 1px solid var(--orange-border);
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: var(--text);
+    }
+
+    .ats-user-fix em {
+      color: #f4933b;
+      font-style: normal;
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .ats-issues-none {
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      background: rgba(43, 214, 132, 0.08);
+      border: 1px solid rgba(43, 214, 132, 0.3);
+      font-size: 12px;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+
     #modelRow {
       display: none;
       flex-direction: column;
@@ -2129,6 +2401,16 @@
   <!-- MODAL OVERLAY -->
   <div id="refineModal" class="modal-overlay" style="display: none;">
     <div class="modal-content" id="refineModalContent"></div>
+  </div>
+
+  <!-- REFINE QUESTIONS MODAL -->
+  <div id="refineQuestionsModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" id="refineQuestionsContent"></div>
+  </div>
+
+  <!-- ATS RESULT MODAL -->
+  <div id="atsResultModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" id="atsResultContent"></div>
   </div>
 
   <script src="cloud-sync.js"></script>
