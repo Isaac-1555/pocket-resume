@@ -115,7 +115,7 @@ New/unconfigured users get a setup card in the popup plus a spotlight tour on th
 5. "Next"/"Back" persist the current step; Skip, Escape, or the final "Done" set `onboarding: { step: null, dismissed: true }`. Clicking Save Settings while the tour is active (`tourNotifySaved()`) jumps straight to the finish card.
 6. When the config check passes and `onboardingCompleted` is not yet set, the popup shows the one-time "Setup complete" card and persists `onboardingCompleted: true`.
 
-### Resume refinement flow (v8.1 — question pass)
+### Resume refinement flow (v8.2 — question pass)
 
 1. User clicks "Refine Resume" on the options page (`options.js` → `handleRefineResume`).
 2. Options first sends `GET_REFINE_QUESTIONS` with source text. Background `generateRefineQuestions(...)` does one strict-JSON call: reads the master resume and returns up to 5 grounded questions about gaps that materially affect the rewrite (company problem before joining, team size, project scope/ownership, scale). Empty array → no popup. Pre-pass failure → refine proceeds without questions (feature never blocks).
@@ -132,7 +132,7 @@ New/unconfigured users get a setup card in the popup plus a spotlight tour on th
 3. Background calls the provider's `*ResumeExtraction(...)` function — extracts structured JSON profile from raw text.
 4. JSON is saved as `jsonContent` on the resume entry and persisted. Used as `jsonContent` in the generation pipeline.
 
-### ATS check flow (v8.1)
+### ATS check flow (v8.2)
 
 - **"Check ATS" button** next to "Refine Resume" on the options page (`#checkAtsBtn` → `handleCheckAts`): one `CHECK_ATS` message per click → background `generateAtsCheck(context, sourceText)` (one strict-JSON call, fresh every time) → `#atsResultModal`: ring-gauge odometer count-up 0 → score with the shared `renderAtsIssuesCard` issues list ("Fix" reveals + "You'll need to:" lines). Scores the current resume text in the textarea.
 - Scoring rules live in `buildAtsScoringRules()` (`background.js`), shared verbatim by `generateAtsCheck` and the refine prompt, so scores are comparable across the two flows.
@@ -195,7 +195,7 @@ Important keys:
 - `coverLetterEnabled`: boolean
 - `applicationProfile`: Form Filler answers — `{ firstName, lastName, email, phone, streetAddress, addressLine2, city, state, postalCode, country, salaryAmount, salaryCurrency, salaryPeriod, startDate, yearsExperience, workAuthorized, needsSponsorship, over18, willingToRelocate, remotePreference, linkedin, website, github, eeoOptIn, eeo: { gender, race, hispanicLatino, veteran, disability }, customQA: [{ id, question, answer }], updatedAt }`
 - `appProfileOnboarding`: `{ active: boolean }` — trigger for the Form Filler setup spotlight tour (set by the popup, consumed by the options page)
-- `refineNudge`: `{ active: boolean }` — trigger for the v8.1 "Smarter Refine" spotlight on `#refineResumeBtn` (set by the popup's What's New modal via `startRefineNudge()`, consumed by the options page via `NUDGE_TOUR_STEPS` + a `'nudge'` tour mode)
+- `refineNudge`: `{ active: boolean }` — trigger for the v8.2 "Smarter Refine" spotlight on `#refineResumeBtn` (set by the popup's What's New modal via `startRefineNudge()`, consumed by the options page via `NUDGE_TOUR_STEPS` + a `'nudge'` tour mode)
 - `atsNudge`: `{ active: boolean }` — trigger for the v8.2 "Check ATS" spotlight on `#checkAtsBtn` (set by the popup's What's New modal via `startAtsNudge()`, consumed by the options page via `ATS_NUDGE_TOUR_STEPS` + an `'atsnudge'` tour mode)
 - `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'8.2'` current)
 
