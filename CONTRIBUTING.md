@@ -36,7 +36,7 @@ npm ci
 3. Click **Load unpacked** and select the repo root
 4. After edits, click **Reload** on the extension card
 
-See [AGENTS.md](AGENTS.md) for the full architecture map, runtime entrypoints, and debug recipes.
+See [AGENTS.md](AGENTS.md) for the full architecture map, runtime entrypoints, and debug recipes. Project home: [pocket-resume.xyz](https://pocket-resume.xyz).
 
 ## Project Structure
 

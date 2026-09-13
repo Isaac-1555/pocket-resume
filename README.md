@@ -2,6 +2,7 @@
 
 > AI-powered Chrome extension that generates tailored resumes and cover letters from any job description. Paste your master profile once — PocketResume rewrites it for every application.
 
+[![Website](https://img.shields.io/badge/Website-pocket--resume.xyz-blue.svg)](https://pocket-resume.xyz)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](manifest.json)
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-lightgrey.svg)](https://developer.chrome.com/docs/extensions/)
@@ -136,4 +137,4 @@ Report vulnerabilities privately via [GitHub Security Advisories](../../security
 
 ## License
 
-[MIT](LICENSE) © 2026 Isaac Daniel
+[MIT](LICENSE) © 2026 Isaac Daniel · [pocket-resume.xyz](https://pocket-resume.xyz)
