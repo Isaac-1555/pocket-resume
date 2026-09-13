@@ -304,7 +304,7 @@ async function executeProviderChat(context, prompt, contextLabel = '') {
             'Authorization': `Bearer ${apiKey}`
         };
         if (provider === 'openrouter') {
-            headers['HTTP-Referer'] = 'https://pocketresume.app';
+            headers['HTTP-Referer'] = 'https://pocket-resume.xyz';
             headers['X-Title'] = 'PocketResume';
         }
         requestBody = {

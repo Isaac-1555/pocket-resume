@@ -124,6 +124,8 @@ If the privacy policy changes, updates will be posted on this page with a revise
 
 ## Contact
 
-If you have questions about this privacy policy, you can contact the developer via the GitHub repository:
+If you have questions about this privacy policy, you can contact the developer via the website or the GitHub repository:
+
+https://pocket-resume.xyz
 
 https://github.com/Isaac-1555/pocket-resume

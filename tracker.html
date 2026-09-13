@@ -712,6 +712,23 @@
       .timeline-card { grid-column: 1 / -1; }
       .timeline-svg { min-width: 560px; }
     }
+
+    .site-credit {
+      position: fixed;
+      right: 12px;
+      bottom: 10px;
+      z-index: 100;
+      font-size: 11px;
+      color: #7a8595;
+      text-decoration: none;
+      opacity: 0.7;
+      pointer-events: auto;
+    }
+
+    .site-credit:hover {
+      color: var(--orange);
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
@@ -776,6 +793,7 @@
     </div>
   </div>
 
+  <a href="https://pocket-resume.xyz" target="_blank" rel="noopener" class="site-credit">pocket-resume.xyz</a>
   <script src="cloud-sync.js"></script>
   <script src="libs/ldrs-newtons-cradle.js"></script>
   <script src="track-client.js"></script>
