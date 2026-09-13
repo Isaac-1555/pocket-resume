@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PocketResume",
-  "version": "8.0",
+  "version": "8.2",
   "description": "Generate tailored resumes from job descriptions using AI for free*.",
   "permissions": [
     "storage",

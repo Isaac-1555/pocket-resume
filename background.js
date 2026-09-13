@@ -21,8 +21,6 @@ function normalizeResumeStyle(selectedStyle) {
         case "professional":
         case "faang":
             return selectedStyle;
-        case "basic":
-        case "jake":
         default:
             return "professional";
     }
@@ -388,6 +386,33 @@ async function generateTailoredResume(context, userProfile, jobDescription, resu
         bulletRule = "Use concise, impact-focused bullets when appropriate, but academic CV sections may also contain short descriptive detail lines where needed.";
     }
 
+    let bulletFormatRule = "";
+    let bulletTailoringRule = "Tailor bullet point wording to match JD keywords.";
+    let bulletImpactRule = "Ensure bullet points are impactful (Action Verb + Context + Result) and concise unless the academic CV layout needs a short descriptive detail line.";
+    let factRule = "Do not invent facts. Rephrase existing profile data to match JD keywords.";
+
+    if (styleConfig.promptStyle === "professional") {
+        bulletFormatRule = `BULLET FORMAT (CRITICAL — applies to every experience and project):
+    - For EACH experience, write EXACTLY 2 bullet points:
+      1. The problem the company had before I joined. If the target company faces a different problem (per the JOB DESCRIPTION), rewrite this to describe the problem the current company needs solved.
+      2. How I solved that problem using my skills, prioritizing the skills mentioned in the JOB DESCRIPTION.
+    - For EACH project, write EXACTLY 2 bullet points:
+      1. The problem I was solving (rewrite it if needed to match the target company's needs).
+      2. The tools from my skill set I used to fix that issue.
+    - Do NOT add any other bullet points beyond these per entry. Bullets still follow the single-line rule above.`;
+        bulletTailoringRule = "Bullets follow the BULLET FORMAT above; use JD keywords inside them.";
+        bulletImpactRule = "Follow the BULLET FORMAT above exactly and keep every bullet concise.";
+    } else if (styleConfig.promptStyle === "faang") {
+        bulletFormatRule = `BULLET FORMAT (CRITICAL — applies to every experience AND every project). Write EXACTLY 3 bullet points per entry:
+      1. The problem the company had before I joined, including a numerical value of how bad the situation was (e.g. % revenue lost, % error rate, hours wasted, users affected). If the master resume has no such number, add a realistic metric that fits the company's size and industry. If the current company faces a different problem (per the JOB DESCRIPTION), rewrite this to describe the problem the company needs solved.
+      2. How I solved that problem using my skills, prioritizing the skills mentioned in the JOB DESCRIPTION.
+      3. The measurable value the solution brought, with a concrete metric (e.g. +X% efficiency, Y hours saved/month, Z% revenue lift). If the master resume does not provide one, estimate a realistic number that fits the context.
+    - Do NOT add any other bullet points beyond these. Bullets still follow the single-line rule above; keep numbers compact.`;
+        bulletTailoringRule = "Bullets follow the BULLET FORMAT above; use JD keywords inside them.";
+        bulletImpactRule = "Follow the BULLET FORMAT above exactly and keep every bullet concise.";
+        factRule = "Do not invent facts. Rephrase existing profile data to match JD keywords. (Single exception: the metrics explicitly required by the BULLET FORMAT above may be estimated when the master resume lacks them.)";
+    }
+
     const prompt = `
     You are an expert Resume/CV Writer and Data Extraction Tool.
     
@@ -411,13 +436,14 @@ async function generateTailoredResume(context, userProfile, jobDescription, resu
 
     CONTENT RULES (preserve all profile content):
     - ${pageRule}
-    - Include ALL experiences from my profile. Do NOT drop any. Tailor bullet point wording to match JD keywords.
-    - Include ALL projects from my profile. Do NOT drop any. Tailor bullet point wording to match JD keywords.
+    - Include ALL experiences from my profile. Do NOT drop any. ${bulletTailoringRule}
+    - Include ALL projects from my profile. Do NOT drop any. ${bulletTailoringRule}
     - Include ALL education entries from my profile.
     - Include ALL certifications from my profile as a flat list.
     - Include ALL skills from my profile. Then add JD skills on top.
     - If the profile clearly includes links, honors/awards, publications, teaching, service, or academic distinctions, include them in the structured fields below.
     - ${bulletRule}
+    - ${bulletFormatRule}
     - Professional summary: 2-3 sentences max unless the academic CV layout needs a slightly longer profile section.
     
     IMPORTANT:
@@ -491,9 +517,9 @@ async function generateTailoredResume(context, userProfile, jobDescription, resu
         { "title": "String", "organization": "String", "period": "String", "details": ["String"] }
       ]
     }
-    - Do not invent facts. Rephrase existing profile data to match JD keywords.
+    - ${factRule}
     - IMPORTANT: If a specific field is NOT provided in the source profile, leave string fields as "" and array fields as []. Do NOT put "N/A", "Unknown", "Ongoing", or "Present".
-    - Ensure bullet points are impactful (Action Verb + Context + Result) and concise unless the academic CV layout needs a short descriptive detail line.
+    - ${bulletImpactRule}
   `;
 
     return executeProviderChat(context, prompt);
@@ -560,12 +586,103 @@ async function extractResumeProfileJson(context, sourceText) {
     return executeProviderChat(context, prompt, 'Resume Extraction');
 }
 
-async function refineResumeSource(context, userProfile) {
+async function normalizeRefineAnswers(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map((item) => {
+            if (!item || typeof item !== 'object') return null;
+            const question = typeof item.question === 'string' ? item.question.trim() : '';
+            if (!question) return null;
+            const answer = typeof item.answer === 'string' ? item.answer.trim() : '';
+            return {
+                question,
+                answer,
+                skipped: item.skipped === true || !answer
+            };
+        })
+        .filter(Boolean)
+        .slice(0, 10);
+}
+
+function buildRefineAnswersPromptBlock(answers) {
+    const normalized = normalizeRefineAnswers(answers);
+    if (!normalized.length) return '';
+    const lines = normalized.map((item) => {
+        if (item.skipped) {
+            return `- [UNANSWERED - AI MAY FILL] ${item.question}`;
+        }
+        return `- ${item.question}\n    USER'S ANSWER (verified fact): ${item.answer}`;
+    });
+    return `
+    USER CONTEXT (answers provided by the resume owner):
+    ${lines.join('\n')}
+  `;
+}
+
+function buildAtsScoringRules() {
+    return `
+    ATS SCORING RULES:
+    - Score 0-100 for ATS parser-readiness. 100 = a plain-text parser extracts every section, employer, title, date, contact field, and skill without confusion.
+    - What hurts the score (each becomes a critical issue when severe):
+      - Missing or inconsistent section headings (Experience, Education, Skills, ...).
+      - Dates not machine-readable (no numeric month/year, ranges like "couple of years", inconsistent separators).
+      - Contact line not parseable (no clear email/phone, name merged with other text, info inside paragraphs).
+      - Dense paragraphs that hide employers, titles, or shipped work.
+      - Table-like column layouts, markdown tables/bullets (*) decorated with === or ---, code fences, or non-text glyphs.
+      - Sections ATS tools commonly need but are absent (Skills or Education) when they would not be inferable elsewhere.
+    - criticalIssues: only problems a real ATS would flag, most impactful first (max 6). Empty array when none.
+      - issue: what is wrong, in one sentence.
+      - whyFlagged: why an ATS parser trips on it.
+      - suggestedFix: the concrete edit that fixes it (AI-fixable formatting/wording only).
+      - userMustFix: things only the resume owner can resolve (confirm a date, name a missing employer, explain a gap). Empty string when not applicable.
+      - userMustFix items must be reported EVEN IF the score is 100.
+  `;
+}
+
+function clampAtsScore(value) {
+    const n = typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : NaN;
+    if (Number.isNaN(n)) return null;
+    return Math.max(0, Math.min(100, n));
+}
+
+function normalizeAtsIssues(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map((item) => {
+            if (!item || typeof item !== 'object') return null;
+            const issue = typeof item.issue === 'string' ? item.issue.trim() : '';
+            if (!issue) return null;
+            const stage = ['before', 'after', 'both'].includes(item.stage) ? item.stage : 'both';
+            return {
+                stage,
+                issue,
+                whyFlagged: typeof item.whyFlagged === 'string' ? item.whyFlagged.trim() : '',
+                suggestedFix: typeof item.suggestedFix === 'string' ? item.suggestedFix.trim() : '',
+                userMustFix: typeof item.userMustFix === 'string' ? item.userMustFix.trim() : ''
+            };
+        })
+        .filter(Boolean)
+        .slice(0, 6);
+}
+
+function normalizeAtsBlock(value, fallbackBefore, fallbackAfter) {
+    const before = clampAtsScore(value?.before) ?? fallbackBefore;
+    const after = clampAtsScore(value?.after) ?? fallbackAfter;
+    return {
+        before,
+        after,
+        criticalIssues: normalizeAtsIssues(value?.criticalIssues)
+    };
+}
+
+async function refineResumeSource(context, userProfile, answers = []) {
+    const answersBlock = buildRefineAnswersPromptBlock(answers);
     const prompt = `
     You are a strict resume normalization assistant.
 
     SOURCE RESUME:
     ${userProfile}
+  ${answersBlock}
 
     TASK:
     Rewrite the source into a single cross-style master resume that stays truthful and can be used to generate all supported PocketResume layouts.
@@ -577,6 +694,8 @@ async function refineResumeSource(context, userProfile) {
 
     NON-NEGOTIABLE RULES:
     - The source resume is the only authority. Do not invent, infer, or embellish missing facts.
+    - USER CONTEXT answers are verified facts supplied by the resume owner. Treat them as having the same or higher authority than the source resume, and weave them into the relevant sections.
+    - For questions the owner left unanswered: you may fill the gap yourself with brief, in-scope, conservative content inferred from the rest of the source (role level, industry, project scope). Never invent specific numbers, percentages, company names, client names, or titles. Keep the filler modest and plausible, and every such addition must be reported in the aiFilled list.
     - Preserve every supported fact from the source somewhere in the refined text: names, contact info, employers, titles, locations, dates, projects, publications, awards, degrees, certifications, skills, links, teaching, service, and research details.
     - Never add or guess metrics, dates, technologies, employers, titles, publications, awards, links, citations, star counts, or claims that are not explicitly supported by the source.
     - You may reorganize content into clearer sections, split dense paragraphs into bullets, normalize wording, and improve readability.
@@ -585,7 +704,7 @@ async function refineResumeSource(context, userProfile) {
     - Use plain text with obvious section headings and bullets. No markdown tables. No code fences.
     - Keep formatting ATS-friendly and easy for downstream parsing.
     - If information is ambiguous, incomplete, or unverifiable, keep the wording conservative and include the issue in warnings instead of guessing.
-
+  ${buildAtsScoringRules()}
     PREFERRED SECTION ORDER WHEN SUPPORTED BY THE SOURCE:
     Name / Contact
     Summary
@@ -605,13 +724,21 @@ async function refineResumeSource(context, userProfile) {
     {
       "refinedText": "String - plain text only",
       "warnings": ["String"],
-      "changeSummary": ["String"]
+      "changeSummary": ["String"],
+      "aiFilled": ["String"],
+      "ats": {
+        "before": Number,
+        "after": Number,
+        "criticalIssues": [{ "stage": "before|after|both", "issue": "String", "whyFlagged": "String", "suggestedFix": "String", "userMustFix": "String" }]
+      }
     }
 
     OUTPUT REQUIREMENTS:
     - refinedText must be plain text only and must not be empty.
     - warnings should contain only real ambiguities or unverifiable gaps. Use [] when there are none.
     - changeSummary should contain 3-8 concise bullets describing the structural or editorial changes you made.
+    - aiFilled must list one short entry per unanswered question you filled yourself, naming the gap that was filled. Use [] when none were filled.
+    - ats.before scores SOURCE RESUME as-is; ats.after scores the refinedText you return. criticalIssues describe what remains wrong in either (stage before/after/both); issues fully resolved by your rewrite only appear with stage "before" or are omitted.
     - Return raw JSON only. Do not wrap it in markdown.
   `;
 
@@ -623,52 +750,207 @@ async function refineResumeSource(context, userProfile) {
         throw new Error("Resume refinement returned empty content.");
     }
 
+    let ats = { before: null, after: null, criticalIssues: [] };
+    if (parsed.ats && typeof parsed.ats === 'object') {
+        ats = normalizeAtsBlock(parsed.ats, null, null);
+    }
+
     return {
         refinedText,
         warnings: normalizeStringArray(parsed.warnings),
-        changeSummary: normalizeStringArray(parsed.changeSummary).slice(0, 8)
+        changeSummary: normalizeStringArray(parsed.changeSummary).slice(0, 8),
+        aiFilled: normalizeStringArray(parsed.aiFilled).slice(0, 10),
+        ats
     };
 }
 
-async function generateCoverLetterText(context, userProfile, jobDescription, resumeStyle) {
-    const styleConfig = getResumeStyleConfig(resumeStyle);
+async function generateRefineQuestions(context, userProfile) {
+    const prompt = `
+    You are a resume interviewer preparing to rewrite a master resume.
 
-    let toneGuide = "";
-    if (styleConfig.promptStyle === "faang") {
-        toneGuide = "Use a confident, results-driven tone. Emphasize measurable impact, technical depth, and scale of systems worked on.";
-    } else if (styleConfig.promptStyle === "professional" || styleConfig.promptStyle === "academic-cv") {
-        toneGuide = "Use a polished, corporate tone. Emphasize leadership, strategic thinking, and professional accomplishments.";
-    } else {
-        toneGuide = "Use a clear, approachable, and professional tone. Keep it straightforward and sincere.";
+    SOURCE RESUME:
+    ${userProfile}
+
+    TASK:
+    Read the source and decide which missing pieces of context would most improve the rewrite, then return the questions to ask the resume owner.
+
+    GOOD QUESTIONS (ask only about these kinds of gaps):
+    - What problem did the company/team have before this person joined, and what changed?
+    - Team size, leadership scope, or collaboration context for an experience entry.
+    - Scale or prominence of a project (users, size of rollout, purpose).
+    - What the person actually owned or was responsible for in a vague entry.
+    - Motivation or significance of a project or role that is unclear.
+
+    RULES:
+    - Every question must be grounded in something concrete in the source (quote or reference the relevant entry, employer, or project in the question).
+    - Never ask for facts the source already contains.
+    - Never ask for specific metrics the person may not know. Prefer open context questions.
+    - Ask at most 5 questions, ordered by impact. A complete resume should return no questions.
+    - Each question must be answerable in one or two sentences by the resume owner.
+
+    OUTPUT:
+    Return strictly valid JSON with this schema:
+    {
+      "questions": [{ "id": "q1", "question": "String", "why": "String" }]
     }
+
+    OUTPUT REQUIREMENTS:
+    - question: the question text, self-contained and referencing the relevant resume entry.
+    - why: one short sentence explaining how the answer will improve the resume.
+    - Return raw JSON only. Do not wrap it in markdown.
+  `;
+
+    const rawText = await executeProviderChat(context, prompt, 'Refine Questions');
+    const parsed = parseJsonText(rawText, 'Refine questions response');
+    const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
+
+    return questions
+        .map((item, index) => {
+            if (!item || typeof item !== 'object') return null;
+            const question = typeof item.question === 'string' ? item.question.trim() : '';
+            if (!question) return null;
+            return {
+                id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `q${index + 1}`,
+                question,
+                why: typeof item.why === 'string' ? item.why.trim() : ''
+            };
+        })
+        .filter(Boolean)
+        .slice(0, 5);
+}
+
+async function generateAtsCheck(context, userProfile) {
+    const prompt = `
+    You are a strict ATS (Applicant Tracking System) readiness auditor.
+
+    RESUME UNDER AUDIT:
+    ${userProfile}
+
+    TASK:
+    Score how well an automated ATS parser would read this resume and list the concrete problems it would flag.
+
+  ${buildAtsScoringRules()}
+
+    OUTPUT:
+    Return strictly valid JSON with this schema:
+    {
+      "score": Number,
+      "criticalIssues": [{ "stage": "before", "issue": "String", "whyFlagged": "String", "suggestedFix": "String", "userMustFix": "String" }]
+    }
+
+    OUTPUT REQUIREMENTS:
+    - score: the ATS parse-readiness of the resume as-is, 0-100.
+    - criticalIssues: use stage "before" for every entry (single-document audit).
+    - Return raw JSON only. Do not wrap it in markdown.
+  `;
+
+    const rawText = await executeProviderChat(context, prompt, 'ATS Check');
+    const parsed = parseJsonText(rawText, 'ATS check response');
+    const score = clampAtsScore(parsed.score) ?? 0;
+
+    return {
+        score,
+        criticalIssues: normalizeAtsIssues(parsed.criticalIssues)
+    };
+}
+
+function buildCoverLetterToneGuide(resumeStyle) {
+    switch (normalizeResumeStyle(resumeStyle)) {
+        case "faang":
+            return {
+                title: "FAANG RESULTS TONE",
+                body: `
+    TONE & STYLE (FAANG results letter):
+    - Confident, direct, data-heavy tone. Engineers and recruiters at big tech read fast; every sentence must earn its place.
+    - Use active voice and strong verbs: led, architected, shipped, cut, scaled, reduced.
+    - No filler intensifiers ("very", "really", "extremely"). No buzzwords like "passionate", "team player", "results-driven".
+    - Be precise with numbers: prefer exact figures ("42%") over ranges ("40-45%"); exact durations ("2 hours to 15 minutes") over vague ones.
+
+    STRUCTURE - exactly two body content blocks plus the opening and closing paragraphs:
+    1. OPENING PARAGRAPH (3-4 sentences): Why this company and this role specifically. Name the company. Reference something concrete from the job description or what the team works on, and connect it to what you have done. State in one sentence why your skills are a good fit for the role's problems. Do NOT start with "I am writing to apply for..." - lead with something specific.
+    2. METRICS PARAGRAPH (main body_paragraphs[0]): Proof through numbers. Pick the STRONGEST quantified results from the TAILORED RESUME DATA and weave 2-4 of them into a cohesive narrative paragraph - not a bullet dump. Frame each metric as a real-world result: latency improvements, scale (users/requests served), uptime, cost savings, ship velocity, growth. Map the results to the type of problems this role will face at this company.
+    3. CLOSING PARAGRAPH: One or two sentences tying your trajectory to their scale/challenges, then a direct forward-looking call to action (welcome a conversation, available at specific channels already in the contact info). Never end with a passive "I look forward to hearing from you".
+
+    Integrating metrics from the tailored resume is REQUIRED for this style:
+    - If TAILORED RESUME DATA contains quantified results, use those exact numbers - they are the ground truth.
+    - Only fall back to the raw profile for metrics if the tailored data has none.
+    - NEVER invent, estimate, or round up metrics that are not present in either source.
+    - Prefer the tailored data over the raw profile when both contain a fact.`
+            };
+        case "academic-cv":
+            return {
+                title: "ACADEMIC / RESEARCH TONE",
+                body: `
+    TONE & STYLE (research internship / research-oriented role):
+    - Scholarly-professional: measured, substantive, peer-to-peer. Not sales talk, not corporate fluff.
+    - Show intellectual curiosity for the actual research area. Reference the team's work or research focus when the job description reveals it.
+    - Ground claims in concrete detail: name methods, tools, lab techniques, coursework, publications, presentations, and collaborators from the profile. Specifics over superlatives.
+    - Ban filler words: "very", "really", "genuinely". Do not claim to be "passionate" - demonstrate it through what you have studied and built.
+    - Learner posture appropriate to internships and early-stage research roles: emphasize eagerness to learn the group's methods, ability to work both independently and as part of a research team, and readiness to take on defined tasks.
+    - Close modestly but confidently: affirm fit and interest in contributing, without sales pressure.
+
+    STRUCTURE - 4 paragraphs, each with a clear purpose:
+    1. OPENING PARAGRAPH (3-4 sentences): State the role/position and a specific, honest reason for applying to this team or research area (drawn from the job description). One sentence on who you are (degree/program/stage if present in the profile) and why it is a fit.
+    2. RESEARCH & METHODS PARAGRAPH (main body content): Your most relevant research experience from the profile - projects, lab work, publications, presentations. Describe what you actually did: methods used, tools/equipment, your specific contributions, outcomes or findings. Prove capability with detail rather than adjectives.
+    3. RELEVANCE PARAGRAPH (supporting body content if used): Connect your preparation (skills, coursework, techniques) directly to the job description's stated research areas or duties. Address the 2-4 most important listed requirements, choosing the ones where your profile gives you real substance.
+    4. CLOSING PARAGRAPH: Brief restatement of fit and enthusiasm for contributing, gratitude-free, with a professional call to action.`
+            };
+        default:
+            return {
+                title: "CORPORATE STORY TONE",
+                body: `
+    TONE & STYLE (story-driven corporate letter):
+    - Write a cohesive story that SELLS the candidate to the recruiter. The letter must flow as one narrative arc, not a list of qualifications.
+    - The resume attached to this letter already contains all projects and work history. DO NOT recite, summarize, or restate the resume. No paragraph may read like a resume in prose form.
+    - Speak about skills and abilities ONLY through the lens of what they mean for this role and this company (e.g., what the candidate's strengths will do for the reader's team), never as a skills inventory.
+    - Illuminate the "why": why this company, why this position, why now in the candidate's career. Make the reader believe the candidate chose them deliberately and will shine in the role.
+    - Confident but human tone. Concrete and specific; avoid clichés ("team player", "hard-working", "detail-oriented") and filler intensifiers ("very", "really", "extremely").
+
+    STRUCTURE - one continuous narrative:
+    1. OPENING PARAGRAPH: Why the candidate picked this company and this position specifically. Reference the company and role by name, and ground the reason in specifics from the job description rather than generic admiration.
+    2. SKILLS-TO-NEED PARAGRAPH (main body content): How the candidate's skills will help the company with the problems this role exists to solve. Choose the 1-2 requirements from the job description the candidate is best equipped for, and connect the candidate's abilities to them from the employer's perspective.
+    3. SHINE PARAGRAPH (supporting body content if used): Why the candidate will excel and stand out in this specific position - working style, drive, and how those traits translate into impact for the team.
+    4. CLOSING PARAGRAPH: Reiterate fit, express eagerness to discuss further, and include a professional call to action.
+
+    PORTFOLIO WEBSITE EMPHASIS:
+    - If the profile contains a portfolio / personal website / GitHub URL, mention it ONCE, partway through the letter, and frame it as an active invitation: encourage the recruiter to go see the work themselves (e.g., "the portfolio linked in this letter walks through" / "I invite you to explore the site linked in my signature").
+    - Position it as proof instead of claims: it lets the reader verify talent rather than take the letter's word for it.`
+            };
+    }
+}
+
+async function generateCoverLetterText(context, userProfile, jobDescription, resumeStyle, tailoredResumeJson) {
+    const tone = buildCoverLetterToneGuide(resumeStyle);
+    const tailoredDataBlock = (tailoredResumeJson && normalizeResumeStyle(resumeStyle) === 'faang')
+        ? `\n    TAILORED RESUME DATA (ground truth for metrics; use these numbers, do not contradict them):\n    ${tailoredResumeJson}\n`
+        : '';
 
     const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
     const prompt = `
     You are an expert Cover Letter Writer.
-    
+
+    LETTER STYLE: ${tone.title}
+
     TODAY'S DATE: ${today}
 
-    MY PROFILE:
+    MY PROFILE (resume source text):
     ${userProfile}
-
+${tailoredDataBlock}
     JOB DESCRIPTION (extracted text):
     ${jobDescription}
 
     TASK:
     Write a professional cover letter for this specific job based on my profile.
-    ${toneGuide}
-    
-    CONSTRAINTS:
+${tone.body}
+
+    SHARED CONSTRAINTS:
     - Target length: 250-350 words (3-4 short paragraphs).
     - Absolute maximum: 400 words.
     - The letter MUST fit on a single page. Do NOT write a multi-page letter.
-    - Professional, corporate tone appropriate for business correspondence.
-    - Do NOT invent facts. Use only information from the provided profile.
+    - Professional tone appropriate for business correspondence.
+    - Do NOT invent facts, employers, titles, dates, or metrics. Use only information from the profile (and tailored resume data when provided).
     - Tailor the letter specifically to the job description. Reference the company and role.
-    - Opening paragraph: Express enthusiasm for the specific role and company. Briefly state why you are a strong fit.
-    - Body paragraphs (1-2): Highlight relevant experience, skills, and accomplishments that directly match the JD requirements. Use specific examples from the profile.
-    - Closing paragraph: Reiterate interest, express eagerness to discuss further, and include a professional call to action.
 
     IMPORTANT:
     - Output strictly valid JSON.
@@ -685,8 +967,8 @@ async function generateCoverLetterText(context, userProfile, jobDescription, res
       "company_address": "String (Company address from JD if available, else empty string)",
       "job_title": "String (Position title being applied for)",
       "greeting": "String (e.g. 'Dear Hiring Manager,' or 'Dear Mr./Ms. LastName,')",
-      "opening_paragraph": "String (First paragraph - enthusiasm and fit)",
-      "body_paragraphs": ["String (Supporting paragraph 1)", "String (Optional supporting paragraph 2)"],
+      "opening_paragraph": "String (First paragraph)",
+      "body_paragraphs": ["String (main supporting paragraph(s))"],
       "closing_paragraph": "String (Final paragraph - call to action)",
       "sign_off": "String (e.g. 'Sincerely,')"
     }
@@ -969,7 +1251,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // 6. Conditionally generate cover letter
                 let coverLetterText = null;
                 if (settings.coverLetterEnabled) {
-                    coverLetterText = await generateCoverLetterText(context, userProfile, jobText, selectedResumeStyle);
+                    coverLetterText = await generateCoverLetterText(context, userProfile, jobText, selectedResumeStyle, resumeText);
                 }
 
                 // 6b. Success
@@ -998,6 +1280,56 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true; // Keep channel open
     }
 
+    if (message.type === 'CHECK_ATS') {
+        (async () => {
+            try {
+                const payload = message.payload || {};
+                const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS);
+                const provider = settings.apiProvider || 'google';
+                validateProviderReady(settings, provider);
+                const context = createProviderContext(settings, typeof payload.apiKey === 'string' ? payload.apiKey : '');
+                const sourceText = typeof payload.sourceText === 'string' ? payload.sourceText : '';
+
+                if (!sourceText.trim()) {
+                    throw new Error("Please add your resume/profile content before checking its ATS score.");
+                }
+
+                const result = await generateAtsCheck(context, sourceText);
+                sendResponse({ status: 'success', data: result });
+            } catch (error) {
+                console.error("ATS Check Error:", error);
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+
+        return true;
+    }
+
+    if (message.type === 'GET_REFINE_QUESTIONS') {
+        (async () => {
+            try {
+                const payload = message.payload || {};
+                const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS);
+                const provider = settings.apiProvider || 'google';
+                validateProviderReady(settings, provider);
+                const context = createProviderContext(settings, typeof payload.apiKey === 'string' ? payload.apiKey : '');
+                const sourceText = typeof payload.sourceText === 'string' ? payload.sourceText : '';
+
+                if (!sourceText.trim()) {
+                    throw new Error("Please add your resume/profile content before refining it.");
+                }
+
+                const questions = await generateRefineQuestions(context, sourceText);
+                sendResponse({ status: 'success', data: { questions } });
+            } catch (error) {
+                console.error("Refine Questions Error:", error);
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+
+        return true;
+    }
+
     if (message.type === 'REFINE_RESUME') {
         (async () => {
             try {
@@ -1012,7 +1344,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     throw new Error("Please add your resume/profile content before refining it.");
                 }
 
-                const refinement = await refineResumeSource(context, sourceText);
+                const refinement = await refineResumeSource(context, sourceText, payload.answers);
                 sendResponse({ status: 'success', data: refinement });
             } catch (error) {
                 console.error("Refinement Error:", error);

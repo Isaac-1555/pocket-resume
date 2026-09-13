@@ -99,8 +99,8 @@ None configured. No test runner or linter. Validate by hand: load unpacked, gene
    - Strips accidental Markdown fences.
    - `JSON.parse(...)` the model output.
    - Generates / downloads PDFs via jsPDF:
-     - PocketResume layouts (basic / professional / faang): `generatePDF(...)` in `popup.js`
-     - Alternative layouts (jake / deedy / academic-cv): `window.ResumeRenderers.generateResumePDF(...)` in `resume-renderers.js`
+      - PocketResume layouts (professional / faang): `generatePDF(...)` in `popup.js`
+      - Alternative layouts (deedy / academic-cv): `window.ResumeRenderers.generateResumePDF(...)` in `resume-renderers.js`
    - Cover letter: `generateCoverLetterPDF(...)` in `popup.js`
 6. Popup (error): `setError()` stores the raw message, maps it to a short human-readable string via `mapErrorMessage(...)`, and persists the red `data-status="error"` state until the popup closes or Generate is clicked again. It also reveals the "?" button (`#errorInfoBtn`), which opens the error modal (`#errorModal`) with the mapped message plus a Copy Details button for the full raw error. Exception: a missing/unconfigured API key or resume no longer produces the red error — the setup card shows instead (see onboarding flow below).
 
@@ -115,13 +115,15 @@ New/unconfigured users get a setup card in the popup plus a spotlight tour on th
 5. "Next"/"Back" persist the current step; Skip, Escape, or the final "Done" set `onboarding: { step: null, dismissed: true }`. Clicking Save Settings while the tour is active (`tourNotifySaved()`) jumps straight to the finish card.
 6. When the config check passes and `onboardingCompleted` is not yet set, the popup shows the one-time "Setup complete" card and persists `onboardingCompleted: true`.
 
-### Resume refinement flow
+### Resume refinement flow (v8.2 — question pass)
 
-1. User clicks "Refine Resume" on the options page (`options.js`).
-2. Options sends `REFINE_RESUME` to background with source text.
-3. Background calls the provider's `*ResumeRefinement(...)` function — rewrites source into a cross-style master resume (no job-description tailoring).
-4. Options shows a side-by-side review panel with change summary and warnings.
-5. User can Apply (replaces source text) or Cancel. Undo restores the last pre-refine backup.
+1. User clicks "Refine Resume" on the options page (`options.js` → `handleRefineResume`).
+2. Options first sends `GET_REFINE_QUESTIONS` with source text. Background `generateRefineQuestions(...)` does one strict-JSON call: reads the master resume and returns up to 5 grounded questions about gaps that materially affect the rewrite (company problem before joining, team size, project scope/ownership, scale). Empty array → no popup. Pre-pass failure → refine proceeds without questions (feature never blocks).
+3. If questions remain, options shows `#refineQuestionsModal`: one question at a time, textarea, and a single primary button that reads "Skip, let AI fill it" when the textarea is empty and "Next" (or "Refine Resume" on the last question) otherwise; Back appears from question 2, Cancel sits right-aligned. Existing answers are pre-seeded from `resume.refineAnswers` (matched by normalized question text) and marked "(from last time)".
+4. Options sends `REFINE_RESUME` with `answers: [{ id, question, answer, skipped }]`. Background `refineResumeSource(context, sourceText, answers)` — answered Q&A is highest-authority fact; skipped questions get conservative in-scope AI filler (no invented specific numbers/names) reported in the response's `aiFilled` array.
+5. Options shows the side-by-side review panel with an **ATS hero** (ring-gauge odometer animating the shared `ats.before` → `ats.after` scores, "Before X → After Y" line), a **"Critical ATS issues" card** (each row: issue + why an ATS trips on it + reveal-only **Fix** button showing `suggestedFix`; amber "You'll need to:" lines for `userMustFix` items, shown even at score 100), change summary, "AI filled in (please double-check)" card, and warnings.
+6. User can Apply (replaces source text; merges the run's answers into `resume.refineAnswers`, newest first) or Cancel. Undo restores the last pre-refine backup (refineAnswers untouched).
+7. `resume.refineAnswers` (`[{ question, answer, skipped, updatedAt }]`, max 10) persists with the other resume fields via Save Settings.
 
 ### Resume JSON extraction flow
 
@@ -130,6 +132,12 @@ New/unconfigured users get a setup card in the popup plus a spotlight tour on th
 3. Background calls the provider's `*ResumeExtraction(...)` function — extracts structured JSON profile from raw text.
 4. JSON is saved as `jsonContent` on the resume entry and persisted. Used as `jsonContent` in the generation pipeline.
 
+### ATS check flow (v8.2)
+
+- **"Check ATS" button** next to "Refine Resume" on the options page (`#checkAtsBtn` → `handleCheckAts`): one `CHECK_ATS` message per click → background `generateAtsCheck(context, sourceText)` (one strict-JSON call, fresh every time) → `#atsResultModal`: ring-gauge odometer count-up 0 → score with the shared `renderAtsIssuesCard` issues list ("Fix" reveals + "You'll need to:" lines). Scores the current resume text in the textarea.
+- Scoring rules live in `buildAtsScoringRules()` (`background.js`), shared verbatim by `generateAtsCheck` and the refine prompt, so scores are comparable across the two flows.
+- Refine results embed the same block as `ats: { before, after, criticalIssues }` inside the refine response (`before` = source resume, `after` = proposed refinedText; `userMustFix` items listed even when `after` = 100). A failing or missing ats block never blocks the refine — the hero is simply hidden.
+
 ### Form filler setup (Application Questions, v8.0)
 
 One-time onboarding for Form Filler: the user answers common application-form questions once; fills reuse them.
@@ -137,8 +145,7 @@ One-time onboarding for Form Filler: the user answers common application-form qu
 1. **Questionnaire**: Options page → "Form Filler Setup" section (`#appProfileDetails`, left panel). Groups: Basics (first/last name, email, phone), Location (street, apt, city, state, postal code, country), Work eligibility (authorized / sponsorship / 18+ / relocate / remote preference — Yes/No selects), Preferences (salary amount + currency + period, start date, years of experience), Links (LinkedIn, portfolio, GitHub), opt-in **EEO self-identification** (gender, race, hispanic/Latino, veteran, disability — only used when a form asks; local only), and **Custom Q&A** (free-form question/answer rows matched by question text).
 2. **"Auto-fill from my resume"**: options sends `PROFILE_AUTOFILL` with the active resume's `jsonContent` (fallback `content`). Background `generateApplicationProfileFromResume(...)` does one strict-JSON extraction call → options fills **empty inputs only** and reports "Filled X of Y fields".
 3. **Persistence**: saved as `applicationProfile` via the global Save Settings button. Completion = non-empty `firstName` + `lastName`; the section's status pill shows "Ready" / "Not set up".
-4. **Entry points**: the v8.0 What's New modal ("Set up Form Filler") and the popup fill-gating card both set `appProfileOnboarding: { active: true }` and open the options page; options consumes the flag and starts the **profile spotlight tour** (`PROFILE_TOUR_STEPS`, reuses the tour overlay via `tourOpenAt(step, 'profile')`). "Guide me" in the section restarts it. Saved answers keep working if the tour is skipped.
-5. **Fill gating**: popup Fill with an incomplete profile shows `#fillProfileCard` ("Complete setup" → same trigger) instead of running the fill. Generation flow is unaffected.
+4. **Entry points**: the v8.0 What's New modal ("Set up Form Filler") and the popup fill-gating card both set `appProfileOnboarding: { active: true }` and open the options page; options consumes the flag and starts the **profile spotlight tour** (`PROFILE_TOUR_STEPS`, reuses the tour overlay via `tourOpenAt(step, 'profile')`). "Guide me" in the section restarts it. Saved answers keep working if the tour is skipped.5. **Fill gating**: popup Fill with an incomplete profile shows `#fillProfileCard` ("Complete setup" → same trigger) instead of running the fill. Generation flow is unaffected.
 
 ### Form filler flow
 
@@ -159,12 +166,16 @@ Configured by `getResumeStyleConfig(...)` in `background.js`:
 
 | UI Style     | promptStyle  | layout       | PDF Renderer                                                       |
 | ------------ | ------------ | ------------ | ------------------------------------------------------------------ |
-| basic        | basic        | pocketresume | `popup.js` → `generatePDF`                                         |
 | professional | professional | pocketresume | `popup.js` → `generatePDF`                                         |
 | faang        | faang        | pocketresume | `popup.js` → `generatePDF`                                         |
-| jake         | faang        | jake         | `resume-renderers.js` → `renderJakeLayout`                         |
 | deedy        | faang        | deedy        | `resume-renderers.js` → `renderDeedyLayout`                        |
 | academic-cv  | academic-cv  | academic-cv  | `resume-renderers.js` → `renderAcademicCvLayout`                   |
+
+Bullet-format rules in `generateTailoredResume(...)` (`background.js`): `professional` promptStyle gets an exact 2-bullet problem/solution format per experience and project; `faang` promptStyle (FAANG, Double Sided) gets an exact 3-bullet problem/solution/impact-metric format per experience and project, with estimated metrics allowed only there; `academic-cv` keeps the original prompt with no bullet-format rule.
+
+Cover letter tone in `generateCoverLetterText(...)` (`background.js`, `buildCoverLetterToneGuide`) forks on the **raw UI style** (not `promptStyle`, because `deedy` maps to a `faang` promptStyle but gets the corporate letter): `professional` + `deedy` → corporate story tone (why company/role, skills-to-need, no resume recitation, portfolio-website emphasis); `faang` → para 1 corporate-style fit, para 2 metrics-heavy results proof (metrics grounded in the `tailoredResumeJson` passed at the call site; fallback to raw profile; never invent numbers); `academic-cv` → research/scholar tone (methods + tools + JD research-area fit, learner posture). Shared: 250-350 words, JSON-only, no invented facts, same JSON schema.
+
+The stored `"deedy"` value corresponds to the UI label "Double Sided" — renaming the value would break existing users' saved settings, so keep `"deedy"` as the internal id.
 
 ## Settings + persistence
 
@@ -177,13 +188,16 @@ Important keys:
 - `googleModel` / `openaiModel` / `anthropicModel` / `openrouterModel`: string model override ("" = provider default)
 - `customEndpoints`: array of `{ id, name, baseUrl, apiKey, model, extraBody }` (OpenAI-compatible endpoints; `apiKey` may be empty for local servers; `extraBody` is an optional raw JSON string shallow-merged into the request body)
 - `activeCustomEndpointId`: which custom endpoint is active when `apiProvider` is `"custom"`
-- `resumes`: array of `{ id, label, content, jsonContent, lastRefineBackup, lastRefineAppliedAt }` (up to 3)
+- `resumes`: array of `{ id, label, content, jsonContent, lastRefineBackup, lastRefineAppliedAt, refineAnswers }` (up to 3)
 - `selectedResumeId`: which resume is active in the popup
 - `cloudSyncStatus`: `"idle" | "syncing" | "synced" | "error"` (Pro sync indicator, written by `src/cloud-sync.js`)
-- `resumeType`: `"basic" | "professional" | "faang" | "jake" | "deedy" | "academic-cv"`
+- `resumeType`: `"professional" | "faang" | "deedy" | "academic-cv"`
 - `coverLetterEnabled`: boolean
 - `applicationProfile`: Form Filler answers — `{ firstName, lastName, email, phone, streetAddress, addressLine2, city, state, postalCode, country, salaryAmount, salaryCurrency, salaryPeriod, startDate, yearsExperience, workAuthorized, needsSponsorship, over18, willingToRelocate, remotePreference, linkedin, website, github, eeoOptIn, eeo: { gender, race, hispanicLatino, veteran, disability }, customQA: [{ id, question, answer }], updatedAt }`
 - `appProfileOnboarding`: `{ active: boolean }` — trigger for the Form Filler setup spotlight tour (set by the popup, consumed by the options page)
+- `refineNudge`: `{ active: boolean }` — trigger for the v8.2 "Smarter Refine" spotlight on `#refineResumeBtn` (set by the popup's What's New modal via `startRefineNudge()`, consumed by the options page via `NUDGE_TOUR_STEPS` + a `'nudge'` tour mode)
+- `atsNudge`: `{ active: boolean }` — trigger for the v8.2 "Check ATS" spotlight on `#checkAtsBtn` (set by the popup's What's New modal via `startAtsNudge()`, consumed by the options page via `ATS_NUDGE_TOUR_STEPS` + an `'atsnudge'` tour mode)
+- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'8.2'` current)
 
 Legacy migration: `userProfile` → `resumes[0].content`
 
@@ -199,7 +213,7 @@ Five providers supported, selected via `apiProvider`:
 
 Model overrides per provider are stored in the `*Model` keys; empty string falls back to the defaults in `PROVIDER_DEFAULT_MODELS` (`background.js`). The options page can fetch available models from each provider's list endpoint.
 
-All providers share one request path: `executeProviderChat(context, prompt, label)` in `background.js` handles the three wire formats (OpenAI-compatible chat completions, Anthropic messages, Gemini generateContent). The 6 pipelines call it via `generateTailoredResume`, `generateCoverLetterText`, `extractResumeProfileJson`, `refineResumeSource`, `generateFormAnswers`, and `generateApplicationProfileFromResume`.
+All providers share one request path: `executeProviderChat(context, prompt, label)` in `background.js` handles the three wire formats (OpenAI-compatible chat completions, Anthropic messages, Gemini generateContent). The pipelines call it via `generateTailoredResume`, `generateCoverLetterText`, `extractResumeProfileJson`, `generateRefineQuestions`, `refineResumeSource`, `generateFormAnswers`, and `generateApplicationProfileFromResume`.
 
 Custom endpoints require a runtime host permission for the endpoint's origin. `manifest.json` declares `optional_host_permissions: ["https://*/*", "http://*/*"]`; the options page calls `chrome.permissions.request({ origins: [origin + '/*'] })` when saving or testing an endpoint.
 
@@ -264,7 +278,7 @@ PocketResume/
 - **Change saved-answer resolution / canonical matchers**: `form-profile.js` (`CANONICAL_MATCHERS`, `resolveFormAnswers`) — imported by `background.js`.
 - **Change Form Filler onboarding / application profile**: `options.html` + `options.js` (`#appProfileDetails` section, `APP_PROFILE_FIELDS`, `PROFILE_TOUR_STEPS`), `background.js` (`PROFILE_AUTOFILL` handler + `generateApplicationProfileFromResume`), popup gating in `popup.js` (`isFormFillerProfileComplete` / `#fillProfileCard`).
 - **Change PocketResume PDF layout**: `popup.js` (`generatePDF` / `generateCoverLetterPDF`).
-- **Change Jake / Deedy / Academic CV PDF layouts**: `resume-renderers.js` (`renderJakeLayout` / `renderDeedyLayout` / `renderAcademicCvLayout`).
+- **Change Double Sided / Academic CV PDF layouts**: `resume-renderers.js` (`renderDeedyLayout` / `renderAcademicCvLayout`).
 - **Change settings UI / resume management**: `options.js` / `options.html`.
 - **Change popup UI**: `popup.html` / `popup.js`.
 - **Change popup error messages / mapping**: `popup.js` (`setError` / `mapErrorMessage`). The keyword-based map turns long provider errors into short friendly strings; un-matched messages truncate to ~200 chars.

@@ -52,6 +52,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const modeToggle = document.getElementById('modeToggle');
   const refineModal = document.getElementById('refineModal');
   const refineModalContent = document.getElementById('refineModalContent');
+  const refineQuestionsModal = document.getElementById('refineQuestionsModal');
+  const refineQuestionsContent = document.getElementById('refineQuestionsContent');
+  const atsResultModal = document.getElementById('atsResultModal');
+  const atsResultContent = document.getElementById('atsResultContent');
   const appProfileDetails = document.getElementById('appProfileDetails');
   const appProfileStatePill = document.getElementById('appProfileStatePill');
   const profileAutofillBtn = document.getElementById('profileAutofillBtn');
@@ -80,6 +84,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let resumes = [];
   let activeTabIndex = 0;
   let refiningResumeId = null;
+  let refineQuestionsState = null;
+  let checkingAtsResumeId = null;
   let extractingResumeId = null;
   let statusTimeoutId = null;
   let editorMode = 'resume';
@@ -149,9 +155,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       jsonContent: '',
       lastRefineBackup: '',
       lastRefineAppliedAt: '',
+      refineAnswers: [],
       _lastSavedContent: content || '',
       pendingRefine: null
     };
+  }
+
+  function normalizeRefineAnswersList(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((item) => {
+        if (!item || typeof item !== 'object') return null;
+        const question = typeof item.question === 'string' ? item.question.trim() : '';
+        if (!question) return null;
+        const answer = typeof item.answer === 'string' ? item.answer.trim() : '';
+        return {
+          question,
+          answer,
+          skipped: item.skipped === true || !answer,
+          updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : ''
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 10);
   }
 
   function normalizeResumeEntry(resume, index) {
@@ -163,6 +189,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       jsonContent: typeof resume?.jsonContent === 'string' ? resume.jsonContent : '',
       lastRefineBackup: typeof resume?.lastRefineBackup === 'string' ? resume.lastRefineBackup : '',
       lastRefineAppliedAt: typeof resume?.lastRefineAppliedAt === 'string' ? resume.lastRefineAppliedAt : '',
+      refineAnswers: normalizeRefineAnswersList(resume?.refineAnswers),
       _lastSavedContent: content,
       pendingRefine: null
     };
@@ -175,7 +202,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       content: resume.content,
       jsonContent: resume.jsonContent || '',
       lastRefineBackup: resume.lastRefineBackup || '',
-      lastRefineAppliedAt: resume.lastRefineAppliedAt || ''
+      lastRefineAppliedAt: resume.lastRefineAppliedAt || '',
+      refineAnswers: normalizeRefineAnswersList(resume.refineAnswers)
     };
   }
 
@@ -515,6 +543,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  function mergeRefineAnswers(resume, draftAnswers) {
+    const existing = normalizeRefineAnswersList(resume.refineAnswers);
+    const incoming = (Array.isArray(draftAnswers) ? draftAnswers : [])
+      .map((item) => {
+        if (!item || typeof item.question !== 'string' || !item.question.trim()) return null;
+        const answer = typeof item.answer === 'string' ? item.answer.trim() : '';
+        return {
+          question: item.question.trim(),
+          answer,
+          skipped: item.skipped === true || !answer,
+          updatedAt: new Date().toISOString()
+        };
+      })
+      .filter(Boolean);
+    const merged = [...incoming];
+    existing.forEach((entry) => {
+      if (!merged.some((m) => m.question === entry.question)) {
+        merged.push(entry);
+      }
+    });
+    resume.refineAnswers = merged.slice(0, 10);
+  }
+
   function applyPendingRefineDraft(resume) {
     if (!resume?.pendingRefine) {
       return { applied: false, stale: false };
@@ -526,6 +577,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     resume.lastRefineBackup = resume.content;
     resume.lastRefineAppliedAt = new Date().toISOString();
     resume.content = resume.pendingRefine.refinedText;
+    mergeRefineAnswers(resume, resume.pendingRefine.answers);
     resume.pendingRefine = null;
     return { applied: true, stale: false };
   }
@@ -1185,6 +1237,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sourceChanged = resume.pendingRefine.source !== resume.content;
     const warnings = Array.isArray(resume.pendingRefine.warnings) ? resume.pendingRefine.warnings : [];
     const changeSummary = Array.isArray(resume.pendingRefine.changeSummary) ? resume.pendingRefine.changeSummary : [];
+    const aiFilled = Array.isArray(resume.pendingRefine.aiFilled) ? resume.pendingRefine.aiFilled : [];
+    const atsData = resume.pendingRefine.ats || null;
+    const atsBefore = atsData ? atsData.before : null;
+    const atsAfter = atsData ? atsData.after : null;
+    const hasAtsScores = typeof atsBefore === 'number' && typeof atsAfter === 'number';
+    const issues = atsData && Array.isArray(atsData.criticalIssues) ? atsData.criticalIssues : [];
 
     function renderListCard(title, items) {
       if (!items.length) return '';
@@ -1207,8 +1265,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       </p>
       <div class="review-meta-grid">
         ${renderListCard('Change summary', changeSummary)}
+        ${renderListCard('AI filled in (questions you skipped — please double-check)', aiFilled)}
         ${renderListCard('Warnings', warnings)}
       </div>
+      ${hasAtsScores ? `
+      <div class="ats-hero">
+        ${buildAtsGaugeMarkup(atsAfter)}
+        <div class="ats-hero-text">
+          <h4>ATS readiness</h4>
+          <p>Where an automated ATS parser stands on the refinement: score of your current resume vs the proposed version below.</p>
+          <div class="ats-score-summary ${getAtsSummaryClass(atsAfter)}">Before ${atsBefore} &rarr; After ${atsAfter}</div>
+        </div>
+      </div>
+      ${renderAtsIssuesCard(issues)}` : ''}
       <div class="review-preview-grid">
         <div class="review-preview-column">
           <label>Current resume</label>
@@ -1226,6 +1295,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     `;
 
     refineModal.style.display = 'flex';
+
+    if (hasAtsScores) {
+      animateAtsGauge(refineModalContent, atsBefore, atsAfter, 1400);
+    }
+    wireAtsFixToggles();
 
     document.getElementById('applyRefineBtn').addEventListener('click', () => {
       closeRefineModal();
@@ -1296,6 +1370,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!resume) return;
 
     const isRefining = refiningResumeId === resume.id;
+    const isCheckingAts = checkingAtsResumeId === resume.id;
     const isExtracting = extractingResumeId === resume.id;
     const mode = editorMode;
 
@@ -1321,6 +1396,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                   placeholder="Paste your resume content for this profile here. The AI will use this to generate tailored resumes.">${escapeHtml(resume.content)}</textarea>
         <div class="resume-actions">
           <button type="button" class="secondary-action-btn" id="refineResumeBtn" ${isRefining ? 'disabled' : ''}>${isRefining ? 'Refining...' : 'Refine Resume'}</button>
+          <button type="button" class="ghost-btn" id="checkAtsBtn" ${isCheckingAts || isRefining ? 'disabled' : ''}>${isCheckingAts ? 'Checking ATS...' : 'Check ATS'}</button>
           ${resume.lastRefineBackup ? '<button type="button" class="ghost-btn" id="undoRefineBtn">Undo Last Refine</button>' : ''}
         </div>
         <small class="resume-help">Creates a single cross-style master resume: clearer structure, better sectioning, and safer wording for all supported layouts without inventing new facts.</small>
@@ -1370,6 +1446,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const refineResumeBtn = document.getElementById('refineResumeBtn');
     if (refineResumeBtn) {
       refineResumeBtn.addEventListener('click', handleRefineResume);
+    }
+
+    const checkAtsBtn = document.getElementById('checkAtsBtn');
+    if (checkAtsBtn) {
+      checkAtsBtn.addEventListener('click', handleCheckAts);
     }
 
     const extractJsonBtn = document.getElementById('extractJsonBtn');
@@ -1436,7 +1517,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function handleRefineResume() {
+  async function handleRefineResume() {
     saveCurrentTabToState();
     const resume = getActiveResume();
     if (!resume) return;
@@ -1448,22 +1529,360 @@ document.addEventListener('DOMContentLoaded', async () => {
     refiningResumeId = resume.id;
     trackEvent('refine_used');
     renderTabContent();
-    showStatus('Refining resume into a reusable cross-style master version…', 'loading', 0);
+    showStatus('Reading your resume to see if any questions are missing…', 'loading', 0);
 
-    chrome.runtime.sendMessage({
-      type: 'REFINE_RESUME',
-      payload: {
-        resumeId: resume.id,
-        sourceText: resume.content
+    let freshQuestions = [];
+    try {
+      const questionsResponse = await sendRuntimeMessage({
+        type: 'GET_REFINE_QUESTIONS',
+        payload: { resumeId: resume.id, sourceText: resume.content }
+      });
+      if (questionsResponse?.status === 'success' && Array.isArray(questionsResponse.data?.questions)) {
+        freshQuestions = questionsResponse.data.questions;
       }
-    }, (response) => {
+    } catch (error) {
+      showStatus('Could not check for open questions — refining without them.', 'info', 3500);
+    }
+
+    refineQuestionsState = null;
+    if (freshQuestions.length && refineQuestionsModal) {
+      refineQuestionsState = buildRefineQuestionsState(resume, freshQuestions);
+      showRefineQuestionsModal();
+      renderTabContent();
       refiningResumeId = null;
+      showStatus('A few questions before refining. Answer them or let the AI fill in.', 'info', 6000);
+      return;
+    }
 
-      if (chrome.runtime.lastError) {
-        renderTabContent();
-        showStatus(`Error: ${chrome.runtime.lastError.message}`, 'error', 4500);
-        return;
+    showStatus('Refining resume into a reusable cross-style master version…', 'loading', 0);
+    await runRefineGeneration(resume);
+  }
+
+  function buildRefineQuestionsState(resume, questions) {
+    const items = questions.slice(0, 5).map((q) => {
+      const stored = (resume.refineAnswers || []).find((a) => normalizeQuestionText(a.question) === normalizeQuestionText(q.question));
+      return {
+        id: q.id,
+        question: q.question,
+        why: q.why || '',
+        value: stored && !stored.skipped ? stored.answer : '',
+        skipped: stored ? stored.skipped : false,
+        reused: !!(stored && !stored.skipped)
+      };
+    });
+    return { resumeId: resume.id, items, index: 0 };
+  }
+
+  function normalizeQuestionText(text) {
+    return (text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+
+  function getRefineQuestionPrimaryLabel(item, state) {
+    if (!item.value.trim()) return 'Skip, let AI fill it';
+    return state.index >= state.items.length - 1 ? 'Refine Resume' : 'Next';
+  }
+
+  function showRefineQuestionsModal() {
+    const state = refineQuestionsState;
+    if (!state) return;
+    const item = state.items[state.index];
+    if (!item) return;
+
+    refineQuestionsContent.innerHTML = `
+      <h3>Before refining</h3>
+      <p class="review-note">The AI needs a bit of context to write a stronger resume. Answer below, or skip and let the AI fill it in conservatively.</p>
+      <div class="review-card refine-question-card">
+        <h4>Question ${state.index + 1} of ${state.items.length}${item.reused ? ' (from last time)' : ''}</h4>
+        <p class="refine-question-text">${escapeHtml(item.question)}</p>
+        ${item.why ? `<p class="review-note refine-question-why">${escapeHtml(item.why)}</p>` : ''}
+        <label>Your answer${item.skipped && !item.value ? ' (optional — skipped for now)' : ''}</label>
+        <textarea class="review-preview-textarea refine-question-input" id="refineQuestionInput" placeholder="Type your answer, or leave empty and skip">${escapeHtml(item.value || '')}</textarea>
+      </div>
+      <div class="review-actions refine-question-actions">
+        <button type="button" class="secondary-action-btn" id="refineQuestionNextBtn">${getRefineQuestionPrimaryLabel(item, state)}</button>
+        ${state.index > 0 ? '<button type="button" class="ghost-btn" id="refineQuestionBackBtn">Back</button>' : ''}
+        <button type="button" class="ghost-btn" id="refineQuestionCancelBtn">Cancel</button>
+      </div>
+    `;
+
+    refineQuestionsModal.style.display = 'flex';
+
+    const input = document.getElementById('refineQuestionInput');
+    const nextBtn = document.getElementById('refineQuestionNextBtn');
+    input.addEventListener('input', () => {
+      item.value = input.value;
+      item.skipped = false;
+      nextBtn.textContent = getRefineQuestionPrimaryLabel(item, state);
+    });
+    input.focus();
+
+    nextBtn.addEventListener('click', handleRefineQuestionNext);
+    const backBtn = document.getElementById('refineQuestionBackBtn');
+    if (backBtn) backBtn.addEventListener('click', () => {
+      item.value = input.value;
+      state.index = Math.max(0, state.index - 1);
+      showRefineQuestionsModal();
+    });
+    document.getElementById('refineQuestionCancelBtn').addEventListener('click', handleRefineQuestionsCancel);
+  }
+
+  function handleRefineQuestionNext() {
+    const state = refineQuestionsState;
+    if (!state) return;
+    const item = state.items[state.index];
+    if (!item.value.trim()) {
+      item.value = '';
+      item.skipped = true;
+    } else {
+      item.skipped = false;
+    }
+
+    if (state.index < state.items.length - 1) {
+      state.index += 1;
+      showRefineQuestionsModal();
+      return;
+    }
+    handleRefineQuestionFinish();
+  }
+
+  async function handleRefineQuestionFinish() {
+    const state = refineQuestionsState;
+    if (!state) return;
+    const item = state.items[state.index];
+    if (item && !item.value.trim() && !item.skipped) item.skipped = true;
+
+    const resume = resumes.find((r) => r.id === state.resumeId) || getActiveResume();
+    const answers = state.items.map((q) => ({
+      id: q.id,
+      question: q.question,
+      answer: q.skipped ? '' : q.value.trim(),
+      skipped: q.skipped
+    }));
+
+    closeRefineQuestionsModal();
+    refineQuestionsState = null;
+    if (!resume) {
+      renderTabContent();
+      return;
+    }
+    showStatus('Refining resume into a reusable cross-style master version…', 'loading', 0);
+    await runRefineGeneration(resume, answers);
+  }
+
+  function handleRefineQuestionsCancel() {
+    closeRefineQuestionsModal();
+    refineQuestionsState = null;
+    showStatus('Refinement questions closed. Resume unchanged.', 'info');
+  }
+
+  function closeRefineQuestionsModal() {
+    refineQuestionsModal.style.display = 'none';
+    refineQuestionsContent.innerHTML = '';
+  }
+
+  refineQuestionsModal.addEventListener('click', (e) => {
+    if (e.target === refineQuestionsModal && !!refineQuestionsState) {
+      handleRefineQuestionsCancel();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && refineQuestionsModal.style.display === 'flex' && !!refineQuestionsState) {
+      handleRefineQuestionsCancel();
+    }
+  });
+
+  // --- ATS rendering helpers (shared by refine review + Check ATS) ---
+  const ATS_GAUGE_RADIUS = 40;
+  const ATS_GAUGE_CIRC = 2 * Math.PI * ATS_GAUGE_RADIUS;
+
+  function getAtsColorClass(score) {
+    if (score === null || score === undefined) return '';
+    if (score >= 80) return 'ats-green';
+    if (score >= 60) return 'ats-amber';
+    return 'ats-red';
+  }
+
+  function getAtsSummaryClass(score) {
+    if (score === null || score === undefined) return '';
+    if (score >= 80) return 'ats-summary-green';
+    if (score >= 60) return 'ats-summary-amber';
+    return 'ats-summary-red';
+  }
+
+  function getAtsScorePhrase(score) {
+    if (score === null || score === undefined) return 'Not scored';
+    if (score >= 90) return 'Excellent';
+    if (score >= 80) return 'Strong';
+    if (score >= 60) return 'Needs work';
+    return 'Poor';
+  }
+
+  function buildAtsGaugeMarkup(score) {
+    const cls = getAtsColorClass(score);
+    return `
+      <div class="ats-gauge-wrap">
+        <svg viewBox="0 0 92 92" aria-hidden="true">
+          <circle class="ats-gauge-track" cx="46" cy="46" r="${ATS_GAUGE_RADIUS}"></circle>
+          <circle class="ats-gauge-value ${cls}" cx="46" cy="46" r="${ATS_GAUGE_RADIUS}"
+                  stroke-dasharray="${ATS_GAUGE_CIRC.toFixed(1)}" stroke-dashoffset="${ATS_GAUGE_CIRC.toFixed(1)}"></circle>
+        </svg>
+        <div class="ats-gauge-number">0</div>
+      </div>
+    `;
+  }
+
+  function animateAtsGauge(container, fromScore, toScore, duration = 1200) {
+    const circle = container.querySelector('.ats-gauge-value');
+    const numberEl = container.querySelector('.ats-gauge-number');
+    if (!circle || !numberEl) return;
+    const startVal = Number.isFinite(fromScore) ? fromScore : 0;
+    const target = Number.isFinite(toScore) ? toScore : 0;
+    let start = null;
+    const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+    const frame = (ts) => {
+      if (start === null) start = ts;
+      const t = Math.min(1, (ts - start) / duration);
+      const value = startVal + (target - startVal) * easeOut(t);
+      numberEl.textContent = Math.round(value);
+      circle.style.strokeDashoffset = `${(ATS_GAUGE_CIRC * (1 - value / 100)).toFixed(1)}`;
+      if (t < 1) requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }
+
+  function renderAtsIssueRow(item, index) {
+    const showStage = item.stage === 'after' || item.stage === 'both';
+    const fixHtml = item.suggestedFix
+      ? `<button type="button" class="ghost-btn ats-fix-toggle" data-ats-issue-index="${index}">Fix</button>`
+      : '';
+    return `
+      <div class="ats-issue-row">
+        <div class="ats-issue-head">
+          ${showStage ? `<span class="ats-issue-stage ats-stage-${item.stage === 'both' ? 'after' : item.stage}">${item.stage}</span>` : ''}
+          <div class="ats-issue-body">
+            <strong>${escapeHtml(item.issue)}</strong>
+            ${item.whyFlagged ? `<span>${escapeHtml(item.whyFlagged)}</span>` : ''}
+          </div>
+          ${fixHtml}
+        </div>
+        ${item.suggestedFix ? `<div class="ats-fix-reveal" data-ats-issue-reveal="${index}" style="display: none;"><em>AI suggested fix</em>${escapeHtml(item.suggestedFix)}</div>` : ''}
+        ${item.userMustFix ? `<div class="ats-user-fix"><em>You'll need to</em>${escapeHtml(item.userMustFix)}</div>` : ''}
+      </div>
+    `;
+  }
+
+  function renderAtsIssuesCard(items) {
+    if (!Array.isArray(items) || !items.length) {
+      return '<div class="ats-issues-none">No critical ATS issues found — an automated parser should read this cleanly.</div>';
+    }
+    return `
+      <div class="ats-issues">
+        <h4>Critical ATS issues</h4>
+        ${items.map(renderAtsIssueRow).join('')}
+      </div>
+    `;
+  }
+
+  function wireAtsFixToggles() {
+    document.querySelectorAll('.ats-fix-toggle').forEach((btn) => {
+      const index = btn.dataset.atsIssueIndex;
+      const reveal = document.querySelector(`[data-ats-issue-reveal="${index}"]`);
+      if (!reveal) return;
+      btn.addEventListener('click', () => {
+        const open = reveal.style.display === 'block';
+        reveal.style.display = open ? 'none' : 'block';
+        btn.textContent = open ? 'Fix' : 'Hide fix';
+      });
+    });
+  }
+
+  function showAtsResultModal(data) {
+    const score = typeof data?.score === 'number' ? data.score : 0;
+    const issues = Array.isArray(data?.criticalIssues) ? data.criticalIssues : [];
+    const cls = getAtsColorClass(score);
+
+    atsResultContent.innerHTML = `
+      <h3>ATS check</h3>
+      <div class="ats-hero">
+        ${buildAtsGaugeMarkup(score)}
+        <div class="ats-hero-text">
+          <h4>${getAtsScorePhrase(score)} parse readiness</h4>
+          <p>How cleanly an automated ATS parser can read this resume.</p>
+          <div class="ats-score-summary ${getAtsSummaryClass(score)}">${score}/100</div>
+        </div>
+      </div>
+      ${renderAtsIssuesCard(issues)}
+      <div class="review-actions refine-question-actions">
+        <button type="button" class="ghost-btn" id="atsCloseBtn">Close</button>
+      </div>
+    `;
+
+    atsResultModal.style.display = 'flex';
+    wireAtsFixToggles();
+    document.getElementById('atsCloseBtn').addEventListener('click', closeAtsResultModal);
+    animateAtsGauge(atsResultContent, 0, score);
+  }
+
+  function closeAtsResultModal() {
+    atsResultModal.style.display = 'none';
+    atsResultContent.innerHTML = '';
+  }
+
+  atsResultModal.addEventListener('click', (e) => {
+    if (e.target === atsResultModal) closeAtsResultModal();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && atsResultModal.style.display === 'flex') closeAtsResultModal();
+  });
+
+  async function handleCheckAts() {
+    saveCurrentTabToState();
+    const resume = getActiveResume();
+    if (!resume) return;
+    if (!resume.content.trim()) {
+      showStatus('Add some resume content before checking the ATS score.', 'error', 3500);
+      return;
+    }
+
+    checkingAtsResumeId = resume.id;
+    renderTabContent();
+    showStatus('Scanning your resume the way an ATS would\u2026', 'loading', 0);
+
+    try {
+      const response = await sendRuntimeMessage({
+        type: 'CHECK_ATS',
+        payload: { resumeId: resume.id, sourceText: resume.content }
+      });
+      if (!response || response.status !== 'success' || !response.data) {
+        throw new Error(response?.message || 'Unknown ATS check error');
       }
+      showAtsResultModal(response.data);
+      showStatus('ATS check complete.', 'success', 4000);
+    } catch (error) {
+      showStatus(`Error: ${error.message}`, 'error', 4500);
+    } finally {
+      checkingAtsResumeId = null;
+      renderTabContent();
+    }
+  }
+
+  async function runRefineGeneration(resume, answers = []) {
+    if (!resume) {
+      refiningResumeId = null;
+      renderTabContent();
+      return;
+    }
+    try {
+      const response = await sendRuntimeMessage({
+        type: 'REFINE_RESUME',
+        payload: {
+          resumeId: resume.id,
+          sourceText: resume.content,
+          answers
+        }
+      });
 
       if (!response || response.status !== 'success' || !response.data) {
         renderTabContent();
@@ -1475,13 +1894,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         source: resume.content,
         refinedText: response.data.refinedText || '',
         warnings: Array.isArray(response.data.warnings) ? response.data.warnings : [],
-        changeSummary: Array.isArray(response.data.changeSummary) ? response.data.changeSummary : []
+        changeSummary: Array.isArray(response.data.changeSummary) ? response.data.changeSummary : [],
+        aiFilled: Array.isArray(response.data.aiFilled) ? response.data.aiFilled : [],
+        ats: response.data.ats && typeof response.data.ats === 'object' ? response.data.ats : null,
+        answers
       };
 
       renderTabContent();
       showRefineModal(resume);
       showStatus('Review the refined draft in the dialog.', 'success', 5000);
-    });
+    } catch (error) {
+      showStatus(`Error: ${error.message}`, 'error', 4500);
+    } finally {
+      refiningResumeId = null;
+      renderTabContent();
+    }
   }
 
   function escapeAttr(str) {
@@ -1579,6 +2006,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   ];
 
+  const NUDGE_TOUR_STEPS = [
+    {
+      target: '#refineResumeBtn',
+      title: 'Refine again in 8.1',
+      body: 'Refine Resume now asks a few questions first — like what problem the company had before you joined. Answer them (answers are remembered) or let the AI fill in conservatively. Click the button to try it.'
+    }
+  ];
+
+  const ATS_NUDGE_TOUR_STEPS = [
+    {
+      target: '#checkAtsBtn',
+      title: 'New: Check ATS',
+      body: 'One click scores your resume the way an automated parser reads it — with an animated gauge and concrete fixes for every critical issue. Click the button to scan your resume now.'
+    }
+  ];
+
   let tourActive = false;
   let tourStepIndex = 0;
   let tourSteps = TOUR_STEPS;
@@ -1593,6 +2036,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   function tourDismiss() {
     tourActive = false;
     tourOverlay.classList.remove('open');
+    if (tourMode === 'nudge') {
+      chrome.storage.local.set({ refineNudge: { active: false } });
+      return;
+    }
+    if (tourMode === 'atsnudge') {
+      chrome.storage.local.set({ atsNudge: { active: false } });
+      return;
+    }
     if (tourMode === 'profile') {
       chrome.storage.local.set({ appProfileOnboarding: { active: false } });
       return;
@@ -1622,11 +2073,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderTourStep() {
     if (tourStepIndex >= tourSteps.length) {
       tourHighlight.style.display = 'none';
-      tourStepLabel.textContent = 'Setup complete';
-      tourTitle.textContent = tourMode === 'profile' ? 'Form Filler is ready' : "You're all set";
-      tourBody.textContent = tourMode === 'profile'
-        ? 'Click Save Settings to keep your answers. Fill Form will start from them on every application.'
-        : 'Open the PocketResume popup and click Generate PDF Resume.';
+      tourStepLabel.textContent = tourMode === 'nudge' ? 'All set' : 'Setup complete';
+      tourTitle.textContent = tourMode === 'nudge'
+        ? 'Ready when you are'
+        : tourMode === 'profile' ? 'Form Filler is ready' : "You're all set";
+      tourBody.textContent = tourMode === 'nudge'
+        ? 'Your answers are remembered for next time. Click Refine Resume whenever you want to refresh your master resume.'
+        : tourMode === 'profile'
+          ? 'Click Save Settings to keep your answers. Fill Form will start from them on every application.'
+          : 'Open the PocketResume popup and click Generate PDF Resume.';
       tourHint.style.display = 'none';
       tourBackBtn.style.visibility = 'hidden';
       tourNextBtn.textContent = 'Done';
@@ -1663,8 +2118,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function tourOpenAt(index, mode) {
-    tourMode = mode === 'profile' ? 'profile' : 'setup';
-    tourSteps = tourMode === 'profile' ? PROFILE_TOUR_STEPS : TOUR_STEPS;
+    tourMode = mode === 'profile' ? 'profile' : mode === 'nudge' ? 'nudge' : mode === 'atsnudge' ? 'atsnudge' : 'setup';
+    tourSteps = tourMode === 'profile'
+      ? PROFILE_TOUR_STEPS
+      : tourMode === 'nudge'
+        ? NUDGE_TOUR_STEPS
+        : tourMode === 'atsnudge'
+          ? ATS_NUDGE_TOUR_STEPS
+          : TOUR_STEPS;
     tourActive = true;
     tourStepIndex = Math.max(0, Math.min(index, tourSteps.length));
     tourOverlay.classList.add('open');
@@ -1715,6 +2176,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     tourOpenAt(0, 'profile');
   }
 
+  function startRefineNudgeFromTrigger() {
+    if (tourActive) return;
+    chrome.storage.local.set({ refineNudge: { active: false } });
+    if (typeof setEditorMode === 'function' && editorMode !== 'resume') setEditorMode('resume');
+    tourOpenAt(0, 'nudge');
+  }
+
+  function startAtsNudgeFromTrigger() {
+    if (tourActive) return;
+    chrome.storage.local.set({ atsNudge: { active: false } });
+    if (typeof setEditorMode === 'function' && editorMode !== 'resume') setEditorMode('resume');
+    tourOpenAt(0, 'atsnudge');
+  }
+
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || tourActive) return;
     if (changes.onboarding) {
@@ -1724,6 +2199,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (changes.appProfileOnboarding) {
       const pv = changes.appProfileOnboarding.newValue;
       if (pv && pv.active) startProfileTourFromTrigger();
+    }
+    if (changes.refineNudge) {
+      const nv = changes.refineNudge.newValue;
+      if (nv && nv.active) startRefineNudgeFromTrigger();
+    }
+    if (changes.atsNudge) {
+      const av = changes.atsNudge.newValue;
+      if (av && av.active) startAtsNudgeFromTrigger();
     }
   });
 
@@ -1735,6 +2218,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   const profileObData = await chrome.storage.local.get(['appProfileOnboarding']);
   if (profileObData.appProfileOnboarding && profileObData.appProfileOnboarding.active) {
     startProfileTourFromTrigger();
+  }
+
+  const nudgeData = await chrome.storage.local.get(['refineNudge']);
+  if (nudgeData.refineNudge && nudgeData.refineNudge.active) {
+    startRefineNudgeFromTrigger();
+  }
+
+  const atsNudgeData = await chrome.storage.local.get(['atsNudge']);
+  if (atsNudgeData.atsNudge && atsNudgeData.atsNudge.active) {
+    startAtsNudgeFromTrigger();
   }
 
   saveButton.addEventListener('click', async () => {

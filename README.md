@@ -15,16 +15,19 @@
 - **Cover Letters** — Optional, single-page cover letter generated alongside your resume
 - **Clear Error Reporting** — Generation failures keep the popup red until you close it or retry; a "?" button opens a human-readable error message with copyable raw details
 - **PDF Export** — Clean, print-ready PDFs via jsPDF for every layout
-- **Refine Resume** — AI polishes your master resume with change summary + warnings, side-by-side review before applying
+- **Check ATS** — On-demand ATS-readiness scan: animated score gauge, critical issues with why an ATS trips on them, and AI-suggested fixes
+- **Refine Resume** — AI polishes your master resume with a grounded question pass first, before/after ATS scores, change summary + warnings, and side-by-side review before applying
+- **Guided Onboarding** — New users get a setup checklist card in the popup plus a spotlight tour that walks the Settings page; Form Filler has its own one-time questionnaire
 - **Extract JSON** — Converts freeform resume text into structured JSON profile
 - **Multi-Profile** — Save up to 3 master profiles and switch between them
 - **PocketResume Pro** — Optional one-plan upgrade: resume cloud sync across devices + the full Job Tracker (sign in from Settings → PocketResume Pro)
 - **Privacy First** — API keys and profile data stored locally
 
-### What's New in v7.9
+### What's New in v8.2
 
-- **AI Form Filler** — New "Fill Form" button in the popup. Detects application form questions on the page (including embedded ATS iframes) and answers them using your resume as the only source of facts. Answers are written to sound human: first person, everyday words, no em dashes, no buzzwords. Unanswerable questions are left blank, and the form is never auto-submitted.
-- **One Pro plan** — The separate "Cloud Sync" plan was merged into **PocketResume Pro**. One subscription now covers resume cloud sync, the full Job Tracker, and everything Pro going forward. The 7-day free trial moved to PocketResume Pro; existing Cloud Sync subscribers keep access automatically.
+- **Check ATS** — New "Check ATS" button on the options page: one click scores your resume's ATS-readiness with an animated gauge, lists the critical issues that trip real ATS parsers, and reveals AI-suggested fixes for each. Items that need a human (real numbers, dates you must verify) are flagged even when the score is perfect.
+- **Smarter Refine** — Refine Resume now asks up to 5 grounded questions first (company problem before joining, team size, project scope, scale). Your answers become the highest-authority facts in the rewrite, persist per resume for future runs, and any questions you skip get conservative AI filler you're told to double-check.
+- **Before / after ATS scores** — The refine review now shows an animated score gauge comparing your resume before and after the rewrite, so you can see exactly what the pass bought you.
 
 ## Installation
 
@@ -56,6 +59,7 @@ npm install
 3. Click **Generate Resume**
 4. PDF downloads automatically
 5. Hit an application form with essay questions? Click **Fill Form** — PocketResume answers using your resume, then you review and submit
+6. Polish your master resume on the options page: **Refine Resume** (asks a few grounded questions, then rewrites with before/after ATS scores), **Check ATS** (instant score + fixes), or **Extract JSON** (structured profile for generation)
 
 If generation fails, the popup stays red — click the **?** button (top right) to see a readable error message with the option to copy the full raw details. The error clears when you close the popup or click **Generate Resume** again.
 
