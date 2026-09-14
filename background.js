@@ -106,10 +106,10 @@ function normalizeStringArray(value) {
 
 // --- Provider Layer ---
 const PROVIDER_DEFAULT_MODELS = {
-    google: 'gemini-2.5-flash',
-    openai: 'gpt-4o-mini',
-    anthropic: 'claude-3-5-haiku-20241022',
-    openrouter: 'openai/gpt-oss-120b:free'
+    google: 'gemini-3.1-flash-lite',
+    openai: 'gpt-5-nano',
+    anthropic: 'claude-haiku-4-5',
+    openrouter: 'nvidia/nemotron-3-super-120b-a12b:free'
 };
 
 const PROVIDER_SETTINGS_KEYS = [
