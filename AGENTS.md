@@ -205,10 +205,10 @@ Legacy migration: `userProfile` → `resumes[0].content`
 
 Five providers supported, selected via `apiProvider`:
 
-- **Google Gemini**: default model `gemini-2.5-flash`, API key from Google AI Studio
-- **OpenAI**: default model `gpt-4o-mini`, API key from OpenAI Platform
-- **Anthropic**: default model `claude-3-5-haiku-20241022`, API key from Anthropic Console
-- **OpenRouter**: default model `openai/gpt-oss-120b:free`, API key from OpenRouter
+- **Google Gemini**: default model `gemini-3.1-flash-lite`, API key from Google AI Studio
+- **OpenAI**: default model `gpt-5-nano`, API key from OpenAI Platform
+- **Anthropic**: default model `claude-haiku-4-5`, API key from Anthropic Console
+- **OpenRouter**: default model `nvidia/nemotron-3-super-120b-a12b:free`, API key from OpenRouter
 - **Custom / Local**: any OpenAI-compatible endpoint (Ollama, LM Studio, NVIDIA NIM, Groq, ...). Saved endpoints live in `customEndpoints`; the active one is used. No API key required for local servers.
 
 Model overrides per provider are stored in the `*Model` keys; empty string falls back to the defaults in `PROVIDER_DEFAULT_MODELS` (`background.js`). The options page can fetch available models from each provider's list endpoint.
