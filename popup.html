@@ -1239,6 +1239,7 @@
       <h2>Something went wrong</h2>
       <p id="errorMessageText" class="error-message"></p>
       <div class="onboarding-actions">
+        <button id="errorOpenSettingsBtn" class="cloud-secondary-btn" style="display: none;">Open Provider Settings</button>
         <button id="errorCopyBtn" class="cloud-secondary-btn">Copy Details</button>
         <button id="errorCloseBtn" class="cloud-primary-btn">Got it</button>
       </div>
@@ -1284,22 +1285,19 @@
       <div class="onboarding-icon" aria-hidden="true">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> — ATS Check</h2>
+      <h2>New in <span id="whatsNewVersion"></span> — Auto-Retry</h2>
       <p class="error-message">
-        Know how a real ATS parser sees your resume <strong>before you apply</strong>. A new score plus concrete fixes — no more guessing.
+        Generation failures now <strong>fix themselves</strong>. If the AI call fails, PocketResume retries automatically — no more starting over.
       </p>
       <ul class="whatsnew-collected">
-        <li>New <strong>Check ATS</strong> button next to Refine Resume — scores your resume on demand</li>
-        <li>Animated score gauge with a premium odometer reveal</li>
-        <li>Critical issues: what trips an ATS, why, and the AI suggested fix</li>
-        <li>Refine Resume now shows Before &rarr; After scores so you can see the gain</li>
-        <li>Things only you can fix (dates, gaps) are called out even at 100</li>
+        <li>Failed generations auto-retry up to <strong>3 attempts</strong> — watch "Attempt 2 of 3…" on the button</li>
+        <li>The job page is kept temporarily, so retries never need to re-read the page</li>
+        <li>After 3 failed tries you get a clear suggestion to switch provider or model</li>
+        <li>One-click <strong>Open Provider Settings</strong> right from the error popup</li>
+        <li>Fixed: saving one provider's API key no longer wipes another provider's key</li>
       </ul>
-      <p class="error-message">
-        Everything is scored from your own resume text — nothing is sent anywhere else.
-      </p>
       <div class="onboarding-actions">
-        <button id="whatsNewSetupBtn" class="cloud-primary-btn">Check my ATS score</button>
+        <button id="whatsNewSetupBtn" class="cloud-primary-btn">Review my providers</button>
         <button id="whatsNewGotBtn" class="cloud-secondary-btn">Later</button>
       </div>
     </div>

@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const errorMessageText = document.getElementById('errorMessageText');
   const errorCopyBtn = document.getElementById('errorCopyBtn');
   const errorCloseBtn = document.getElementById('errorCloseBtn');
+  const errorOpenSettingsBtn = document.getElementById('errorOpenSettingsBtn');
   const setupCard = document.getElementById('setupCard');
   const setupCompact = document.getElementById('setupCompact');
   const setupSkipBtn = document.getElementById('setupSkipBtn');
@@ -430,8 +431,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewSetupBtn = document.getElementById('whatsNewSetupBtn');
   const whatsNewAnalyticsToggle = document.getElementById('whatsNewAnalyticsToggle');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '8.2';
-  const ANNOUNCEMENT_SEEN_VALUE = '8.2';
+  const ANNOUNCEMENT_VERSION = '8.3';
+  const ANNOUNCEMENT_SEEN_VALUE = '8.3';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
@@ -439,10 +440,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function startAtsNudge() {
-    chrome.storage.local.set({ atsNudge: { active: true } }, () => {
-      chrome.runtime.openOptionsPage();
-    });
+  function openProviderSettings() {
+    chrome.runtime.openOptionsPage();
   }
 
   function dismissWhatsNew() {
@@ -461,7 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (whatsNewSetupBtn) {
     whatsNewSetupBtn.addEventListener('click', () => {
       dismissWhatsNew();
-      startAtsNudge();
+      openProviderSettings();
     });
   }
   if (whatsNewAnalyticsToggle) whatsNewAnalyticsToggle.addEventListener('change', () => {
@@ -714,11 +713,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 4000);
   }
 
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.type !== 'GENERATION_PROGRESS') return;
+    if (document.body.dataset.status !== 'generating') return;
+    const attempt = Number(message.attempt) || 1;
+    const max = Number(message.maxAttempts) || 3;
+    stopScramble();
+    if (generateLabel) generateLabel.textContent = `Attempt ${attempt} of ${max}\u2026`;
+  });
+
   function mapErrorMessage(raw) {
     const msg = (raw || '').trim();
     if (!msg) return 'Something went wrong. Please try again.';
     const lower = msg.toLowerCase();
 
+    if (/failed after \d+ attempts|switching to a different provider or model/i.test(lower)) {
+      return 'Generation failed after 3 attempts. Open Settings and try a different provider or model.';
+    }
     if (/api key|apikey|set your api|enter.*api/i.test(lower)) {
       return 'No API key set. Open Settings to add one.';
     }
@@ -772,6 +783,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function openErrorModal() {
     if (!errorModal || !lastError) return;
     if (errorMessageText) errorMessageText.textContent = lastError;
+    const needsSettings = /settings|provider or model/i.test(lastError);
+    if (errorOpenSettingsBtn) errorOpenSettingsBtn.style.display = needsSettings ? 'inline-block' : 'none';
     errorModal.style.display = 'flex';
   }
 
@@ -785,6 +798,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     if (errorBackdrop) errorBackdrop.addEventListener('click', closeErrorModal);
     if (errorCloseBtn) errorCloseBtn.addEventListener('click', closeErrorModal);
+    if (errorOpenSettingsBtn) {
+      errorOpenSettingsBtn.addEventListener('click', () => {
+        closeErrorModal();
+        chrome.runtime.openOptionsPage();
+      });
+    }
     if (errorCopyBtn) {
       errorCopyBtn.addEventListener('click', async () => {
         const text = lastErrorRaw || lastError;

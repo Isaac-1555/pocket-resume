@@ -197,7 +197,7 @@ Important keys:
 - `appProfileOnboarding`: `{ active: boolean }` — trigger for the Form Filler setup spotlight tour (set by the popup, consumed by the options page)
 - `refineNudge`: `{ active: boolean }` — trigger for the v8.2 "Smarter Refine" spotlight on `#refineResumeBtn` (set by the popup's What's New modal via `startRefineNudge()`, consumed by the options page via `NUDGE_TOUR_STEPS` + a `'nudge'` tour mode)
 - `atsNudge`: `{ active: boolean }` — trigger for the v8.2 "Check ATS" spotlight on `#checkAtsBtn` (set by the popup's What's New modal via `startAtsNudge()`, consumed by the options page via `ATS_NUDGE_TOUR_STEPS` + an `'atsnudge'` tour mode)
-- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'8.2'` current)
+- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'8.3'` current)
 
 Legacy migration: `userProfile` → `resumes[0].content`
 

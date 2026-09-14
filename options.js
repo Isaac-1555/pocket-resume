@@ -404,22 +404,68 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  function getSettingsPayload() {
-    return {
+  const PROVIDER_KEY_STORAGE_MAP = {
+    google: 'geminiApiKey',
+    openrouter: 'openrouterApiKey',
+    openai: 'openaiApiKey',
+    anthropic: 'anthropicApiKey'
+  };
+  const PROVIDER_MODEL_STORAGE_MAP = {
+    google: 'googleModel',
+    openrouter: 'openrouterModel',
+    openai: 'openaiModel',
+    anthropic: 'anthropicModel'
+  };
+
+  async function commitViewedProviderCredentials() {
+    if (!currentlyViewedProvider || currentlyViewedProvider === 'custom') return;
+    const keyStorageKey = PROVIDER_KEY_STORAGE_MAP[currentlyViewedProvider];
+    const modelStorageKey = PROVIDER_MODEL_STORAGE_MAP[currentlyViewedProvider];
+    if (!keyStorageKey) return;
+    const payload = {
+      [keyStorageKey]: apiKeys[currentlyViewedProvider] || ''
+    };
+    if (modelStorageKey) payload[modelStorageKey] = providerModels[currentlyViewedProvider] || '';
+    await setLocalStorage(payload);
+  }
+
+  function refreshCredentialsFromStorage(changes) {
+    for (const [provider, storageKey] of Object.entries(PROVIDER_KEY_STORAGE_MAP)) {
+      if (changes[storageKey] && provider !== currentlyViewedProvider) {
+        apiKeys[provider] = changes[storageKey].newValue || '';
+      }
+    }
+    for (const [provider, storageKey] of Object.entries(PROVIDER_MODEL_STORAGE_MAP)) {
+      if (changes[storageKey] && provider !== currentlyViewedProvider) {
+        providerModels[provider] = changes[storageKey].newValue || '';
+      }
+    }
+  }
+
+  function getSettingsPayload(storedProviderCredentials) {
+    const payload = {
       apiProvider: activeProvider,
-      geminiApiKey: apiKeys.google,
-      openrouterApiKey: apiKeys.openrouter,
-      openaiApiKey: apiKeys.openai,
-      anthropicApiKey: apiKeys.anthropic,
-      googleModel: providerModels.google,
-      openaiModel: providerModels.openai,
-      anthropicModel: providerModels.anthropic,
-      openrouterModel: providerModels.openrouter,
-      customEndpoints: customEndpoints,
-      activeCustomEndpointId: activeCustomEndpointId,
       applicationProfile: readAppProfileFromForm(),
       resumes: getPersistedResumes()
     };
+    for (const [provider, storageKey] of Object.entries(PROVIDER_KEY_STORAGE_MAP)) {
+      payload[storageKey] = provider === currentlyViewedProvider
+        ? (apiKeys[provider] || '')
+        : (storedProviderCredentials?.[storageKey] ?? apiKeys[provider] ?? '');
+    }
+    for (const [provider, storageKey] of Object.entries(PROVIDER_MODEL_STORAGE_MAP)) {
+      payload[storageKey] = provider === currentlyViewedProvider
+        ? (providerModels[provider] || '')
+        : (storedProviderCredentials?.[storageKey] ?? providerModels[provider] ?? '');
+    }
+    payload.customEndpoints = customEndpoints;
+    payload.activeCustomEndpointId = activeCustomEndpointId;
+    return payload;
+  }
+
+  async function getStoredProviderCredentials() {
+    const keys = [...Object.values(PROVIDER_KEY_STORAGE_MAP), ...Object.values(PROVIDER_MODEL_STORAGE_MAP)];
+    return chrome.storage.local.get(keys);
   }
 
   function setCloudAvatar(profile) {
@@ -667,16 +713,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       icon.classList.toggle('active-provider', icon.dataset.provider === provider);
     });
     setActiveProviderBtn.style.display = 'none';
-    if (!persist) return;
-    chrome.storage.local.set({ apiProvider: provider }, () => {
-      if (chrome.runtime.lastError) {
-        showStatus(`Error: ${chrome.runtime.lastError.message}`, 'error', 4500);
-        return;
-      }
-      if (currentlyViewedProvider === provider) {
-        showStatus(`${PROVIDER_NAMES[provider]} is now your default provider.`, 'success', 2500);
-      }
-    });
   };
 
   providerIcons.forEach(icon => {
@@ -685,8 +721,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  setActiveProviderBtn.addEventListener('click', () => {
-    updateActiveProvider(currentlyViewedProvider, true);
+  setActiveProviderBtn.addEventListener('click', async () => {
+    updateActiveProvider(currentlyViewedProvider, false);
+    try {
+      await commitViewedProviderCredentials();
+      await setLocalStorage({ apiProvider: currentlyViewedProvider });
+      showStatus(`${PROVIDER_NAMES[currentlyViewedProvider]} is now your default provider.`, 'success', 2500);
+    } catch (error) {
+      showStatus(`Error: ${error.message}`, 'error', 4500);
+    }
   });
 
   apiKeyInput.addEventListener('input', () => {
@@ -1046,7 +1089,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     cloudPushBtn.addEventListener('click', async () => {
       try {
         saveCurrentTabToState();
-        await setLocalStorage(getSettingsPayload());
+        await commitViewedProviderCredentials();
+        const storedCredentials = await getStoredProviderCredentials();
+        await setLocalStorage(getSettingsPayload(storedCredentials));
         if (!window.CloudSync) throw new Error('Pro service failed to load.');
         showStatus('Pushing resumes to cloud...', 'loading', 0);
         await window.CloudSync.init();
@@ -2191,7 +2236,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'local' || tourActive) return;
+    if (area !== 'local') return;
+    refreshCredentialsFromStorage(changes);
+    if (tourActive) return;
     if (changes.onboarding) {
       const ob = changes.onboarding.newValue;
       if (ob && typeof ob.step === 'number') tourOpenAt(ob.step - 1);
@@ -2256,7 +2303,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveButton.disabled = true;
 
     try {
-      await setLocalStorage(getSettingsPayload());
+      await commitViewedProviderCredentials();
+      const storedCredentials = await getStoredProviderCredentials();
+      await setLocalStorage(getSettingsPayload(storedCredentials));
       resumes.forEach((entry) => {
         entry._lastSavedContent = entry.content;
       });
