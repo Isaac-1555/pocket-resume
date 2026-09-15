@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { resumeJson, coverLetterJson, trackerApplications, PAGE_TITLE, PAGE_URL } from './sample-data.mjs';
+import { resumeJson, coverLetterJson, trackerApplications, PAGE_TITLE, PAGE_URL, masterResumeText, atsCheckResult, refineResult } from './sample-data.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const ASSETS = path.join(ROOT, 'store-assets');
@@ -28,7 +28,7 @@ const FORM_ANSWERS = [
 ];
 
 function initScript(seed) {
-    const serialized = JSON.stringify({ seed, resumeJson, coverLetterJson, pageTitle: PAGE_TITLE, pageUrl: PAGE_URL });
+    const serialized = JSON.stringify({ seed, resumeJson, coverLetterJson, pageTitle: PAGE_TITLE, pageUrl: PAGE_URL, atsCheckResult, refineResult });
     return `(() => {
         const cfg = ${serialized};
         const store = { ...cfg.seed };
@@ -36,6 +36,8 @@ function initScript(seed) {
         window.__COVER_LETTER_JSON__ = cfg.coverLetterJson;
         window.__PAGE_TITLE__ = cfg.pageTitle;
         window.__PAGE_URL__ = cfg.pageUrl;
+        window.__ATS_CHECK_RESULT__ = cfg.atsCheckResult;
+        window.__REFINE_RESULT__ = cfg.refineResult;
         const listeners = [];
         const fire = (obj) => {
             const changes = {};
@@ -49,12 +51,15 @@ function initScript(seed) {
                         const out = {};
                         const list = Array.isArray(keys) ? keys : (typeof keys === 'string' ? [keys] : Object.keys(keys || {}));
                         for (const k of list) if (k in store) out[k] = JSON.parse(JSON.stringify(store[k]));
-                        setTimeout(() => cb(out), 0);
+                        const resolveValue = () => out;
+                        if (typeof cb === 'function') { setTimeout(() => cb(out), 0); return undefined; }
+                        return new Promise((resolve) => { setTimeout(() => resolve(resolveValue()), 0); });
                     },
                     set(obj, cb) {
                         Object.assign(store, JSON.parse(JSON.stringify(obj)));
                         fire(obj);
-                        if (cb) setTimeout(cb, 0);
+                        if (typeof cb === 'function') setTimeout(cb, 0);
+                        else return Promise.resolve();
                     },
                     remove(keys, cb) {
                         (Array.isArray(keys) ? keys : [keys]).forEach((k) => delete store[k]);
@@ -73,6 +78,9 @@ function initScript(seed) {
                     setTimeout(() => {
                         if (msg && msg.type === 'START_GENERATION') cb({ status: 'success', data: window.__RESUME_JSON__, coverLetterData: window.__COVER_LETTER_JSON__ });
                         else if (msg && msg.type === 'FILL_APPLICATION_FORM') cb({ status: 'success', filled: 9, total: 9 });
+                        else if (msg && msg.type === 'CHECK_ATS') cb({ status: 'success', data: window.__ATS_CHECK_RESULT__ });
+                        else if (msg && msg.type === 'GET_REFINE_QUESTIONS') cb({ status: 'success', data: { questions: [] } });
+                        else if (msg && msg.type === 'REFINE_RESUME') cb({ status: 'success', data: window.__REFINE_RESULT__ });
                         else cb({ status: 'success' });
                     }, 40);
                 },
@@ -167,7 +175,7 @@ async function main() {
             selectedResumeId: 'r1',
             resumeType: 'professional',
             onboardingCompleted: true,
-            lastSeenAnnouncement: '7.9',
+            lastSeenAnnouncement: '8.3',
             growthRatingPrompt: { converted: true },
             growthSharePrompt: { converted: true },
             coverLetterEnabled: true,
@@ -296,6 +304,60 @@ async function main() {
         await page.waitForTimeout(800);
         await page.screenshot({ path: path.join(CAPTURES, 'form-filler.png') });
         console.log('captured form-filler');
+        await context.close();
+    }
+
+    // ============ 5. OPTIONS PAGE: ATS check modal + refine review modal ============
+    {
+        const context = await browser.newContext({
+            viewport: { width: 1720, height: 1400 },
+            deviceScaleFactor: 2,
+        });
+        await context.addInitScript(initScript({
+            apiProvider: 'google',
+            geminiApiKey: 'AIzaSyDExampleKeyForScreenshots00000',
+            resumes: [
+                { id: 'r1', label: 'Master Resume', content: masterResumeText, jsonContent: '' },
+            ],
+            selectedResumeId: 'r1',
+            resumeType: 'professional',
+            onboardingCompleted: true,
+            lastSeenAnnouncement: '8.3',
+            growthRatingPrompt: { converted: true },
+            growthSharePrompt: { converted: true },
+            coverLetterEnabled: false,
+            analyticsEnabled: true,
+        }));
+        const page = await context.newPage();
+        page.on('pageerror', (e) => console.error('[pageerror]', e.message));
+        page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.warn('[console]', m.type(), m.text().slice(0, 200)); });
+        await page.goto(fileUrl('options.html'));
+        await page.waitForSelector('#checkAtsBtn', { timeout: 20000 });
+        await page.waitForTimeout(600);
+
+        // ATS check modal
+        await page.click('#checkAtsBtn');
+        await page.waitForFunction(() => {
+            const m = document.getElementById('atsResultModal');
+            return m && m.style.display === 'flex';
+        }, { timeout: 15000 });
+        await page.waitForTimeout(1500); // let the ring gauge odometer land
+        await page.evaluate(() => { const s = document.getElementById('statusOverlay'); if (s) s.style.display = 'none'; });
+        await page.locator('#atsResultModal').screenshot({ path: path.join(CAPTURES, 'ats-check.png') });
+        console.log('captured ats-check');
+        await page.click('#atsCloseBtn');
+        await page.waitForTimeout(300);
+
+        // Refine review modal (questions step skipped: GET_REFINE_QUESTIONS returns [])
+        await page.click('#refineResumeBtn');
+        await page.waitForFunction(() => {
+            const m = document.getElementById('refineModal');
+            return m && m.style.display === 'flex';
+        }, { timeout: 20000 });
+        await page.waitForTimeout(1800); // 1400ms gauge animation + settle
+        await page.evaluate(() => { const s = document.getElementById('statusOverlay'); if (s) s.style.display = 'none'; });
+        await page.locator('#refineModal').screenshot({ path: path.join(CAPTURES, 'refine-review.png') });
+        console.log('captured refine-review');
         await context.close();
     }
 

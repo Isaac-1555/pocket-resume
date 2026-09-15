@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+    .glow.green { background: rgba(43, 214, 132, 0.20); }
+
+    .mini-frame {
+        position: absolute;
+        z-index: 6;
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--ink-raised);
+        border: 1px solid rgba(43, 214, 132, 0.45);
+        box-shadow:
+            0 34px 80px rgba(0, 0, 0, 0.65),
+            0 12px 28px rgba(0, 0, 0, 0.5);
+    }
+
+    .mini-frame img {
+        display: block;
+        position: absolute;
+    }
+
+    .frame { position: absolute; }
+
+    .frame img {
+        display: block;
+        position: absolute;
+    }
+
+    .caption {
+        position: absolute;
+        z-index: 7;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(10, 13, 18, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        color: rgba(244, 241, 232, 0.9);
+    }
+</style>
+</head>
+<body>
+<div class="canvas">
+    <div class="glow green" style="width:620px;height:620px;right:40px;top:-200px;"></div>
+    <div class="glow amber" style="width:400px;height:400px;left:-160px;bottom:-140px;opacity:.55;"></div>
+
+    <div class="lockup">
+        <img src="../../icon.png" alt="">
+        <span class="name">PocketResume</span>
+    </div>
+
+    <div style="position:absolute;left:48px;top:218px;width:490px;z-index:5;">
+        <div class="eyebrow" style="color:#2BD684;">ATS Score Checker + Refine</div>
+        <h1 class="display">Score how bots<br>read you.<br><span style="color:#2BD684;">Fix it. Get through.</span></h1>
+        <p class="sub" style="max-width:470px;">One click scores how a real ATS parser reads your resume. Refine then restructures it into a clean master version with AI-suggested fixes &mdash; you approve before anything changes.</p>
+        <div class="chips" style="margin-top:26px;">
+            <span class="chip">Score 0&ndash;100</span>
+            <span class="chip">Issues, ranked</span>
+            <span class="chip">You approve first</span>
+        </div>
+    </div>
+
+    <div class="frame" style="right:64px;top:60px;width:614px;height:680px;overflow:hidden;">
+        <img src="../captures/refine-review.png" alt="" style="width:1259px;left:-322px;top:-125px;">
+    </div>
+    <div class="glow green" style="width:300px;height:300px;right:40px;top:110px;opacity:.3;"></div>
+
+    <div class="mini-frame" style="right:506px;top:524px;width:231px;height:210px;">
+        <img src="../captures/ats-check.png" alt="" style="width:723px;left:-250px;top:-188px;">
+    </div>
+    <div class="caption" style="right:506px;top:750px;color:#2BD684;border-color:rgba(43,214,132,.4);">58 &rarr; 91</div>
+
+    <div class="footer">You approve &middot; Nothing applied without review</div>
+</div>
+</body>
+</html>
