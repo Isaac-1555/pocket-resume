@@ -191,12 +191,73 @@
     /* ============================
        Header
        ============================ */
+    .error-info-btn {
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      width: 30px;
+      height: 30px;
+      border: 1px solid rgba(255, 86, 86, 0.5);
+      border-radius: 50%;
+      background: rgba(255, 86, 86, 0.14);
+      color: #ff8a8a;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1;
+      cursor: pointer;
+      transition: all var(--ease);
+      z-index: 5;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .error-info-btn:hover {
+      border-color: rgba(255, 86, 86, 0.75);
+      background: rgba(255, 86, 86, 0.24);
+    }
+
+    .error-info-btn:active {
+      transform: scale(0.94);
+    }
+
     .app-header {
+      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
       text-align: center;
       margin-bottom: 20px;
+    }
+
+    .feature-video-btn {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      background: var(--glass-fill);
+      border: 1px solid var(--glass-border);
+      color: var(--text-dim);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--ease);
+    }
+
+    .feature-video-btn:hover {
+      background: var(--glass-fill-strong);
+      color: var(--text);
+    }
+
+    .feature-video-btn .fv-play-tri {
+      width: 0;
+      height: 0;
+      border-left: 8px solid #f4933b;
+      border-top: 5px solid transparent;
+      border-bottom: 5px solid transparent;
     }
 
     .logo-mark {
@@ -1070,9 +1131,11 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="feature-video.css">
 </head>
 <body data-status="idle">
   <header class="app-header">
+    <button id="featureVideoBtn" class="feature-video-btn" type="button" title="Watch the feature tour" aria-label="Watch the feature tour"><span class="fv-play-tri" aria-hidden="true"></span></button>
     <button id="errorInfoBtn" class="error-info-btn" type="button" aria-label="Show error details">?</button>
     <button class="logo-mark" id="logoLink" type="button" title="pocket-resume.xyz" aria-label="Visit pocket-resume.xyz">
       <img src="icon.png" alt="">
@@ -1121,7 +1184,11 @@
       </div>
     </div>
     <div id="setupDoneState" style="display: none;">
-      <p class="setup-done-text">You're all set. Visit a job posting and click <strong>Generate PDF Resume</strong>.</p>
+      <p class="setup-done-text" id="setupDoneText">You're all set. Visit a job posting and click <strong>Generate PDF Resume</strong>.</p>
+      <div id="setupVideoOffer" style="display: grid; gap: 8px;">
+        <button type="button" id="setupWatchVideoBtn" class="setup-goto setup-goto-wide">▶ Watch the feature tour</button>
+        <button type="button" id="setupVideoNoBtn" class="setup-goto setup-goto-wide">Not now</button>
+      </div>
       <button type="button" id="setupDoneBtn" class="setup-goto setup-goto-wide">Let's go</button>
     </div>
   </div>
@@ -1285,19 +1352,17 @@
       <div class="onboarding-icon" aria-hidden="true">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> — Auto-Retry</h2>
+      <h2>New in <span id="whatsNewVersion"></span> — Feature Tour</h2>
       <p class="error-message">
-        Generation failures now <strong>fix themselves</strong>. If the AI call fails, PocketResume retries automatically — no more starting over.
+        A <strong>guided tour</strong> now shows you how every feature works — real clicks on the real app, not walls of text.
       </p>
       <ul class="whatsnew-collected">
-        <li>Failed generations auto-retry up to <strong>3 attempts</strong> — watch "Attempt 2 of 3…" on the button</li>
-        <li>The job page is kept temporarily, so retries never need to re-read the page</li>
-        <li>After 3 failed tries you get a clear suggestion to switch provider or model</li>
-        <li>One-click <strong>Open Provider Settings</strong> right from the error popup</li>
-        <li>Fixed: saving one provider's API key no longer wipes another provider's key</li>
+        <li>Follow-the-cursor walkthrough: generate, resume styles, cover letters, Fill Form, Refine, ATS, Job Tracker</li>
+        <li><strong>Do / Don't cues</strong> so you avoid the common mistakes (like closing the popup mid-generation)</li>
+        <li>Offered once after setup — and always available from the <strong>▶ button</strong> in the popup header</li>
       </ul>
       <div class="onboarding-actions">
-        <button id="whatsNewSetupBtn" class="cloud-primary-btn">Review my providers</button>
+        <button id="whatsNewTourBtn" class="cloud-primary-btn">Watch the tour</button>
         <button id="whatsNewGotBtn" class="cloud-secondary-btn">Later</button>
       </div>
     </div>
@@ -1306,6 +1371,8 @@
   <script src="libs/jspdf.umd.min.js"></script>
   <script src="resume-renderers.js"></script>
   <script src="track-client.js"></script>
+  <script src="assets/tour/frames.js"></script>
+  <script src="feature-video.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

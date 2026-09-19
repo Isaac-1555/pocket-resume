@@ -16,12 +16,21 @@ const EVENT_NAMES = [
   'form_fill_error',
   'form_filler_setup',
   'form_profile_autofill',
+  'button_clicked',
+  'tour_started',
+  'tour_completed',
+  'tour_skipped',
+  'feature_video_offered',
+  'feature_video_played',
+  'feature_video_declined',
+  'feature_video_completed',
+  'feature_video_closed',
 ];
 
-const PARAM_FIELDS = ['style', 'provider', 'layout', 'source', 'code', 'cached'] as const;
+const PARAM_FIELDS = ['style', 'provider', 'layout', 'source', 'code', 'cached', 'id', 'mode'] as const;
 
 const MAX_EVENTS_PER_BATCH = 50;
-const MAX_EVENTS_PER_CLIENT_PER_MINUTE = 30;
+const MAX_EVENTS_PER_CLIENT_PER_MINUTE = 120;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const RAW_EVENT_RETENTION_MS = 180 * 24 * 60 * 60 * 1000;
 const DAILY_ACTIVE_RETENTION_MS = 400 * 24 * 60 * 60 * 1000;
@@ -78,6 +87,8 @@ export const ingestBatch = mutation({
         source: v.optional(v.string()),
         code: v.optional(v.string()),
         cached: v.optional(v.string()),
+        id: v.optional(v.string()),
+        mode: v.optional(v.string()),
       })
     ),
   },

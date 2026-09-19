@@ -41,6 +41,12 @@ let selectedAppId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   trackEvent('tracker_opened');
+  document.addEventListener('click', (e) => {
+    const el = e.target && e.target.closest ? e.target.closest('button, [role="button"]') : null;
+    if (!el) return;
+    const id = el.id || el.getAttribute('data-track-id');
+    if (id) trackEvent('button_clicked', { id });
+  }, true);
   const boardView = document.getElementById('boardView');
   const graphView = document.getElementById('graphView');
   const addBtn = document.getElementById('addBtn');

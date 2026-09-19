@@ -11,6 +11,7 @@ Key runtime entrypoints (declared in `manifest.json`):
 - **Background service worker**: `background.js` — pipeline orchestration + AI API calls
 - **Content script**: `content.js` — extracts page text from the active tab
 - **Popup UI**: `popup.html` + `popup.js` — user actions + PDF generation for PocketResume layouts
+- **Feature tour video**: `feature-video.js` / `feature-video.css` (player) + `scripts/capture-tour.mjs` / `assets/tour/` (frames) — scripted cursor-follow walkthrough, popup-only
 - **Options page**: `options.html` + `options.js` — API keys + multiple resumes + toggles
 - **Resume renderers**: `resume-renderers.js` — Jake, Deedy, Academic CV PDF layouts
 - **Analytics**: `analytics.js` (service-worker client) + `track-client.js` (page-side helper) — anonymous usage stats sent to the Convex backend
@@ -113,7 +114,18 @@ New/unconfigured users get a setup card in the popup plus a spotlight tour on th
 3. Options page load (`options.js`): if `onboarding.step` is a number, the spotlight tour opens at that step. A `chrome.storage.onChanged` listener also starts the tour if the options page is already open when the popup sets the step.
 4. `TOUR_STEPS` (options.js) walks through: provider icons → API key → model (optional) → `#resumeContentTextarea` → `#refineResumeBtn` (explain only, no AI call forced) → `#save`. The highlight uses a box-shadow spotlight and is `pointer-events: none`, so the user interacts with the real UI while the tour guides.
 5. "Next"/"Back" persist the current step; Skip, Escape, or the final "Done" set `onboarding: { step: null, dismissed: true }`. Clicking Save Settings while the tour is active (`tourNotifySaved()`) jumps straight to the finish card.
-6. When the config check passes and `onboardingCompleted` is not yet set, the popup shows the one-time "Setup complete" card and persists `onboardingCompleted: true`.
+6. When the config check passes and `onboardingCompleted` is not yet set, the popup shows the one-time "Setup complete" card (with a "Watch the feature tour" / "Not now" offer) and persists `onboardingCompleted: true`.
+
+### Feature tour video (v8.4)
+
+A "follow the cursor" walkthrough built on **real app screenshots**: `scripts/capture-tour.mjs` drives the actual popup/options/tracker pages with a `chrome.*` shim and saves 13 cropped WebP frames + a `frames.js` manifest into `assets/tour/` (committed, ~110 KB total). `feature-video.js` (timeline player: cursor glide, click ripples, DO/DON'T badges over the real blue/amber glow states; setup steps like API key / resume paste are deliberately NOT shown — onboarding covers them) + `feature-video.css` render it in the popup; exposes `window.PocketResumeFeatureVideo.open(source)` / `close()`. Choreography (frame + hotspot coords) is expressed in the 14-step `TIMELINE` array in `feature-video.js`.
+
+1. Onboarding completes → "Setup complete" card offers the tour ("Watch the feature tour" / "Not now"). Offer logged as `feature_video_offered`.
+2. Yes → `PocketResumeFeatureVideo.open()` (opened via prompt vs header logged as `source` on `feature_video_played`); card hides.
+3. "Not now" → sets `featureVideoDeclined: true` (prompt never reappears), logs `feature_video_declined`, and swaps the card text to point at the always-visible ▶ button in the popup header.
+4. Header `#featureVideoBtn` (top-right, next to the app icon) opens the tour anytime (`source: 'header'`). Player: play/pause (space), per-step progress dots, Esc/✕ close; end caption points back at the header button.
+- **Regenerate frames whenever popup/options/tracker visuals change**: `npm run build:tour`. Frames are centered 340px-wide clips (clipH set per frame); hotspot coords are normalized [0..1] so the player maps them onto the rendered image box.
+- Storage keys: `featureVideoDeclined` (video prompt shown once; `onboardingCompleted` gates the offer card).
 
 ### Resume refinement flow (v8.2 — question pass)
 
@@ -197,7 +209,8 @@ Important keys:
 - `appProfileOnboarding`: `{ active: boolean }` — trigger for the Form Filler setup spotlight tour (set by the popup, consumed by the options page)
 - `refineNudge`: `{ active: boolean }` — trigger for the v8.2 "Smarter Refine" spotlight on `#refineResumeBtn` (set by the popup's What's New modal via `startRefineNudge()`, consumed by the options page via `NUDGE_TOUR_STEPS` + a `'nudge'` tour mode)
 - `atsNudge`: `{ active: boolean }` — trigger for the v8.2 "Check ATS" spotlight on `#checkAtsBtn` (set by the popup's What's New modal via `startAtsNudge()`, consumed by the options page via `ATS_NUDGE_TOUR_STEPS` + an `'atsnudge'` tour mode)
-- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'8.3'` current)
+- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'8.4'` current)
+- `featureVideoDeclined`: boolean — user declined the one-time feature-tour video offer; prompt never reappears (header button still opens it)
 
 Legacy migration: `userProfile` → `resumes[0].content`
 
@@ -245,6 +258,8 @@ PocketResume/
 ├── form-filler.js           # [injected on demand] Form detect/fill/toast for the Fill Form feature
 ├── form-profile.js          # Saved-answer resolver: canonical matchers + custom Q&A matching
 ├── popup.html / popup.js    # Popup UI + PocketResume PDF generation
+├── feature-video.js / feature-video.css  # Cursor-follow feature tour over real screenshots (popup-only)
+├── scripts/capture-tour.mjs # Generates assets/tour/*.webp + frames.js (npm run build:tour)
 ├── options.html / options.js# Settings: API keys, resumes, toggles
 ├── resume-renderers.js      # Jake / Deedy / Academic CV PDF layouts
 ├── analytics.js             # Anonymous usage-stats client (imported by background.js)
@@ -282,7 +297,7 @@ PocketResume/
 - **Change settings UI / resume management**: `options.js` / `options.html`.
 - **Change popup UI**: `popup.html` / `popup.js`.
 - **Change popup error messages / mapping**: `popup.js` (`setError` / `mapErrorMessage`). The keyword-based map turns long provider errors into short friendly strings; un-matched messages truncate to ~200 chars.
-- **Change usage analytics events**: `analytics.js` (client: queue + consent + send), `convex/analytics.ts` (ingest + summary + cleanup), `track-client.js` (page-side `trackEvent` helper). Event names must be whitelisted in both `analytics.js` (`EVENT_NAMES`) and `convex/analytics.ts` (`EVENT_NAMES`).
+- **Change usage analytics events**: `analytics.js` (client: queue + send — always-on, no consent gate), `convex/analytics.ts` (ingest + summary + cleanup), `track-client.js` (page-side `trackEvent` helper). Event names must be whitelisted in both `analytics.js` (`EVENT_NAMES`) and `convex/analytics.ts` (`EVENT_NAMES`), and any new string param must be added to `PARAM_FIELDS` there plus the analyticsEvents schema in `convex/schema.ts`. Every button click in popup/options/tracker fires a generic `button_clicked` event with the button's DOM `id` (capture-phase listener in each page); user-facing stats collection is always on for all users (opt-out toggle removed in v8.4, still fully anonymous), and fires `tour_started`/`tour_completed`/`tour_skipped` plus the `feature_video_*` events.
 - **Change permissions or extension wiring**: `manifest.json`.
 - **Change Pro auth / plan gating / pricing / resume sync**: `src/cloud-sync.js` (then `npm run build:clerk`), `options.js` (account chip + Push/Restore), `background.js` (auto-push listener), `tracker.js` (`checkPlanAccess`).
 - **Change Convex schema or functions**: `convex/schema.ts`, `convex/resumes.ts`, `convex/auth.config.ts` (then `npx convex dev`).
@@ -311,5 +326,5 @@ PocketResume is privacy-first by default. See `privacy-policy.md` for the full p
 - Stores resumes locally in `chrome.storage.local`; cloud sync is opt-in via PocketResume Pro and only talks to the user's own Convex backend
 - Sends data only to the AI provider the user has selected
 - Requires the user to supply their own API key
-- Collects anonymous usage statistics (random per-install UUID + event counters — never resume content, job text, or account info), on by default and opt-out via Options → Privacy; events go to the project's own Convex backend, raw events auto-delete after 180 days
+- Collects anonymous usage statistics (random per-install UUID + event counters — never resume content, job text, or account info), always on for all users (opt-out removed in v8.4); events go to the project's own Convex backend, raw events auto-delete after 180 days
 - Does not include third-party analytics or advertising trackers

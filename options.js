@@ -1,4 +1,10 @@
 document.addEventListener('DOMContentLoaded', async () => {
+  document.addEventListener('click', (e) => {
+    const el = e.target && e.target.closest ? e.target.closest('button, [role="button"]') : null;
+    if (!el) return;
+    const id = el.id || el.getAttribute('data-track-id');
+    if (id) trackEvent('button_clicked', { id });
+  }, true);
   const apiKeyInput = document.getElementById('apiKey');
   const toggleApiKeyButton = document.getElementById('toggleApiKey');
   const saveButton = document.getElementById('save');
@@ -1007,20 +1013,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderEndpointsList();
   });
 
-  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'googleModel', 'openaiModel', 'anthropicModel', 'openrouterModel', 'customEndpoints', 'activeCustomEndpointId', 'apiProvider', 'userProfile', 'resumes', 'trackerCaptureEnabled', 'analyticsEnabled', 'applicationProfile']);
+  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'googleModel', 'openaiModel', 'anthropicModel', 'openrouterModel', 'customEndpoints', 'activeCustomEndpointId', 'apiProvider', 'userProfile', 'resumes', 'trackerCaptureEnabled', 'applicationProfile']);
   const trackerCaptureToggle = document.getElementById('trackerCaptureToggle');
   if (trackerCaptureToggle) {
     trackerCaptureToggle.checked = data.trackerCaptureEnabled !== false;
     trackerCaptureToggle.addEventListener('change', () => {
       chrome.storage.local.set({ trackerCaptureEnabled: trackerCaptureToggle.checked });
-    });
-  }
-
-  const analyticsToggle = document.getElementById('analyticsToggle');
-  if (analyticsToggle) {
-    analyticsToggle.checked = data.analyticsEnabled !== false;
-    analyticsToggle.addEventListener('change', () => {
-      chrome.storage.local.set({ analyticsEnabled: analyticsToggle.checked });
     });
   }
 
@@ -2081,6 +2079,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function tourDismiss() {
     tourActive = false;
     tourOverlay.classList.remove('open');
+    trackEvent(tourStepIndex >= tourSteps.length ? 'tour_completed' : 'tour_skipped', { mode: tourMode });
     if (tourMode === 'nudge') {
       chrome.storage.local.set({ refineNudge: { active: false } });
       return;
@@ -2174,6 +2173,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     tourActive = true;
     tourStepIndex = Math.max(0, Math.min(index, tourSteps.length));
     tourOverlay.classList.add('open');
+    trackEvent('tour_started', { mode: tourMode });
     renderTourStep();
   }
 

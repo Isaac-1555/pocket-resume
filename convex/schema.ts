@@ -22,6 +22,9 @@ export default defineSchema({
     layout: v.optional(v.string()),
     source: v.optional(v.string()),
     code: v.optional(v.string()),
+    cached: v.optional(v.string()),
+    id: v.optional(v.string()),
+    mode: v.optional(v.string()),
   })
     .index('by_name_ts', ['name', 'ts'])
     .index('by_client_ts', ['clientId', 'ts'])

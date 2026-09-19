@@ -6,7 +6,6 @@ const CONVEX_URL = 'https://prestigious-vulture-441.convex.cloud';
 
 const QUEUE_KEY = 'analyticsQueue';
 const CLIENT_ID_KEY = 'analyticsClientId';
-const CONSENT_KEY = 'analyticsEnabled';
 const LAST_ACTIVE_DAY_KEY = 'analyticsLastActiveDay';
 
 const MAX_QUEUE = 200;
@@ -27,6 +26,15 @@ const EVENT_NAMES = new Set([
     'form_fill_error',
     'form_filler_setup',
     'form_profile_autofill',
+    'button_clicked',
+    'tour_started',
+    'tour_completed',
+    'tour_skipped',
+    'feature_video_offered',
+    'feature_video_played',
+    'feature_video_declined',
+    'feature_video_completed',
+    'feature_video_closed',
 ]);
 
 let flushing = false;
@@ -58,8 +66,6 @@ function localDateStr(ts) {
 export async function trackEvent(name, params = {}) {
     try {
         if (!EVENT_NAMES.has(name)) return;
-        const data = await getStorage([CONSENT_KEY]);
-        if (data[CONSENT_KEY] === false) return;
 
         if (name === 'active_day') {
             const today = localDateStr(Date.now());

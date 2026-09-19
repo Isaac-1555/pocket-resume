@@ -1,6 +1,12 @@
 // popup.js
 document.addEventListener('DOMContentLoaded', () => {
   trackEvent('popup_open');
+  document.addEventListener('click', (e) => {
+    const el = e.target && e.target.closest ? e.target.closest('button, [role="button"]') : null;
+    if (!el) return;
+    const id = el.id || el.getAttribute('data-track-id');
+    if (id) trackEvent('button_clicked', { id });
+  }, true);
   const generateBtn = document.getElementById('generateBtn');
   const fillFormBtn = document.getElementById('fillFormBtn');
   const fillFormLabel = document.getElementById('fillFormLabel');
@@ -25,6 +31,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const setupCompact = document.getElementById('setupCompact');
   const setupSkipBtn = document.getElementById('setupSkipBtn');
   const setupDoneBtn = document.getElementById('setupDoneBtn');
+  const setupDoneText = document.getElementById('setupDoneText');
+  const setupVideoOffer = document.getElementById('setupVideoOffer');
+  const setupWatchVideoBtn = document.getElementById('setupWatchVideoBtn');
+  const setupVideoNoBtn = document.getElementById('setupVideoNoBtn');
+  const featureVideoBtn = document.getElementById('featureVideoBtn');
   const setupResumeBtn = document.getElementById('setupResumeBtn');
 
   // --- Cover Letter Toggle ---
@@ -284,8 +295,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (skipBtn) skipBtn.style.display = 'none';
     if (doneEl) doneEl.style.display = 'block';
     if (titleEl) titleEl.textContent = 'Setup complete';
+    if (setupVideoOffer) setupVideoOffer.style.display = 'grid';
+    if (setupDoneText) setupDoneText.innerHTML = "You're all set. Visit a job posting and click <strong>Generate PDF Resume</strong>. Want a quick tour of every feature first?";
     setupCard.style.display = 'block';
+    trackEvent('feature_video_offered');
     chrome.storage.local.set({ onboardingCompleted: true });
+  }
+
+  function startFeatureVideo(source) {
+    if (setupCard) setupCard.style.display = 'none';
+    if (window.PocketResumeFeatureVideo) window.PocketResumeFeatureVideo.open(source);
   }
 
   function startSetupTour(step) {
@@ -308,6 +327,22 @@ document.addEventListener('DOMContentLoaded', () => {
     setupDoneBtn.addEventListener('click', () => {
       if (setupCard) setupCard.style.display = 'none';
     });
+  }
+  if (setupWatchVideoBtn) {
+    setupWatchVideoBtn.addEventListener('click', () => startFeatureVideo(false));
+  }
+  if (setupVideoNoBtn) {
+    setupVideoNoBtn.addEventListener('click', () => {
+      chrome.storage.local.set({ featureVideoDeclined: true });
+      trackEvent('feature_video_declined');
+      if (setupVideoOffer) setupVideoOffer.style.display = 'none';
+      if (setupDoneText) {
+        setupDoneText.innerHTML = "You're all set. You can watch the <strong>feature tour</strong> anytime — the ▶ Feature tour button in the header above.";
+      }
+    });
+  }
+  if (featureVideoBtn) {
+    featureVideoBtn.addEventListener('click', () => startFeatureVideo(true));
   }
   if (setupResumeBtn) {
     setupResumeBtn.addEventListener('click', () => startSetupTour(1));
@@ -428,11 +463,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- What's New modal (once per version) ---
   const whatsNewModal = document.getElementById('whatsNewModal');
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
-  const whatsNewSetupBtn = document.getElementById('whatsNewSetupBtn');
-  const whatsNewAnalyticsToggle = document.getElementById('whatsNewAnalyticsToggle');
+  const whatsNewTourBtn = document.getElementById('whatsNewTourBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '8.3';
-  const ANNOUNCEMENT_SEEN_VALUE = '8.3';
+  const ANNOUNCEMENT_VERSION = '8.4';
+  const ANNOUNCEMENT_SEEN_VALUE = '8.4';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
@@ -440,32 +474,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function openProviderSettings() {
-    chrome.runtime.openOptionsPage();
-  }
-
   function dismissWhatsNew() {
     chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_SEEN_VALUE });
     if (whatsNewModal) whatsNewModal.style.display = 'none';
   }
 
-  chrome.storage.local.get(['lastSeenAnnouncement', 'analyticsEnabled'], (data) => {
+  chrome.storage.local.get(['lastSeenAnnouncement'], (data) => {
     if (!whatsNewModal) return;
     if (data.lastSeenAnnouncement === ANNOUNCEMENT_SEEN_VALUE) return;
     if (whatsNewVersionEl) whatsNewVersionEl.textContent = ANNOUNCEMENT_VERSION;
-    if (whatsNewAnalyticsToggle) whatsNewAnalyticsToggle.checked = data.analyticsEnabled !== false;
     whatsNewModal.style.display = 'flex';
   });
   if (whatsNewGotBtn) whatsNewGotBtn.addEventListener('click', dismissWhatsNew);
-  if (whatsNewSetupBtn) {
-    whatsNewSetupBtn.addEventListener('click', () => {
+  if (whatsNewTourBtn) {
+    whatsNewTourBtn.addEventListener('click', () => {
       dismissWhatsNew();
-      openProviderSettings();
+      if (window.PocketResumeFeatureVideo) window.PocketResumeFeatureVideo.open(true);
     });
   }
-  if (whatsNewAnalyticsToggle) whatsNewAnalyticsToggle.addEventListener('change', () => {
-    chrome.storage.local.set({ analyticsEnabled: whatsNewAnalyticsToggle.checked });
-  });
 
   function parseJobFromTitle(title) {
     const t = (title || '').trim();
