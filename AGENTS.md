@@ -156,11 +156,12 @@ One-time onboarding for Form Filler: the user answers common application-form qu
 1. **Questionnaire**: Options page → "Form Filler Setup" section (`#appProfileDetails`, left panel). Groups: Basics (first/last name, email, phone), Location (street, apt, city, state, postal code, country), Work eligibility (authorized / sponsorship / 18+ / relocate / remote preference — Yes/No selects), Preferences (salary amount + currency + period, start date, years of experience), Links (LinkedIn, portfolio, GitHub), opt-in **EEO self-identification** (gender, race, hispanic/Latino, veteran, disability — only used when a form asks; local only), and **Custom Q&A** (free-form question/answer rows matched by question text).
 2. **"Auto-fill from my resume"**: options sends `PROFILE_AUTOFILL` with the active resume's `jsonContent` (fallback `content`). Background `generateApplicationProfileFromResume(...)` does one strict-JSON extraction call → options fills **empty inputs only** and reports "Filled X of Y fields".
 3. **Persistence**: saved as `applicationProfile` via the global Save Settings button. Completion = non-empty `firstName` + `lastName`; the section's status pill shows "Ready" / "Not set up".
-4. **Entry points**: the v8.0 What's New modal ("Set up Form Filler") and the popup fill-gating card both set `appProfileOnboarding: { active: true }` and open the options page; options consumes the flag and starts the **profile spotlight tour** (`PROFILE_TOUR_STEPS`, reuses the tour overlay via `tourOpenAt(step, 'profile')`). "Guide me" in the section restarts it. Saved answers keep working if the tour is skipped.5. **Fill gating**: popup Fill with an incomplete profile shows `#fillProfileCard` ("Complete setup" → same trigger) instead of running the fill. Generation flow is unaffected.
+4. **Entry points**: the v8.0 What's New modal ("Set up Form Filler") and the popup fill-gating card both set `appProfileOnboarding: { active: true }` and open the options page; options consumes the flag and starts the **profile spotlight tour** (`PROFILE_TOUR_STEPS`, reuses the tour overlay via `tourOpenAt(step, 'profile')`). "Guide me" in the section restarts it. Saved answers keep working if the tour is skipped.
+5. **Fill gating**: Form Filler is a **Pro feature**. Popup Fill first asks background `CHECK_PRO_ACCESS`; when access is denied it shows `#fillProCard` ("Create a free account" during the promo, else "See Pro plans"). Only after Pro access passes does it check `applicationProfile` completeness and show `#fillProfileCard` ("Complete setup") if incomplete. Background also re-checks `getFormFillAccess()` and replies `{ status: 'upgrade_required', promoActive }` so the gate can't be bypassed. Generation flow is unaffected.
 
 ### Form filler flow
 
-1. User clicks "Fill Form" in the popup (next to the Job Tracker button). Popup first checks `applicationProfile` completeness (see Form filler setup above) and blocks with the setup card if incomplete.
+1. User clicks "Fill Form" in the popup (next to the Job Tracker button). Popup first checks Pro access via `CHECK_PRO_ACCESS` (blocks with `#fillProCard` if denied), then checks `applicationProfile` completeness (see Form filler setup above) and blocks with `#fillProfileCard` if incomplete. Background re-checks Pro access on `FILL_APPLICATION_FORM`.
 2. Popup sends `FILL_APPLICATION_FORM` to background with `{ tabId, resumeId }`.
 3. Background resolves the profile (same resolution as `START_GENERATION`), injects `form-filler.js` into all frames via `chrome.scripting.executeScript`, then runs `__PocketResumeForm.detect(...)` per frame and merges results (field ids are frame-token prefixed). Detection covers text inputs, textareas, selects (only placeholder-unselected ones; matched by option text **and** value), radio groups, checkbox groups, single question-style checkboxes (consent labels excluded), email/url/date inputs, and contenteditables.
 4. **Saved-answers-first resolution**: `resolveFormAnswers(fields, applicationProfile)` in `form-profile.js` splits fields. Tier 1: canonical label matchers → `applicationProfile` values (name split, address, salary formatting by field type incl. hourly conversion, yes/no, EEO gated by `eeoOptIn`). Tier 2: `customQA` match (normalized equality, containment, Jaccard ≥ 0.85). Select/radio/checkbox-group answers must fuzzy-match one of the field's options, else the field falls to AI. Single checkboxes get boolean intent (`Yes` → check, `No` → leave unchecked). Zero tokens for resolved fields.
@@ -201,7 +202,7 @@ Important keys:
 - `activeCustomEndpointId`: which custom endpoint is active when `apiProvider` is `"custom"`
 - `resumes`: array of `{ id, label, content, jsonContent, lastRefineBackup, lastRefineAppliedAt, refineAnswers }` (up to 3)
 - `selectedResumeId`: which resume is active in the popup
-- `cloudSyncStatus`: `"idle" | "syncing" | "synced" | "error"` (Pro sync indicator, written by `src/cloud-sync.js`)
+- `cloudSyncStatus`: `"idle" | "syncing" | "synced" | "error"` (cloud sync indicator, written by `src/cloud-sync.js`)
 - `resumeType`: `"professional" | "faang" | "deedy" | "academic-cv"`
 - `coverLetterEnabled`: boolean
 - `applicationProfile`: Form Filler answers — `{ firstName, lastName, email, phone, streetAddress, addressLine2, city, state, postalCode, country, salaryAmount, salaryCurrency, salaryPeriod, startDate, yearsExperience, workAuthorized, needsSponsorship, over18, willingToRelocate, remotePreference, linkedin, website, github, eeoOptIn, eeo: { gender, race, hispanicLatino, veteran, disability }, customQA: [{ id, question, answer }], updatedAt }`
@@ -210,6 +211,8 @@ Important keys:
 - `atsNudge`: `{ active: boolean }` — trigger for the v8.2 "Check ATS" spotlight on `#checkAtsBtn` (set by the popup's What's New modal via `startAtsNudge()`, consumed by the options page via `ATS_NUDGE_TOUR_STEPS` + an `'atsnudge'` tour mode)
 - `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'8.4'` current)
 - `featureVideoDeclined`: boolean — user declined the one-time feature-tour video offer; prompt never reappears (header button still opens it)
+- `trackerPlanCache`: `{ proAccess, isPro, promoActive, signedIn, checkedAt }` — last Job Tracker access resolution, used for first paint / offline
+- `trackerLockDismissed`: boolean — user dismissed the Job Tracker lock banner
 
 Legacy migration: `userProfile` → `resumes[0].content`
 
@@ -231,14 +234,22 @@ Custom endpoints require a runtime host permission for the endpoint's origin. `m
 
 ## PocketResume Pro (optional feature)
 
-One paid plan ("PocketResume Pro") gates everything: resume cloud sync, plan gating, and the full Job Tracker. Sign-in, the embedded pricing table, and sync run through [Clerk](https://clerk.com) + [Convex](https://convex.dev). The separate "Cloud Sync" plan was merged into PocketResume Pro in v7.9 (Clerk Billing now exposes a single paid plan; live in instance config under `billing.plans`, editable via `clerk config patch` / Dashboard); `hasCloudSyncAccess()` still honors legacy `cloud_sync`/`pro`/`premium` subscriptions and metadata for existing subscribers.
+Plans: **Free** (`free_user`, auto-assigned to every signed-in user) includes resume **cloud sync**. **Pro** (`pocketresume_pro`, paid) adds the full **Job Tracker** and **Form Filler**; legacy `cloud_sync`/`pro`/`premium` subscriptions and metadata still count as Pro. Sign-in, the embedded pricing table, and sync run through [Clerk](https://clerk.com) + [Convex](https://convex.dev). Plans live in Clerk instance config under `billing.plans`, editable via `clerk config patch` / Dashboard.
+
+**Launch promo trial (`PROMO_TRIAL` in `src/cloud-sync.js`)**: a fixed window (Sep 27 → Oct 31, local time) during which any **free-plan subscriber** gets Pro access (Job Tracker + Form Filler + cloud sync). Non-subscribers are locked out of every Pro feature and prompted to create a free account; `promoActive && !signedIn` drives the "Start free" copy in the tracker lock banner. After the window closes, gating reverts to the steady state (free = cloud sync only; Pro = everything). This replaced the old per-user 30-day tracker trial — do not reintroduce `trackerTrialStartedAt`/`trackerUnlocked`.
+
+Access resolution lives in `src/cloud-sync.js`:
+- `getAccessState()` → `{ signedIn, isFreeSubscriber, isPro, promoActive, cloudSyncAccess, proAccess }`
+- `hasCloudSyncAccess()` = free + Pro + legacy (cloud sync)
+- `hasProAccess()` = Pro + legacy, or promo-active free subscriber (Job Tracker + Form Filler)
 
 Architecture:
 
-- `src/cloud-sync.js` — IIFE source, bundled by esbuild → `cloud-sync.js` (gitignored). Loaded by `options.html` and `tracker.html` (popup no longer loads it). Provides auth (`signIn`/`isSignedIn`/`getUserProfile`), plan checks (`hasCloudSyncAccess`), the Clerk pricing table mount, and resume sync (`pushAllResumes`/`pullAllResumes`/`onLocalResumesChanged` via Convex)
-- `background.js` — auto-pushes resume changes when signed in (`chrome.storage.onChanged` → `onLocalResumesChanged`, debounced 2s)
-- `options.js` — account chip (Sign In / See Plans), Push Local to Cloud / Restore from Cloud, pricing table mount under Settings → PocketResume Pro
-- `tracker.js` — `checkPlanAccess()` gates the Job Tracker trial/lock via `window.CloudSync`
+- `src/cloud-sync.js` — IIFE source, bundled by esbuild → `cloud-sync.js` (gitignored). Loaded by `options.html`, `tracker.html`, and imported by `background.js` (popup does not load it). Provides auth (`signIn`/`signUp`/`isSignedIn`/`getUserProfile`), plan checks (`hasCloudSyncAccess`/`hasProAccess`/`getAccessState`/`isPromoTrialActive`), the Clerk pricing table mount, and resume sync (`pushAllResumes`/`pullAllResumes`/`onLocalResumesChanged` via Convex)
+- `background.js` — auto-pushes resume changes when signed in (`chrome.storage.onChanged` → `onLocalResumesChanged`, debounced 2s); answers `CHECK_PRO_ACCESS` and gates `FILL_APPLICATION_FORM` on `getFormFillAccess()` (`hasProAccess()`)
+- `options.js` — always-visible account card at the top of the left panel: signed-out offer (badge + feature bullets + Create free account / See Pro plans / Sign in) or signed-in row (avatar + name + plan pill + Upgrade · Manage plan / Sign out). **Push/Restore only render when signed in** (inside the signed-in branch). Pricing table mounts inline.
+- `popup.js` — header `#accountBtn` (Sign in / Start free / Upgrade / Pro pill, resolved via `CHECK_PRO_ACCESS`) and the bulleted `#fillProCard` upgrade card
+- `tracker.js` — `checkAccess()` gates the Job Tracker via `window.CloudSync.getAccessState()`; caches the result in `trackerPlanCache`
 - `convex/auth.config.ts` — Clerk → Convex auth wiring; requires `CLERK_FRONTEND_API_URL` env var
 - `convex/schema.ts` — `resumes` table shape
 - `convex/resumes.ts` — `list`, `upsert`, `remove` queries/mutations
@@ -285,6 +296,7 @@ PocketResume/
 - **Change AI model, prompts, or JSON schema**: `background.js` (`executeProviderChat` + the 5 pipeline functions). Update the style config table above if the schema or layout mapping changes.
 - **Change what we extract from a page**: `content.js` (`extractPageText`) and the truncation logic in `background.js`.
 - **Change form detection / filling / safety rules**: `form-filler.js` (`detect` / `fill` / `toast`) and the `FILL_APPLICATION_FORM` handler + `generateFormAnswers` prompt in `background.js`.
+- **Change Pro/form-fill gating**: `src/cloud-sync.js` (`getAccessState`/`hasProAccess`/`PROMO_TRIAL`), `background.js` (`CHECK_PRO_ACCESS` + `getFormFillAccess`), popup gating in `popup.js` (`showFillProCard`/`#fillProCard`).
 - **Change saved-answer resolution / canonical matchers**: `form-profile.js` (`CANONICAL_MATCHERS`, `resolveFormAnswers`) — imported by `background.js`.
 - **Change Form Filler onboarding / application profile**: `options.html` + `options.js` (`#appProfileDetails` section, `APP_PROFILE_FIELDS`, `PROFILE_TOUR_STEPS`), `background.js` (`PROFILE_AUTOFILL` handler + `generateApplicationProfileFromResume`), popup gating in `popup.js` (`isFormFillerProfileComplete` / `#fillProfileCard`).
 - **Change PocketResume PDF layout**: `popup.js` (`generatePDF` / `generateCoverLetterPDF`).
@@ -293,7 +305,7 @@ PocketResume/
 - **Change popup UI**: `popup.html` / `popup.js`.
 - **Change popup error messages / mapping**: `popup.js` (`setError` / `mapErrorMessage`). The keyword-based map turns long provider errors into short friendly strings; un-matched messages truncate to ~200 chars.
 - **Change permissions or extension wiring**: `manifest.json`.
-- **Change Pro auth / plan gating / pricing / resume sync**: `src/cloud-sync.js` (then `npm run build:clerk`), `options.js` (account chip + Push/Restore), `background.js` (auto-push listener), `tracker.js` (`checkPlanAccess`).
+- **Change Pro auth / plan gating / pricing / resume sync**: `src/cloud-sync.js` (then `npm run build:clerk`), `options.js` (account card + Push/Restore), `background.js` (auto-push listener + `CHECK_PRO_ACCESS`), `tracker.js` (`checkAccess`).
 - **Change Convex schema or functions**: `convex/schema.ts`, `convex/resumes.ts`, `convex/auth.config.ts` (then `npx convex dev`).
 
 ## Coding conventions
@@ -303,6 +315,16 @@ PocketResume/
 - **No new comments in source files** unless behavior is non-obvious. The codebase intentionally ships minimal comments.
 - Match the style of the file you're editing — read surrounding context first.
 - Use `chrome.storage.local` for persistence; do not introduce new global state.
+
+### Button color roles
+
+Buttons use semantic accent tokens so paired actions both read as intentional (never "one orange, one disabled-looking"). Tokens live in `:root` of `popup.html` / `options.html` / `tracker.html` (`--accent-blue*`, `--accent-green*`, `--accent-red*`, plus the existing `--orange*`).
+
+- **Orange** (`--orange*`) = primary/most important action. Classes: `.secondary-action-btn` (options), `.setup-goto` (popup), `.btn-primary` / `#generateBtn` / `.cloud-primary-btn`.
+- **Blue** (`--accent-blue*`) = secondary, parallel-but-valid action. Classes: `.accent-btn` (options), `.setup-goto.accent` (popup), `.btn-accent` (tracker). Used for: Check ATS, See Pro plans, Restore from Cloud, Guide me.
+- **Green** (`--accent-green*`) = confirm/apply. Classes: `.success-btn` (options), `.setup-goto.success` (popup), `.btn-success` (tracker). Used for: Apply Refined Resume, Replace Local with Cloud.
+- **Red** (`--accent-red*`) = destructive. Classes: `.danger-btn` (options), `.btn-danger` (tracker).
+- **Glass/ghost** = dismiss/cancel/back/skip/tertiary. Classes: `.ghost-btn` (options), `.setup-goto.ghost` (popup), `.btn-ghost` / `.btn` (tracker).
 
 ## Common pitfalls
 
@@ -317,7 +339,7 @@ PocketResume/
 
 PocketResume is privacy-first by default. See `privacy-policy.md` for the full policy. The Chrome extension:
 
-- Stores resumes locally in `chrome.storage.local`; cloud sync is opt-in via PocketResume Pro and only talks to the user's own Convex backend
+- Stores resumes locally in `chrome.storage.local`; cloud sync is opt-in via a free PocketResume account (Pro adds the Job Tracker + Form Filler) and only talks to the user's own Convex backend
 - Sends data only to the AI provider the user has selected
 - Requires the user to supply their own API key
 - Does not include third-party analytics or advertising trackers

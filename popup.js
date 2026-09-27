@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const setupVideoNoBtn = document.getElementById('setupVideoNoBtn');
   const featureVideoBtn = document.getElementById('featureVideoBtn');
   const setupResumeBtn = document.getElementById('setupResumeBtn');
+  const accountBtn = document.getElementById('accountBtn');
 
   // --- Cover Letter Toggle ---
   let trackerCaptureEnabled = true;
@@ -342,6 +343,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Form Filler profile gating ---
   const fillProfileCard = document.getElementById('fillProfileCard');
   const fillProfileSetupBtn = document.getElementById('fillProfileSetupBtn');
+  const fillProCard = document.getElementById('fillProCard');
+  const fillProActionBtn = document.getElementById('fillProActionBtn');
 
   function isFormFillerProfileComplete(profile) {
     return !!(profile &&
@@ -349,10 +352,96 @@ document.addEventListener('DOMContentLoaded', () => {
       typeof profile.lastName === 'string' && profile.lastName.trim());
   }
 
+  function renderFeatureList(node, items) {
+    if (!node) return;
+    node.innerHTML = items
+      .map(([label, desc]) => `<li><span class="pfl-check" aria-hidden="true">&#10003;</span><span class="pfl-text"><strong>${label}</strong> — ${desc}</span></li>`)
+      .join('');
+  }
+
+  function showFillProCard(access) {
+    if (!fillProCard) return;
+    const promo = !!(access && access.promoActive && !access.signedIn);
+    const title = document.getElementById('fillProTitle');
+    const features = document.getElementById('fillProFeatures');
+    const footnote = document.getElementById('fillProFootnote');
+    if (title) title.textContent = promo ? 'Every Pro feature free until Oct 31' : 'Unlock Form Filler with Pro';
+    renderFeatureList(features, promo
+      ? [
+          ['Form Filler', 'one-click job applications'],
+          ['Job Tracker', 'pipeline board + analytics'],
+          ['Cloud sync', 'resumes on every device'],
+        ]
+      : [
+          ['Form Filler', 'auto-fill job applications'],
+          ['Job Tracker', 'pipeline board + analytics'],
+          ['Cloud sync', 'resumes on every device'],
+        ]);
+    if (footnote) footnote.style.display = promo ? 'block' : 'none';
+    if (fillProActionBtn) {
+      fillProActionBtn.textContent = promo ? 'Create free account' : 'See Pro plans';
+      fillProActionBtn.dataset.target = promo ? 'options' : 'pricing';
+    }
+    fillProCard.style.display = 'block';
+  }
+
+  function checkProAccess() {
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({ type: 'CHECK_PRO_ACCESS' }, (response) => {
+        if (chrome.runtime.lastError) return resolve({ allowed: true });
+        resolve(response || { allowed: false });
+      });
+    });
+  }
+
+  async function updateAccountButton() {
+    if (!accountBtn) return;
+    const access = await checkProAccess();
+    if (access.allowed) {
+      if (access.signedIn) {
+        accountBtn.style.display = 'inline-block';
+        accountBtn.classList.add('pro');
+        accountBtn.textContent = (access.promoActive && !access.isPro) ? 'Pro trial' : 'Pro';
+        accountBtn.dataset.target = 'options';
+      } else {
+        accountBtn.style.display = 'none';
+      }
+      return;
+    }
+    const promo = access.promoActive && !access.signedIn;
+    accountBtn.style.display = 'inline-block';
+    accountBtn.classList.remove('pro');
+    if (promo) {
+      accountBtn.textContent = 'Start free';
+      accountBtn.dataset.target = 'options';
+    } else if (access.signedIn) {
+      accountBtn.textContent = 'Upgrade';
+      accountBtn.dataset.target = 'pricing';
+    } else {
+      accountBtn.textContent = 'Sign in';
+      accountBtn.dataset.target = 'options';
+    }
+  }
+
+  if (accountBtn) {
+    accountBtn.addEventListener('click', () => {
+      const target = accountBtn.dataset.target === 'pricing' ? 'options.html#cloud-pricing' : 'options.html';
+      chrome.tabs.create({ url: chrome.runtime.getURL(target) });
+    });
+    updateAccountButton();
+  }
+
   if (fillProfileSetupBtn) {
     fillProfileSetupBtn.addEventListener('click', () => {
       if (fillProfileCard) fillProfileCard.style.display = 'none';
       startProfileSetup();
+    });
+  }
+
+  if (fillProActionBtn) {
+    fillProActionBtn.addEventListener('click', () => {
+      const target = fillProActionBtn.dataset.target === 'options' ? 'options.html' : 'options.html#cloud-pricing';
+      chrome.tabs.create({ url: chrome.runtime.getURL(target) });
     });
   }
 
@@ -368,6 +457,14 @@ document.addEventListener('DOMContentLoaded', () => {
   if (fillFormBtn) {
     fillFormBtn.addEventListener('click', async () => {
       if (fillFormBtn.disabled) return;
+
+      const access = await checkProAccess();
+      if (access && access.allowed === false) {
+        if (fillProfileCard) fillProfileCard.style.display = 'none';
+        showFillProCard(access);
+        return;
+      }
+      if (fillProCard) fillProCard.style.display = 'none';
 
       const profileData = await chrome.storage.local.get('applicationProfile');
       if (!isFormFillerProfileComplete(profileData.applicationProfile)) {
@@ -409,6 +506,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
             fillFormBtn.disabled = false;
           }, 3500);
+        } else if (response && response.status === 'upgrade_required') {
+          setFillStatus(null);
+          if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
+          fillFormBtn.disabled = false;
+          showFillProCard(response);
         } else {
           setError(response?.message || 'Something went wrong. Please try again.');
           setFillStatus('fill-failure');
@@ -537,7 +639,7 @@ document.addEventListener('DOMContentLoaded', () => {
       source: sourceTag,
       updatedAt: Date.now()
     };
-    chrome.storage.local.get(['applications', 'trackerTrialStartedAt'], (data) => {
+    chrome.storage.local.get('applications', (data) => {
       const apps = Array.isArray(data.applications) ? data.applications : [];
       const existingIdx = apps.findIndex((a) => a.url && a.url === application.url && a.status === 'saved');
       if (existingIdx >= 0) {
@@ -545,11 +647,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         apps.push(application);
       }
-      const writes = { applications: apps };
-      if (!data.trackerTrialStartedAt) {
-        writes.trackerTrialStartedAt = Date.now();
-      }
-      chrome.storage.local.set(writes);
+      chrome.storage.local.set({ applications: apps });
     });
   }
 

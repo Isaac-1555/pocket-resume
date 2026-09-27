@@ -24,6 +24,17 @@
       --orange-fill-strong: rgba(244, 147, 59, 0.30);
       --orange-border: rgba(244, 147, 59, 0.55);
 
+      --accent-blue: #4a9eff;
+      --accent-blue-fill: rgba(74, 158, 255, 0.16);
+      --accent-blue-fill-strong: rgba(74, 158, 255, 0.30);
+      --accent-blue-border: rgba(74, 158, 255, 0.55);
+      --accent-green: #2bd684;
+      --accent-green-fill: rgba(43, 214, 132, 0.14);
+      --accent-green-border: rgba(43, 214, 132, 0.45);
+      --accent-red: #ff5656;
+      --accent-red-fill: rgba(255, 86, 86, 0.12);
+      --accent-red-border: rgba(255, 86, 86, 0.45);
+
       --glow-idle: 20, 20, 22;
       --glow-generating: 56, 132, 255;
       --glow-success: 43, 214, 132;
@@ -258,6 +269,32 @@
       border-left: 8px solid #f4933b;
       border-top: 5px solid transparent;
       border-bottom: 5px solid transparent;
+    }
+
+    .account-btn {
+      position: absolute;
+      top: 0;
+      left: 0;
+      padding: 6px 10px;
+      font-size: 11.5px;
+      font-weight: 600;
+      border-radius: 9px;
+      background: var(--orange-fill);
+      border: 1px solid var(--orange-border);
+      color: var(--orange);
+      cursor: pointer;
+      transition: all var(--ease);
+    }
+
+    .account-btn:hover {
+      background: var(--orange-fill-strong);
+      color: var(--text);
+    }
+
+    .account-btn.pro {
+      background: rgba(43, 214, 132, 0.1);
+      border-color: rgba(43, 214, 132, 0.45);
+      color: #2bd684;
     }
 
     .logo-mark {
@@ -900,6 +937,40 @@
       color: var(--text);
     }
 
+    .setup-goto.accent {
+      background: var(--accent-blue-fill);
+      border-color: var(--accent-blue-border);
+      color: #7cc0ff;
+    }
+
+    .setup-goto.accent:hover {
+      background: var(--accent-blue-fill-strong);
+      color: var(--text);
+    }
+
+    .setup-goto.success {
+      background: var(--accent-green-fill);
+      border-color: var(--accent-green-border);
+      color: var(--accent-green);
+    }
+
+    .setup-goto.success:hover {
+      background: rgba(43, 214, 132, 0.24);
+      color: var(--text);
+    }
+
+    .setup-goto.ghost {
+      background: var(--glass-fill);
+      border-color: var(--glass-border);
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+
+    .setup-goto.ghost:hover {
+      background: var(--glass-fill-strong);
+      color: var(--text);
+    }
+
     .setup-goto-wide {
       display: block;
       width: 100%;
@@ -952,6 +1023,51 @@
 
     .setup-done-text strong {
       color: var(--text);
+    }
+
+    .plan-feature-list {
+      list-style: none;
+      margin: 0 0 12px;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .plan-feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12.5px;
+      line-height: 1.4;
+      color: var(--text-dim);
+    }
+
+    .plan-feature-list li strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .pfl-check {
+      flex-shrink: 0;
+      width: 17px;
+      height: 17px;
+      margin-top: 0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: rgba(43, 214, 132, 0.16);
+      color: #2bd684;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .fill-pro-footnote {
+      margin: 8px 0 0;
+      font-size: 11px;
+      color: var(--text-faint);
+      text-align: center;
     }
 
     .setup-compact {
@@ -1135,6 +1251,7 @@
 </head>
 <body data-status="idle">
   <header class="app-header">
+    <button id="accountBtn" class="account-btn" type="button" style="display: none;">Sign in</button>
     <button id="featureVideoBtn" class="feature-video-btn" type="button" title="Watch the feature tour" aria-label="Watch the feature tour"><span class="fv-play-tri" aria-hidden="true"></span></button>
     <button id="errorInfoBtn" class="error-info-btn" type="button" aria-label="Show error details">?</button>
     <button class="logo-mark" id="logoLink" type="button" title="pocket-resume.xyz" aria-label="Visit pocket-resume.xyz">
@@ -1187,7 +1304,7 @@
       <p class="setup-done-text" id="setupDoneText">You're all set. Visit a job posting and click <strong>Generate PDF Resume</strong>.</p>
       <div id="setupVideoOffer" style="display: grid; gap: 8px;">
         <button type="button" id="setupWatchVideoBtn" class="setup-goto setup-goto-wide">▶ Watch the feature tour</button>
-        <button type="button" id="setupVideoNoBtn" class="setup-goto setup-goto-wide">Not now</button>
+        <button type="button" id="setupVideoNoBtn" class="setup-goto setup-goto-wide ghost">Not now</button>
       </div>
       <button type="button" id="setupDoneBtn" class="setup-goto setup-goto-wide">Let's go</button>
     </div>
@@ -1206,6 +1323,15 @@
     </div>
     <p class="setup-done-text">Answer a few questions about you once (name, address, salary, work authorization). Every Fill Form reuses them.</p>
     <button type="button" id="fillProfileSetupBtn" class="setup-goto setup-goto-wide">Complete setup</button>
+  </div>
+
+  <div id="fillProCard" class="setup-card glass" style="display: none;">
+    <div class="setup-head">
+      <p class="setup-title" id="fillProTitle">Form Filler is a Pro feature</p>
+    </div>
+    <ul class="plan-feature-list" id="fillProFeatures"></ul>
+    <button type="button" id="fillProActionBtn" class="setup-goto setup-goto-wide" data-target="pricing">See Pro plans</button>
+    <p class="fill-pro-footnote" id="fillProFootnote" style="display: none;">No card required during the launch trial.</p>
   </div>
 
   <div class="control-group">

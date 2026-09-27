@@ -14,9 +14,20 @@
   const CLOUD_CONFIG = {
     clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY || '',
     convexUrl: process.env.CONVEX_URL || '',
+    freePlan: 'free_user',
     requiredPlan: 'pocketresume_pro',
     legacyPlans: ['cloud_sync', 'pro', 'premium'],
   };
+
+  const PROMO_TRIAL = {
+    enabled: true,
+    start: new Date('2026-09-27T00:00:00').getTime(),
+    end: new Date('2026-10-31T23:59:59.999').getTime(),
+  };
+
+  function isPromoTrialActive(now = Date.now()) {
+    return PROMO_TRIAL.enabled && now >= PROMO_TRIAL.start && now <= PROMO_TRIAL.end;
+  }
 
   let convexClient = null;
   let clerkClient = null;
@@ -44,13 +55,11 @@
     return CLOUD_CONFIG.clerkPublishableKey || null;
   }
 
-  async function hasCloudSyncAccess() {
-    await init();
+  function userMatchesPlan(plans) {
     if (!clerkClient || !clerkClient.user) return false;
-    const plansToCheck = [CLOUD_CONFIG.requiredPlan, ...CLOUD_CONFIG.legacyPlans];
     if (clerkClient.session && typeof clerkClient.session.checkAuthorization === 'function') {
       try {
-        for (const plan of plansToCheck) {
+        for (const plan of plans) {
           if (clerkClient.session.checkAuthorization({ plan })) return true;
         }
       } catch (err) {
@@ -61,7 +70,41 @@
     const unsafeMetadata = clerkClient.user.unsafeMetadata || {};
     const plan = metadata.plan || unsafeMetadata.plan || '';
     const features = metadata.features || unsafeMetadata.features || [];
-    return plansToCheck.includes(plan) || plansToCheck.some((p) => features.includes(p));
+    return plans.includes(plan) || plans.some((p) => features.includes(p));
+  }
+
+  async function getAccessState() {
+    await init();
+    const promoActive = isPromoTrialActive();
+    if (!clerkClient || !clerkClient.user) {
+      return {
+        signedIn: false,
+        isFreeSubscriber: false,
+        isPro: false,
+        promoActive,
+        cloudSyncAccess: false,
+        proAccess: false,
+      };
+    }
+    const proPlans = [CLOUD_CONFIG.requiredPlan, ...CLOUD_CONFIG.legacyPlans];
+    const isPro = userMatchesPlan(proPlans);
+    const isFreeSubscriber = isPro || userMatchesPlan([CLOUD_CONFIG.freePlan]);
+    return {
+      signedIn: true,
+      isFreeSubscriber,
+      isPro,
+      promoActive,
+      cloudSyncAccess: isFreeSubscriber,
+      proAccess: isPro || (promoActive && isFreeSubscriber),
+    };
+  }
+
+  async function hasCloudSyncAccess() {
+    return (await getAccessState()).cloudSyncAccess;
+  }
+
+  async function hasProAccess() {
+    return (await getAccessState()).proAccess;
   }
 
   function isConfigured() {
@@ -254,6 +297,18 @@
     clerkClient.openSignIn({});
   }
 
+  async function signUp() {
+    await init();
+    if (!clerkClient) {
+      throw new Error('Pro is not configured yet.');
+    }
+    if (typeof clerkClient.openSignUp === 'function') {
+      clerkClient.openSignUp({});
+    } else {
+      clerkClient.openSignIn({});
+    }
+  }
+
   async function signOut() {
     if (!clerkClient) return;
     await clerkClient.signOut({ redirectUrl: OPTIONS_URL });
@@ -265,7 +320,7 @@
       return;
     }
     if (!(await hasCloudSyncAccess())) {
-      throw new Error('This requires an active Pro plan.');
+      throw new Error('Create a free account to sync your resumes.');
     }
 
     try {
@@ -293,7 +348,7 @@
       return;
     }
     if (!(await hasCloudSyncAccess())) {
-      throw new Error('This requires an active Pro plan.');
+      throw new Error('Create a free account to sync your resumes.');
     }
 
     syncInProgress = true;
@@ -333,7 +388,7 @@
       return [];
     }
     if (!(await hasCloudSyncAccess())) {
-      throw new Error('This requires an active Pro plan.');
+      throw new Error('Create a free account to sync your resumes.');
     }
 
     try {
@@ -349,7 +404,7 @@
   async function deleteCloudResume(resumeId) {
     if (!convexClient) return;
     if (!(await hasCloudSyncAccess())) {
-      throw new Error('This requires an active Pro plan.');
+      throw new Error('Create a free account to sync your resumes.');
     }
 
     try {
@@ -391,7 +446,11 @@
     getUserId,
     getUserProfile,
     hasCloudSyncAccess,
+    hasProAccess,
+    getAccessState,
+    isPromoTrialActive,
     signIn,
+    signUp,
     signOut,
     pushResume,
     pushAllResumes,

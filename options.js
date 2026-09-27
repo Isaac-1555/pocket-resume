@@ -29,15 +29,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   const endpointsList = document.getElementById('endpointsList');
   const setActiveProviderBtn = document.getElementById('setActiveProviderBtn');
   const providerIcons = document.querySelectorAll('.provider-icon-wrapper');
-  const cloudAuthStatus = document.getElementById('cloudAuthStatus');
-  const cloudAccountChip = document.getElementById('cloudAccountChip');
-  const cloudAvatarBtn = document.getElementById('cloudAvatarBtn');
+  const accountCard = document.getElementById('accountCard');
+  const accountSignedOut = document.getElementById('accountSignedOut');
+  const accountSignedIn = document.getElementById('accountSignedIn');
+  const accountOfferBadge = document.getElementById('accountOfferBadge');
+  const accountOfferTitle = document.getElementById('accountOfferTitle');
+  const accountOfferSub = document.getElementById('accountOfferSub');
+  const accountFeatureList = document.getElementById('accountFeatureList');
+  const cloudCreateAccountBtn = document.getElementById('cloudCreateAccountBtn');
+  const cloudSeePlansBtn = document.getElementById('cloudSeePlansBtn');
+  const cloudSignInLink = document.getElementById('cloudSignInLink');
   const cloudAvatarImg = document.getElementById('cloudAvatarImg');
   const cloudAvatarInitials = document.getElementById('cloudAvatarInitials');
-  const cloudAccountMenu = document.getElementById('cloudAccountMenu');
-  const cloudMenuTitle = document.getElementById('cloudMenuTitle');
-  const cloudMenuAuthBtn = document.getElementById('cloudMenuAuthBtn');
-  const cloudMenuPlansBtn = document.getElementById('cloudMenuPlansBtn');
+  const cloudAccountName = document.getElementById('cloudAccountName');
+  const cloudAuthStatus = document.getElementById('cloudAuthStatus');
+  const cloudManagePlanBtn = document.getElementById('cloudManagePlanBtn');
+  const cloudSignOutBtn = document.getElementById('cloudSignOutBtn');
   const cloudPushBtn = document.getElementById('cloudPushBtn');
   const cloudRestoreBtn = document.getElementById('cloudRestoreBtn');
   const cloudRestorePanel = document.getElementById('cloudRestorePanel');
@@ -48,7 +55,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const cloudPricingTable = document.getElementById('cloudPricingTable');
   const cloudPricingFallback = document.getElementById('cloudPricingFallback');
   const cloudClosePricingBtn = document.getElementById('cloudClosePricingBtn');
-  const cloudSyncDetails = document.getElementById('cloudSyncDetails');
   const modeToggle = document.getElementById('modeToggle');
   const refineModal = document.getElementById('refineModal');
   const refineModalContent = document.getElementById('refineModalContent');
@@ -120,7 +126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         showStatus('Pricing is not available in this extension build yet.', 'error', 5000);
         return;
       }
-      if (cloudSyncDetails) cloudSyncDetails.open = true;
+      if (accountCard) accountCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       cloudPricingPanel.style.display = 'block';
       if (cloudPricingFallback) {
         cloudPricingFallback.textContent = '';
@@ -482,52 +488,80 @@ document.addEventListener('DOMContentLoaded', async () => {
     cloudAvatarInitials.textContent = source.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || '?';
   }
 
+  function renderAccountOffer(promo) {
+    if (accountOfferBadge) accountOfferBadge.style.display = promo ? 'inline-block' : 'none';
+    if (accountOfferTitle) {
+      accountOfferTitle.textContent = promo ? 'Every Pro feature free until Oct 31' : 'Sync your resumes for free';
+    }
+    if (accountOfferSub) {
+      accountOfferSub.textContent = promo
+        ? 'Create a free account — no card required. The Job Tracker, Form Filler, and Cloud Sync are all unlocked during the launch trial.'
+        : 'Create a free account to sync across devices, or upgrade any time for the Job Tracker and Form Filler.';
+    }
+    if (accountFeatureList) {
+      const items = promo
+        ? [
+            ['Cloud sync', 'resumes on every device'],
+            ['Job Tracker', 'pipeline board + analytics'],
+            ['Form Filler', 'one-click applications'],
+          ]
+        : [
+            ['Free · Cloud sync', 'resumes on every device'],
+            ['Pro · Job Tracker', 'pipeline board + analytics'],
+            ['Pro · Form Filler', 'one-click applications'],
+          ];
+      accountFeatureList.innerHTML = items
+        .map(([label, desc]) => `<li><span class="pfl-check" aria-hidden="true">&#10003;</span><span class="pfl-text"><strong>${label}</strong> — ${desc}</span></li>`)
+        .join('');
+    }
+  }
+
   async function updateCloudStatus() {
-    if (!cloudAuthStatus || !cloudAccountChip) return;
+    if (!accountCard) return;
     const configured = !!(window.CloudSync && window.CloudSync.isConfigured && window.CloudSync.isConfigured());
     if (!configured) {
-      cloudAccountChip.style.display = 'none';
-      if (cloudPushBtn) cloudPushBtn.style.display = 'none';
-      if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'none';
+      accountCard.style.display = 'none';
       return;
     }
-    cloudAccountChip.style.display = 'block';
-    if (cloudPushBtn) cloudPushBtn.style.display = 'inline-block';
-    if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'inline-block';
+    accountCard.style.display = 'flex';
 
     try {
       await window.CloudSync.init();
       const signedIn = await window.CloudSync.isSignedIn();
-      const profile = signedIn && window.CloudSync.getUserProfile ? await window.CloudSync.getUserProfile() : null;
+      const access = window.CloudSync.getAccessState ? await window.CloudSync.getAccessState() : { promoActive: false };
+
       if (signedIn) {
-        cloudMenuTitle.textContent = profile?.name || profile?.email || 'Signed in';
-        cloudMenuAuthBtn.textContent = 'Sign Out';
-        cloudMenuPlansBtn.textContent = 'Change Plans';
+        const profile = window.CloudSync.getUserProfile ? await window.CloudSync.getUserProfile() : null;
+        if (accountSignedOut) accountSignedOut.style.display = 'none';
+        if (accountSignedIn) accountSignedIn.style.display = 'flex';
+        if (cloudAccountName) cloudAccountName.textContent = profile?.name || profile?.email || 'Signed in';
         setCloudAvatar(profile);
-        const hasAccess = await window.CloudSync.hasCloudSyncAccess();
-        if (hasAccess) {
-          cloudAuthStatus.textContent = profile?.email || 'Pro active';
+        const canSync = !!access.cloudSyncAccess;
+        if (canSync && access.isPro) {
+          cloudAuthStatus.textContent = 'Pro active';
           cloudAuthStatus.className = 'cloud-status-pill synced';
-          if (cloudPushBtn) cloudPushBtn.style.display = 'inline-block';
-          if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'inline-block';
+        } else if (canSync && access.proAccess) {
+          cloudAuthStatus.textContent = 'Pro trial · ends Oct 31';
+          cloudAuthStatus.className = 'cloud-status-pill synced';
+        } else if (canSync) {
+          cloudAuthStatus.textContent = 'Free plan';
+          cloudAuthStatus.className = 'cloud-status-pill';
         } else {
-          cloudAuthStatus.textContent = 'Pro plan required';
+          cloudAuthStatus.textContent = 'Free account required';
           cloudAuthStatus.className = 'cloud-status-pill error';
-          if (cloudPushBtn) cloudPushBtn.style.display = 'none';
-          if (cloudRestoreBtn) cloudRestoreBtn.style.display = 'none';
         }
+        if (cloudPushBtn) cloudPushBtn.style.display = canSync ? 'inline-block' : 'none';
+        if (cloudRestoreBtn) cloudRestoreBtn.style.display = canSync ? 'inline-block' : 'none';
+        if (cloudManagePlanBtn) cloudManagePlanBtn.textContent = access.proAccess ? 'Upgrade · Manage plan' : 'Upgrade to Pro';
       } else {
-        cloudMenuTitle.textContent = 'PocketResume Pro';
-        cloudMenuAuthBtn.textContent = 'Sign In';
-        cloudMenuPlansBtn.textContent = 'See Plans';
-        setCloudAvatar(null);
-        cloudAuthStatus.textContent = 'Configured, signed out';
-        cloudAuthStatus.className = 'cloud-status-pill';
+        if (accountSignedIn) accountSignedIn.style.display = 'none';
+        if (accountSignedOut) accountSignedOut.style.display = 'flex';
+        renderAccountOffer(!!access.promoActive);
       }
     } catch (error) {
-      cloudMenuTitle.textContent = 'PocketResume Pro';
-      cloudAuthStatus.textContent = 'Account error';
-      cloudAuthStatus.className = 'cloud-status-pill error';
+      if (accountSignedIn) accountSignedIn.style.display = 'none';
+      if (accountSignedOut) accountSignedOut.style.display = 'flex';
+      renderAccountOffer(false);
     }
   }
 
@@ -1035,44 +1069,49 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateViewedProvider(activeProvider);
   updateCloudStatus();
 
-  if (cloudAvatarBtn && cloudAccountMenu) {
-    cloudAvatarBtn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      cloudAccountMenu.classList.toggle('open');
-    });
-    document.addEventListener('click', (event) => {
-      if (!cloudAccountChip.contains(event.target)) {
-        cloudAccountMenu.classList.remove('open');
+  async function startAuth(mode) {
+    try {
+      if (!window.CloudSync) throw new Error('Account service failed to load.');
+      showStatus(mode === 'signUp' ? 'Opening sign-up...' : 'Opening sign-in...', 'loading', 0);
+      if (mode === 'signUp' && typeof window.CloudSync.signUp === 'function') {
+        await window.CloudSync.signUp();
+      } else {
+        await window.CloudSync.signIn();
       }
-    });
+      showStatus('Complete this in the window that just opened.', 'info', 6000);
+      setTimeout(updateCloudStatus, 800);
+    } catch (error) {
+      showStatus(`Error: ${error.message}`, 'error', 6000);
+    }
   }
 
-  if (cloudMenuAuthBtn) {
-    cloudMenuAuthBtn.addEventListener('click', async () => {
-      cloudAccountMenu.classList.remove('open');
+  if (cloudCreateAccountBtn) {
+    cloudCreateAccountBtn.addEventListener('click', () => startAuth('signUp'));
+  }
+
+  if (cloudSignInLink) {
+    cloudSignInLink.addEventListener('click', () => startAuth('signIn'));
+  }
+
+  if (cloudSeePlansBtn) {
+    cloudSeePlansBtn.addEventListener('click', () => showCloudPricingPanel());
+  }
+
+  if (cloudManagePlanBtn) {
+    cloudManagePlanBtn.addEventListener('click', () => showCloudPricingPanel());
+  }
+
+  if (cloudSignOutBtn) {
+    cloudSignOutBtn.addEventListener('click', async () => {
       try {
         if (!window.CloudSync) throw new Error('Account service failed to load.');
-        const signedIn = await window.CloudSync.isSignedIn();
-        if (signedIn) {
-          showStatus('Signing out...', 'loading', 0);
-          await window.CloudSync.signOut();
-          showStatus('Signed out.', 'success', 4000);
-        } else {
-          showStatus('Opening sign-in...', 'loading', 0);
-          await window.CloudSync.signIn();
-          showStatus('Complete sign-in in the window that just opened.', 'info', 6000);
-        }
+        showStatus('Signing out...', 'loading', 0);
+        await window.CloudSync.signOut();
+        showStatus('Signed out.', 'success', 4000);
         setTimeout(updateCloudStatus, 500);
       } catch (error) {
         showStatus(`Error: ${error.message}`, 'error', 6000);
       }
-    });
-  }
-
-  if (cloudMenuPlansBtn) {
-    cloudMenuPlansBtn.addEventListener('click', async () => {
-      cloudAccountMenu.classList.remove('open');
-      await showCloudPricingPanel();
     });
   }
 
@@ -1107,7 +1146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           showStatus('No cloud resumes found.', 'info', 4000);
           return;
         }
-        if (cloudSyncDetails) cloudSyncDetails.open = true;
+        if (accountCard) accountCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         cloudRestorePreview.value = JSON.stringify(cloudRestoreDraft.map(serializeResumeEntry), null, 2);
         cloudRestorePanel.style.display = 'block';
         showStatus('Review cloud resumes before replacing local data.', 'info', 5000);
@@ -1323,7 +1362,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
       </div>
       <div class="review-actions">
-        <button type="button" class="secondary-action-btn" id="applyRefineBtn" ${sourceChanged ? 'disabled' : ''}>Apply Refined Resume</button>
+        <button type="button" class="success-btn" id="applyRefineBtn" ${sourceChanged ? 'disabled' : ''}>Apply Refined Resume</button>
         <button type="button" class="ghost-btn" id="cancelRefineBtn">Cancel</button>
       </div>
     `;
@@ -1430,7 +1469,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                   placeholder="Paste your resume content for this profile here. The AI will use this to generate tailored resumes.">${escapeHtml(resume.content)}</textarea>
         <div class="resume-actions">
           <button type="button" class="secondary-action-btn" id="refineResumeBtn" ${isRefining ? 'disabled' : ''}>${isRefining ? 'Refining...' : 'Refine Resume'}</button>
-          <button type="button" class="ghost-btn" id="checkAtsBtn" ${isCheckingAts || isRefining ? 'disabled' : ''}>${isCheckingAts ? 'Checking ATS...' : 'Check ATS'}</button>
+          <button type="button" class="accent-btn" id="checkAtsBtn" ${isCheckingAts || isRefining ? 'disabled' : ''}>${isCheckingAts ? 'Checking ATS...' : 'Check ATS'}</button>
           ${resume.lastRefineBackup ? '<button type="button" class="ghost-btn" id="undoRefineBtn">Undo Last Refine</button>' : ''}
         </div>
         <small class="resume-help">Creates a single cross-style master resume: clearer structure, better sectioning, and safer wording for all supported layouts without inventing new facts.</small>

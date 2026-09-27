@@ -1059,6 +1059,28 @@ ${tone.body}
 // --- Form Filler Pipeline ---
 const FORM_FIELD_LIMIT = 30;
 
+async function getFormFillAccess() {
+    if (!globalThis.CloudSync || typeof globalThis.CloudSync.getAccessState !== 'function') {
+        return { allowed: true, promoActive: false, signedIn: false, unconfigured: true };
+    }
+    if (typeof globalThis.CloudSync.isConfigured === 'function' && !globalThis.CloudSync.isConfigured()) {
+        return { allowed: true, promoActive: false, signedIn: false, unconfigured: true };
+    }
+    try {
+        await globalThis.CloudSync.init();
+        const access = await globalThis.CloudSync.getAccessState();
+        return {
+            allowed: !!access.proAccess,
+            promoActive: !!access.promoActive,
+            signedIn: !!access.signedIn,
+            isPro: !!access.isPro,
+        };
+    } catch (err) {
+        console.warn('[FormFill] Plan check failed:', err);
+        return { allowed: true, promoActive: false, signedIn: false, isPro: false, unknown: true };
+    }
+}
+
 async function ensureFormFillerInjected(tabId) {
     await chrome.scripting.executeScript({
         target: { tabId, allFrames: true },
@@ -1481,6 +1503,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    if (message.type === 'CHECK_PRO_ACCESS') {
+        (async () => {
+            try {
+                const access = await getFormFillAccess();
+                sendResponse({ status: 'success', ...access });
+            } catch (error) {
+                sendResponse({ status: 'error', message: error.message, allowed: true });
+            }
+        })();
+
+        return true;
+    }
+
     if (message.type === 'FILL_APPLICATION_FORM') {
         const tabId = typeof message.payload?.tabId === 'number' ? message.payload.tabId : null;
 
@@ -1488,6 +1523,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             let provider = 'unknown';
             try {
                 if (!tabId) throw new Error('No active tab found. Open the page with the form and try again.');
+
+                const access = await getFormFillAccess();
+                if (!access.allowed) {
+                    sendResponse({
+                        status: 'upgrade_required',
+                        promoActive: access.promoActive,
+                        signedIn: access.signedIn,
+                    });
+                    return;
+                }
 
                 const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS.concat(['resumes', 'userProfile', 'applicationProfile']));
                 provider = settings.apiProvider || 'google';
