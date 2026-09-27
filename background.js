@@ -1,6 +1,5 @@
 // background.js
 import './cloud-sync.js';
-import { trackEvent } from './analytics.js';
 import { resolveFormAnswers } from './form-profile.js';
 
 // Auto-push local resume changes when user has enabled cloud sync and is signed in.
@@ -106,10 +105,10 @@ function normalizeStringArray(value) {
 
 // --- Provider Layer ---
 const PROVIDER_DEFAULT_MODELS = {
-    google: 'gemini-2.5-flash',
-    openai: 'gpt-4o-mini',
-    anthropic: 'claude-3-5-haiku-20241022',
-    openrouter: 'openai/gpt-oss-120b:free'
+    google: 'gemini-3.1-flash-lite',
+    openai: 'gpt-5-nano',
+    anthropic: 'claude-haiku-4-5',
+    openrouter: 'nvidia/nemotron-3-super-120b-a12b:free'
 };
 
 const PROVIDER_SETTINGS_KEYS = [
@@ -209,6 +208,85 @@ function parseExtraBody(raw, endpointName) {
     }
     for (const key of ['__proto__', 'constructor', 'prototype']) delete parsed[key];
     return parsed;
+}
+
+const GENERATION_MAX_ATTEMPTS = 3;
+const GENERATION_RETRY_BACKOFF_MS = [2000, 5000];
+const PAGE_CACHE_KEY = 'pendingGeneration';
+const PAGE_CACHE_TTL_MS = 15 * 60 * 1000;
+
+function isNonRetryableGenerationError(error) {
+    const message = String((error && error.message) || '').toLowerCase();
+    return (
+        /\(http (401|403|404)\)/.test(message) ||
+        message.includes('api key') ||
+        message.includes('api_key') ||
+        message.includes('invalid_api_key') ||
+        message.includes('unauthorized') ||
+        message.includes('authentication') ||
+        message.includes('permission') ||
+        message.includes('extension settings')
+    );
+}
+
+function parseGenerationJson(rawText, contextLabel) {
+    const cleaned = String(rawText || '').trim();
+    if (!cleaned) throw new Error(`${contextLabel} returned an empty response.`);
+    const parsed = parseJsonText(cleaned, contextLabel);
+    if (!parsed || typeof parsed !== 'object') {
+        throw new Error(`${contextLabel} returned invalid JSON.`);
+    }
+    return parsed;
+}
+
+async function broadcastGenerationProgress(attempt, phase) {
+    try {
+        await chrome.runtime.sendMessage({
+            type: 'GENERATION_PROGRESS',
+            attempt,
+            maxAttempts: GENERATION_MAX_ATTEMPTS,
+            phase
+        });
+    } catch {
+    }
+}
+
+async function getPageContentForTab(tabId) {
+    const cached = (await chrome.storage.local.get(PAGE_CACHE_KEY))[PAGE_CACHE_KEY];
+    const now = Date.now();
+    if (
+        cached &&
+        cached.tabId === tabId &&
+        typeof cached.jobText === 'string' &&
+        cached.jobText.trim() &&
+        now - (cached.savedAt || 0) < PAGE_CACHE_TTL_MS
+    ) {
+        return cached.jobText;
+    }
+
+    const contentData = await new Promise((resolve) => {
+        chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_CONTENT' }, (response) => {
+            if (chrome.runtime.lastError) {
+                chrome.scripting.executeScript({
+                    target: { tabId },
+                    files: ['content.js']
+                }, () => {
+                    chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_CONTENT' }, (res) => {
+                        if (chrome.runtime.lastError) resolve({ text: "" });
+                        else resolve(res);
+                    });
+                });
+            } else {
+                resolve(response);
+            }
+        });
+    });
+
+    const jobText = contentData.text || "No text found on page.";
+    await chrome.storage.local.set({
+        [PAGE_CACHE_KEY]: { tabId, jobText, savedAt: now }
+    });
+    return jobText;
 }
 
 async function fetchWithRetry(url, options = {}, contextLabel = '') {
@@ -981,6 +1059,28 @@ ${tone.body}
 // --- Form Filler Pipeline ---
 const FORM_FIELD_LIMIT = 30;
 
+async function getFormFillAccess() {
+    if (!globalThis.CloudSync || typeof globalThis.CloudSync.getAccessState !== 'function') {
+        return { allowed: true, promoActive: false, signedIn: false, unconfigured: true };
+    }
+    if (typeof globalThis.CloudSync.isConfigured === 'function' && !globalThis.CloudSync.isConfigured()) {
+        return { allowed: true, promoActive: false, signedIn: false, unconfigured: true };
+    }
+    try {
+        await globalThis.CloudSync.init();
+        const access = await globalThis.CloudSync.getAccessState();
+        return {
+            allowed: !!access.proAccess,
+            promoActive: !!access.promoActive,
+            signedIn: !!access.signedIn,
+            isPro: !!access.isPro,
+        };
+    } catch (err) {
+        console.warn('[FormFill] Plan check failed:', err);
+        return { allowed: true, promoActive: false, signedIn: false, isPro: false, unknown: true };
+    }
+}
+
 async function ensureFormFillerInjected(tabId) {
     await chrome.scripting.executeScript({
         target: { tabId, allFrames: true },
@@ -1176,13 +1276,6 @@ async function generateApplicationProfileFromResume(context, sourceText) {
 
 // --- Message Listener ---
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'TRACK_EVENT') {
-        const payload = message.payload || {};
-        trackEvent(payload.name, payload.params || {}).catch(() => {});
-        sendResponse({ status: 'ok' });
-        return false;
-    }
-
     if (message.type === 'START_GENERATION') {
 
         // Async execution wrapper
@@ -1222,57 +1315,62 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // 2. Get Tab Info for Window ID
                 const tab = await chrome.tabs.get(tabId);
 
-                // 3. Get Content from Tab
-                const contentData = await new Promise((resolve, reject) => {
-                    chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_CONTENT' }, (response) => {
-                        if (chrome.runtime.lastError) {
-                            // Inject if missing
-                            chrome.scripting.executeScript({
-                                target: { tabId: tabId },
-                                files: ['content.js']
-                            }, () => {
-                                chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_CONTENT' }, (res) => {
-                                    if (chrome.runtime.lastError) resolve({ text: "" }); // Fallback
-                                    else resolve(res);
-                                });
-                            });
-                        } else {
-                            resolve(response);
-                        }
-                    });
-                });
+                // 3. Get Content from Tab (reuses fresh cache; clears only on success)
+                const jobText = await getPageContentForTab(tabId);
 
-                // 4. Extract job text (content script already ran)
-                const jobText = contentData.text || "No text found on page.";
-
-                // 5. Call Pipeline - Resume
-                const resumeText = await generateTailoredResume(context, userProfile, jobText, selectedResumeStyle);
-
-                // 6. Conditionally generate cover letter
+                // 4. Pipeline with retries (page content comes from cache on retries)
+                let resumeText = null;
                 let coverLetterText = null;
-                if (settings.coverLetterEnabled) {
-                    coverLetterText = await generateCoverLetterText(context, userProfile, jobText, selectedResumeStyle, resumeText);
+                let lastError = null;
+
+                for (let attempt = 1; attempt <= GENERATION_MAX_ATTEMPTS; attempt++) {
+                    try {
+                        if (attempt > 1) {
+                            await broadcastGenerationProgress(attempt, 'retrying');
+                            await sleep(GENERATION_RETRY_BACKOFF_MS[Math.min(attempt - 2, GENERATION_RETRY_BACKOFF_MS.length - 1)]);
+                        }
+
+                        if (!resumeText) {
+                            resumeText = await generateTailoredResume(context, userProfile, jobText, selectedResumeStyle);
+                            if (!resumeText || !String(resumeText).trim()) {
+                                resumeText = null;
+                                throw new Error('The AI returned an empty resume. Please try again.');
+                            }
+                            parseGenerationJson(resumeText, 'Resume');
+                        }
+
+                        if (settings.coverLetterEnabled && !coverLetterText) {
+                            coverLetterText = await generateCoverLetterText(context, userProfile, jobText, selectedResumeStyle, resumeText);
+                            if (!coverLetterText || !String(coverLetterText).trim()) {
+                                coverLetterText = null;
+                                throw new Error('The AI returned an empty cover letter. Please try again.');
+                            }
+                            parseGenerationJson(coverLetterText, 'Cover Letter');
+                        }
+
+                        lastError = null;
+                        break;
+                    } catch (error) {
+                        lastError = error;
+                        if (attempt === GENERATION_MAX_ATTEMPTS || isNonRetryableGenerationError(error)) break;
+                        console.warn(`[Generation] Attempt ${attempt} failed, retrying:`, error.message);
+                    }
                 }
 
-                // 6b. Success
-                console.info('[Tracker] Resume generation complete.');
-                trackEvent('resume_generated', {
-                    style: selectedResumeStyle,
-                    layout: getResumeStyleConfig(selectedResumeStyle).layout,
-                    provider,
-                });
-                if (coverLetterText) {
-                    trackEvent('cover_letter_generated', { style: selectedResumeStyle, provider });
+                if (lastError) {
+                    throw new Error(
+                        `Generation failed after ${GENERATION_MAX_ATTEMPTS} attempts: ${lastError.message} ` +
+                        `Consider switching to a different provider or model in the extension settings.`
+                    );
                 }
+
+                // 5. Success - clear the page cache
+                await chrome.storage.local.remove(PAGE_CACHE_KEY);
+                console.info('[Tracker] Resume generation complete.');
                 sendResponse({ status: 'success', data: resumeText, coverLetterData: coverLetterText });
 
             } catch (error) {
                 console.error("Pipeline Error:", error);
-                trackEvent('generation_error', {
-                    provider,
-                    style: selectedResumeStyle,
-                    code: String((error && error.message) || 'unknown').slice(0, 40),
-                });
                 sendResponse({ status: 'error', message: error.message });
             }
         })();
@@ -1405,6 +1503,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    if (message.type === 'CHECK_PRO_ACCESS') {
+        (async () => {
+            try {
+                const access = await getFormFillAccess();
+                sendResponse({ status: 'success', ...access });
+            } catch (error) {
+                sendResponse({ status: 'error', message: error.message, allowed: true });
+            }
+        })();
+
+        return true;
+    }
+
     if (message.type === 'FILL_APPLICATION_FORM') {
         const tabId = typeof message.payload?.tabId === 'number' ? message.payload.tabId : null;
 
@@ -1412,6 +1523,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             let provider = 'unknown';
             try {
                 if (!tabId) throw new Error('No active tab found. Open the page with the form and try again.');
+
+                const access = await getFormFillAccess();
+                if (!access.allowed) {
+                    sendResponse({
+                        status: 'upgrade_required',
+                        promoActive: access.promoActive,
+                        signedIn: access.signedIn,
+                    });
+                    return;
+                }
 
                 const settings = await chrome.storage.local.get(PROVIDER_SETTINGS_KEYS.concat(['resumes', 'userProfile', 'applicationProfile']));
                 provider = settings.apiProvider || 'google';
@@ -1455,15 +1576,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
 
                 console.info('[FormFill] Filled', filled, 'of', fields.length, 'fields.', `(${resolved.length} saved, ${aiAnswers.length} AI)`);
-                trackEvent('form_filled', { provider, cached: String(resolved.length) });
                 await showFormToast(tabId, `PocketResume filled ${filled} field${filled === 1 ? '' : 's'}${resolved.length ? ` (${resolved.length} from saved answers)` : ''}`);
                 sendResponse({ status: 'success', filled, total: fields.length, cached: resolved.length });
             } catch (error) {
                 console.error('Form Fill Error:', error);
-                trackEvent('form_fill_error', {
-                    provider,
-                    code: String((error && error.message) || 'unknown').slice(0, 40),
-                });
                 if (tabId) await showFormToast(tabId, 'PocketResume could not fill this form');
                 sendResponse({ status: 'error', message: error.message });
             }
@@ -1471,15 +1587,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         return true;
     }
-});
-
-// --- Lifecycle Analytics ---
-chrome.runtime.onInstalled.addListener((details) => {
-    if (details.reason === 'install') {
-        trackEvent('install').catch(() => {});
-    }
-});
-
-chrome.runtime.onStartup.addListener(() => {
-    trackEvent('active_day').catch(() => {});
 });

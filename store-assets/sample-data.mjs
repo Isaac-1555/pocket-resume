@@ -98,6 +98,140 @@ export const coverLetterJson = JSON.stringify({
     sign_off: 'Best regards,'
 });
 
+export const masterResumeText = `Maya Chen
+maya.chen@hey.com | (415) 555-0192 | linkedin.com/in/mayachen | github.com/mayachen | SF, CA
+
+About me
+Frontend engineer with 7 years of experience building design systems and data-heavy interfaces used by millions. Shipped the component library behind two Series B products and cut page load times by 40%+.
+
+My stack
+TypeScript, React, Next.js, Vite, Node.js, GraphQL, Tailwind CSS, Design Systems, Accessibility (WCAG), Performance Profiling, Playwright, Storybook, CI/CD, Figma, AWS
+
+What I did at Brightline (2022 to now, Senior Frontend Engineer, San Francisco)
+Led the design system rewrite (React + TypeScript) adopted by 6 product teams, cutting new-feature UI time from 2 weeks to 3 days. Was responsible for cutting Largest Contentful Paint 43% via route-level code splitting, image pipeline rework, and bundle analysis in CI. Also shipped a WYSIWYG report builder used by 90k monthly users, with keyboard-first editing and full screen-reader support, and mentored 4 engineers while instituting the accessibility review that took the app from 61 to 98 Lighthouse a11y score.
+
+Parcelly - Frontend Engineer - Remote - 2020-2022
+Built the real-time tracking dashboard (React, GraphQL subscriptions) handling 2M+ events/day at p95 under 100ms re-render. Migrated 140k lines of JS to TypeScript incrementally with zero downtime, enabling dead-code elimination of 18% of the bundle. Introduced Playwright e2e coverage on critical flows, dropping regression incidents from 3-4 per quarter to under 1.
+
+responsible for the storefront refresh at Fable & Co. (Software Engineer, 2018-2020, NYC)
+Shipped the customer-facing storefront refresh for a 400k-user ecommerce platform, lifting mobile conversion 11%. Rewrote the checkout flow; reduced cart abandonment 8% by cutting steps and adding inline validation.
+
+Side things I built
+Gridworks - Open Source, 4.2k GitHub stars, 2023 to present: Headless React data-grid library focused on accessibility; used in production by 30+ companies. Virtualized rendering keeps 100k-row datasets at 60fps with a 12kb gzipped core.
+Typefish - Dev Tool, 2021: CLI that generates TypeScript types from live GraphQL APIs; 1.8k weekly npm downloads.
+
+School: B.S. Computer Science, UC Berkeley, class of 2018
+Have my AWS Certified Developer - Associate (2023)`;
+
+export const atsCheckResult = {
+    score: 58,
+    criticalIssues: [
+        {
+            stage: 'both',
+            issue: 'Contact details buried in a mixed header block',
+            whyFlagged: 'Parsers look for labeled email/phone/link fields; a single pipe-separated line often mis-assigns them.',
+            suggestedFix: 'Move each contact item onto its own labeled line (Email: ... Phone: ... LinkedIn: ...).',
+            userMustFix: ''
+        },
+        {
+            stage: 'before',
+            issue: 'Section headings are informal ("About me", "What I did at Brightline")',
+            whyFlagged: 'ATS keyword extraction anchors on standard headings (Experience, Education, Skills); informal titles drop content from the parse.',
+            suggestedFix: 'Rename to standard headings: Summary, Experience, Projects, Education, Certifications.',
+            userMustFix: ''
+        },
+        {
+            stage: 'after',
+            issue: 'One employer block contains four experiences in a single paragraph',
+            whyFlagged: 'Multi-role paragraphs break employer/title/date association; earlier roles render as the last-listed company.',
+            suggestedFix: 'Split each role into its own employer / title / dates block.',
+            userMustFix: ''
+        }
+    ]
+};
+
+export const refineResult = {
+    refinedText: `Maya Chen
+Email: maya.chen@hey.com
+Phone: (415) 555-0192
+LinkedIn: linkedin.com/in/mayachen
+GitHub: github.com/mayachen
+Location: San Francisco, CA
+
+SUMMARY
+Frontend engineer with 7 years of experience building design systems and data-heavy interfaces used by millions. Shipped the component library behind two Series B products and cut page load times by 40%+.
+
+SKILLS
+Languages: TypeScript, JavaScript (ES2023), HTML, CSS
+Frameworks: React, Next.js, Vite, Node.js, GraphQL
+Craft: Design Systems, Accessibility (WCAG 2.2), Performance Profiling, Testing (Playwright, Vitest)
+Platform: CI/CD, Storybook, Figma, AWS
+
+EXPERIENCE
+Senior Frontend Engineer
+Brightline - San Francisco, CA - 2022 to Present
+- Led the design system rewrite (React + TypeScript) adopted by 6 product teams, cutting new-feature UI time from 2 weeks to 3 days
+- Cut Largest Contentful Paint 43% via route-level code splitting, image pipeline rework, and bundle analysis in CI
+- Shipped a WYSIWYG report builder used by 90k monthly users, with keyboard-first editing and full screen-reader support
+- Mentored 4 engineers; instituted the accessibility review that took the app from 61 to 98 Lighthouse a11y score
+
+Frontend Engineer
+Parcelly - Remote - 2020 to 2022
+- Built the real-time tracking dashboard (React, GraphQL subscriptions) handling 2M+ events/day at p95 under 100ms re-render
+- Migrated 140k lines of JS to TypeScript incrementally with zero downtime, enabling dead-code elimination of 18% of the bundle
+- Introduced Playwright e2e coverage on critical flows, dropping regression incidents from 3-4 per quarter to under 1
+
+Software Engineer
+Fable & Co. - New York, NY - 2018 to 2020
+- Shipped the customer-facing storefront refresh for a 400k-user ecommerce platform, lifting mobile conversion 11%
+- Rewrote the checkout flow; reduced cart abandonment 8% by cutting steps and adding inline validation
+
+PROJECTS
+Gridworks - Open Source, 4.2k GitHub stars - 2023 to Present
+- Headless React data-grid library focused on accessibility; used in production by 30+ companies
+- Virtualized rendering keeps 100k-row datasets at 60fps with a 12kb gzipped core
+
+Typefish - Dev Tool - 2021
+- CLI that generates TypeScript types from live GraphQL APIs; 1.8k weekly npm downloads
+
+EDUCATION
+B.S. Computer Science - University of California, Berkeley - 2018
+
+CERTIFICATIONS
+AWS Certified Developer - Associate, 2023`,
+    warnings: [],
+    changeSummary: [
+        'Merged the pipe-separated contact block into labeled Email / Phone / LinkedIn / GitHub lines',
+        'Renamed informal headings ("About me", "My stack") to standard Summary / Skills sections',
+        'Split the mixed Brightline + Parcelly + Fable paragraph into three dated Experience blocks',
+        'Regrouped the skills list into Languages / Frameworks / Craft / Platform tags',
+        'Moved certifications and education out of body text into their own sections'
+    ],
+    aiFilled: [
+        'Interpreted "class of 2018" as the graduation year for the Education section (no new facts added)'
+    ],
+    ats: {
+        before: 58,
+        after: 91,
+        criticalIssues: [
+            {
+                stage: 'both',
+                issue: 'Two-year gap between Typefish (2021) and Brightline start reads as undocumented time',
+                whyFlagged: 'Recruiter-side parsers surface unexplained gaps in the timeline panel.',
+                suggestedFix: 'Add a one-line entry for the overlap (e.g., freelance period) if it exists.',
+                userMustFix: 'Confirm whether 2021 had freelance/contract work to list, then re-run.'
+            },
+            {
+                stage: 'after',
+                issue: 'Cover-letter-style phrasing in Summary may read as unstructured prose',
+                whyFlagged: 'Some parsers score summaries better with keyword-dense phrasing than narrative tone.',
+                suggestedFix: '',
+                userMustFix: 'Optional: tighten Summary with your top 3 skills if you want a stricter parse.'
+            }
+        ]
+    }
+};
+
 export const trackerApplications = (() => {
     const now = Date.now();
     const day = 24 * 60 * 60 * 1000;

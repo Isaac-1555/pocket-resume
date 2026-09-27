@@ -1,6 +1,5 @@
 // popup.js
 document.addEventListener('DOMContentLoaded', () => {
-  trackEvent('popup_open');
   const generateBtn = document.getElementById('generateBtn');
   const fillFormBtn = document.getElementById('fillFormBtn');
   const fillFormLabel = document.getElementById('fillFormLabel');
@@ -20,11 +19,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const errorMessageText = document.getElementById('errorMessageText');
   const errorCopyBtn = document.getElementById('errorCopyBtn');
   const errorCloseBtn = document.getElementById('errorCloseBtn');
+  const errorOpenSettingsBtn = document.getElementById('errorOpenSettingsBtn');
   const setupCard = document.getElementById('setupCard');
   const setupCompact = document.getElementById('setupCompact');
   const setupSkipBtn = document.getElementById('setupSkipBtn');
   const setupDoneBtn = document.getElementById('setupDoneBtn');
+  const setupDoneText = document.getElementById('setupDoneText');
+  const setupVideoOffer = document.getElementById('setupVideoOffer');
+  const setupWatchVideoBtn = document.getElementById('setupWatchVideoBtn');
+  const setupVideoNoBtn = document.getElementById('setupVideoNoBtn');
+  const featureVideoBtn = document.getElementById('featureVideoBtn');
   const setupResumeBtn = document.getElementById('setupResumeBtn');
+  const accountBtn = document.getElementById('accountBtn');
 
   // --- Cover Letter Toggle ---
   let trackerCaptureEnabled = true;
@@ -283,8 +289,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (skipBtn) skipBtn.style.display = 'none';
     if (doneEl) doneEl.style.display = 'block';
     if (titleEl) titleEl.textContent = 'Setup complete';
+    if (setupVideoOffer) setupVideoOffer.style.display = 'grid';
+    if (setupDoneText) setupDoneText.innerHTML = "You're all set. Visit a job posting and click <strong>Generate PDF Resume</strong>. Want a quick tour of every feature first?";
     setupCard.style.display = 'block';
     chrome.storage.local.set({ onboardingCompleted: true });
+  }
+
+  function startFeatureVideo(source) {
+    if (setupCard) setupCard.style.display = 'none';
+    if (window.PocketResumeFeatureVideo) window.PocketResumeFeatureVideo.open(source);
   }
 
   function startSetupTour(step) {
@@ -308,6 +321,21 @@ document.addEventListener('DOMContentLoaded', () => {
       if (setupCard) setupCard.style.display = 'none';
     });
   }
+  if (setupWatchVideoBtn) {
+    setupWatchVideoBtn.addEventListener('click', () => startFeatureVideo(false));
+  }
+  if (setupVideoNoBtn) {
+    setupVideoNoBtn.addEventListener('click', () => {
+      chrome.storage.local.set({ featureVideoDeclined: true });
+      if (setupVideoOffer) setupVideoOffer.style.display = 'none';
+      if (setupDoneText) {
+        setupDoneText.innerHTML = "You're all set. You can watch the <strong>feature tour</strong> anytime — the ▶ Feature tour button in the header above.";
+      }
+    });
+  }
+  if (featureVideoBtn) {
+    featureVideoBtn.addEventListener('click', () => startFeatureVideo(true));
+  }
   if (setupResumeBtn) {
     setupResumeBtn.addEventListener('click', () => startSetupTour(1));
   }
@@ -315,6 +343,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Form Filler profile gating ---
   const fillProfileCard = document.getElementById('fillProfileCard');
   const fillProfileSetupBtn = document.getElementById('fillProfileSetupBtn');
+  const fillProCard = document.getElementById('fillProCard');
+  const fillProActionBtn = document.getElementById('fillProActionBtn');
 
   function isFormFillerProfileComplete(profile) {
     return !!(profile &&
@@ -322,10 +352,96 @@ document.addEventListener('DOMContentLoaded', () => {
       typeof profile.lastName === 'string' && profile.lastName.trim());
   }
 
+  function renderFeatureList(node, items) {
+    if (!node) return;
+    node.innerHTML = items
+      .map(([label, desc]) => `<li><span class="pfl-check" aria-hidden="true">&#10003;</span><span class="pfl-text"><strong>${label}</strong> — ${desc}</span></li>`)
+      .join('');
+  }
+
+  function showFillProCard(access) {
+    if (!fillProCard) return;
+    const promo = !!(access && access.promoActive && !access.signedIn);
+    const title = document.getElementById('fillProTitle');
+    const features = document.getElementById('fillProFeatures');
+    const footnote = document.getElementById('fillProFootnote');
+    if (title) title.textContent = promo ? 'Every Pro feature free until Oct 31' : 'Unlock Form Filler with Pro';
+    renderFeatureList(features, promo
+      ? [
+          ['Form Filler', 'one-click job applications'],
+          ['Job Tracker', 'pipeline board + analytics'],
+          ['Cloud sync', 'resumes on every device'],
+        ]
+      : [
+          ['Form Filler', 'auto-fill job applications'],
+          ['Job Tracker', 'pipeline board + analytics'],
+          ['Cloud sync', 'resumes on every device'],
+        ]);
+    if (footnote) footnote.style.display = promo ? 'block' : 'none';
+    if (fillProActionBtn) {
+      fillProActionBtn.textContent = promo ? 'Create free account' : 'See Pro plans';
+      fillProActionBtn.dataset.target = promo ? 'options' : 'pricing';
+    }
+    fillProCard.style.display = 'block';
+  }
+
+  function checkProAccess() {
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({ type: 'CHECK_PRO_ACCESS' }, (response) => {
+        if (chrome.runtime.lastError) return resolve({ allowed: true });
+        resolve(response || { allowed: false });
+      });
+    });
+  }
+
+  async function updateAccountButton() {
+    if (!accountBtn) return;
+    const access = await checkProAccess();
+    if (access.allowed) {
+      if (access.signedIn) {
+        accountBtn.style.display = 'inline-block';
+        accountBtn.classList.add('pro');
+        accountBtn.textContent = (access.promoActive && !access.isPro) ? 'Pro trial' : 'Pro';
+        accountBtn.dataset.target = 'options';
+      } else {
+        accountBtn.style.display = 'none';
+      }
+      return;
+    }
+    const promo = access.promoActive && !access.signedIn;
+    accountBtn.style.display = 'inline-block';
+    accountBtn.classList.remove('pro');
+    if (promo) {
+      accountBtn.textContent = 'Start free';
+      accountBtn.dataset.target = 'options';
+    } else if (access.signedIn) {
+      accountBtn.textContent = 'Upgrade';
+      accountBtn.dataset.target = 'pricing';
+    } else {
+      accountBtn.textContent = 'Sign in';
+      accountBtn.dataset.target = 'options';
+    }
+  }
+
+  if (accountBtn) {
+    accountBtn.addEventListener('click', () => {
+      const target = accountBtn.dataset.target === 'pricing' ? 'options.html#cloud-pricing' : 'options.html';
+      chrome.tabs.create({ url: chrome.runtime.getURL(target) });
+    });
+    updateAccountButton();
+  }
+
   if (fillProfileSetupBtn) {
     fillProfileSetupBtn.addEventListener('click', () => {
       if (fillProfileCard) fillProfileCard.style.display = 'none';
       startProfileSetup();
+    });
+  }
+
+  if (fillProActionBtn) {
+    fillProActionBtn.addEventListener('click', () => {
+      const target = fillProActionBtn.dataset.target === 'options' ? 'options.html' : 'options.html#cloud-pricing';
+      chrome.tabs.create({ url: chrome.runtime.getURL(target) });
     });
   }
 
@@ -341,6 +457,14 @@ document.addEventListener('DOMContentLoaded', () => {
   if (fillFormBtn) {
     fillFormBtn.addEventListener('click', async () => {
       if (fillFormBtn.disabled) return;
+
+      const access = await checkProAccess();
+      if (access && access.allowed === false) {
+        if (fillProfileCard) fillProfileCard.style.display = 'none';
+        showFillProCard(access);
+        return;
+      }
+      if (fillProCard) fillProCard.style.display = 'none';
 
       const profileData = await chrome.storage.local.get('applicationProfile');
       if (!isFormFillerProfileComplete(profileData.applicationProfile)) {
@@ -382,6 +506,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
             fillFormBtn.disabled = false;
           }, 3500);
+        } else if (response && response.status === 'upgrade_required') {
+          setFillStatus(null);
+          if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
+          fillFormBtn.disabled = false;
+          showFillProCard(response);
         } else {
           setError(response?.message || 'Something went wrong. Please try again.');
           setFillStatus('fill-failure');
@@ -427,20 +556,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- What's New modal (once per version) ---
   const whatsNewModal = document.getElementById('whatsNewModal');
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
-  const whatsNewSetupBtn = document.getElementById('whatsNewSetupBtn');
-  const whatsNewAnalyticsToggle = document.getElementById('whatsNewAnalyticsToggle');
+  const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '8.2';
-  const ANNOUNCEMENT_SEEN_VALUE = '8.2';
+  const ANNOUNCEMENT_VERSION = '8.6';
+  const ANNOUNCEMENT_SEEN_VALUE = '8.6';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
-      chrome.runtime.openOptionsPage();
-    });
-  }
-
-  function startAtsNudge() {
-    chrome.storage.local.set({ atsNudge: { active: true } }, () => {
       chrome.runtime.openOptionsPage();
     });
   }
@@ -450,23 +572,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (whatsNewModal) whatsNewModal.style.display = 'none';
   }
 
-  chrome.storage.local.get(['lastSeenAnnouncement', 'analyticsEnabled'], (data) => {
+  chrome.storage.local.get(['lastSeenAnnouncement'], (data) => {
     if (!whatsNewModal) return;
     if (data.lastSeenAnnouncement === ANNOUNCEMENT_SEEN_VALUE) return;
     if (whatsNewVersionEl) whatsNewVersionEl.textContent = ANNOUNCEMENT_VERSION;
-    if (whatsNewAnalyticsToggle) whatsNewAnalyticsToggle.checked = data.analyticsEnabled !== false;
     whatsNewModal.style.display = 'flex';
   });
   if (whatsNewGotBtn) whatsNewGotBtn.addEventListener('click', dismissWhatsNew);
-  if (whatsNewSetupBtn) {
-    whatsNewSetupBtn.addEventListener('click', () => {
+  if (whatsNewPlansBtn) {
+    whatsNewPlansBtn.addEventListener('click', () => {
       dismissWhatsNew();
-      startAtsNudge();
+      chrome.tabs.create({ url: chrome.runtime.getURL('options.html#cloud-pricing') });
     });
   }
-  if (whatsNewAnalyticsToggle) whatsNewAnalyticsToggle.addEventListener('change', () => {
-    chrome.storage.local.set({ analyticsEnabled: whatsNewAnalyticsToggle.checked });
-  });
 
   function parseJobFromTitle(title) {
     const t = (title || '').trim();
@@ -521,20 +639,15 @@ document.addEventListener('DOMContentLoaded', () => {
       source: sourceTag,
       updatedAt: Date.now()
     };
-    chrome.storage.local.get(['applications', 'trackerTrialStartedAt'], (data) => {
+    chrome.storage.local.get('applications', (data) => {
       const apps = Array.isArray(data.applications) ? data.applications : [];
       const existingIdx = apps.findIndex((a) => a.url && a.url === application.url && a.status === 'saved');
       if (existingIdx >= 0) {
         apps[existingIdx] = { ...apps[existingIdx], ...application, id: apps[existingIdx].id, dateSaved: apps[existingIdx].dateSaved, updatedAt: Date.now() };
       } else {
         apps.push(application);
-        trackEvent('application_added', { source: 'generated' });
       }
-      const writes = { applications: apps };
-      if (!data.trackerTrialStartedAt) {
-        writes.trackerTrialStartedAt = Date.now();
-      }
-      chrome.storage.local.set(writes);
+      chrome.storage.local.set({ applications: apps });
     });
   }
 
@@ -714,11 +827,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 4000);
   }
 
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.type !== 'GENERATION_PROGRESS') return;
+    if (document.body.dataset.status !== 'generating') return;
+    const attempt = Number(message.attempt) || 1;
+    const max = Number(message.maxAttempts) || 3;
+    stopScramble();
+    if (generateLabel) generateLabel.textContent = `Attempt ${attempt} of ${max}\u2026`;
+  });
+
   function mapErrorMessage(raw) {
     const msg = (raw || '').trim();
     if (!msg) return 'Something went wrong. Please try again.';
     const lower = msg.toLowerCase();
 
+    if (/failed after \d+ attempts|switching to a different provider or model/i.test(lower)) {
+      return 'Generation failed after 3 attempts. Open Settings and try a different provider or model.';
+    }
     if (/api key|apikey|set your api|enter.*api/i.test(lower)) {
       return 'No API key set. Open Settings to add one.';
     }
@@ -772,6 +897,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function openErrorModal() {
     if (!errorModal || !lastError) return;
     if (errorMessageText) errorMessageText.textContent = lastError;
+    const needsSettings = /settings|provider or model/i.test(lastError);
+    if (errorOpenSettingsBtn) errorOpenSettingsBtn.style.display = needsSettings ? 'inline-block' : 'none';
     errorModal.style.display = 'flex';
   }
 
@@ -785,6 +912,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     if (errorBackdrop) errorBackdrop.addEventListener('click', closeErrorModal);
     if (errorCloseBtn) errorCloseBtn.addEventListener('click', closeErrorModal);
+    if (errorOpenSettingsBtn) {
+      errorOpenSettingsBtn.addEventListener('click', () => {
+        closeErrorModal();
+        chrome.runtime.openOptionsPage();
+      });
+    }
     if (errorCopyBtn) {
       errorCopyBtn.addEventListener('click', async () => {
         const text = lastErrorRaw || lastError;

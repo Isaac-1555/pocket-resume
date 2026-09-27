@@ -12,6 +12,7 @@
   "scripts": {
     "build:clerk": "node scripts/build-clerk.mjs",
     "build:ldrs": "esbuild node_modules/ldrs/dist/auto/newtonsCradle.js --bundle --minify --format=iife --outfile=libs/ldrs-newtons-cradle.js",
+    "build:tour": "node scripts/capture-tour.mjs",
     "clean": "rm -f cloud-sync.js && rm -rf convex/_generated"
   }
 }
