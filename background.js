@@ -1058,6 +1058,18 @@ ${tone.body}
 
 // --- Form Filler Pipeline ---
 const FORM_FIELD_LIMIT = 30;
+const ACCESS_CACHE_KEY = 'proAccessCache';
+
+async function readCachedAccess() {
+    try {
+        const data = await chrome.storage.local.get(ACCESS_CACHE_KEY);
+        const cached = data && data[ACCESS_CACHE_KEY];
+        if (cached && typeof cached.proAccess === 'boolean') return cached;
+    } catch (err) {
+        console.warn('[FormFill] Could not read cached access:', err);
+    }
+    return null;
+}
 
 async function getFormFillAccess() {
     if (!globalThis.CloudSync || typeof globalThis.CloudSync.getAccessState !== 'function') {
@@ -1069,12 +1081,24 @@ async function getFormFillAccess() {
     try {
         await globalThis.CloudSync.init();
         const access = await globalThis.CloudSync.getAccessState();
-        return {
+        const live = {
             allowed: !!access.proAccess,
             promoActive: !!access.promoActive,
             signedIn: !!access.signedIn,
             isPro: !!access.isPro,
         };
+        if (live.signedIn) return live;
+        const cached = await readCachedAccess();
+        if (cached && cached.proAccess) {
+            return {
+                allowed: true,
+                promoActive: !!cached.promoActive,
+                signedIn: !!cached.signedIn,
+                isPro: !!cached.isPro,
+                cached: true,
+            };
+        }
+        return live;
     } catch (err) {
         console.warn('[FormFill] Plan check failed:', err);
         return { allowed: true, promoActive: false, signedIn: false, isPro: false, unknown: true };

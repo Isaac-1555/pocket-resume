@@ -226,9 +226,10 @@ Important keys:
 - `appProfileOnboarding`: `{ active: boolean }` — trigger for the Form Filler setup spotlight tour (set by the popup, consumed by the options page)
 - `refineNudge`: `{ active: boolean }` — trigger for the v8.2 "Smarter Refine" spotlight on `#refineResumeBtn` (set by the popup's What's New modal via `startRefineNudge()`, consumed by the options page via `NUDGE_TOUR_STEPS` + a `'nudge'` tour mode)
 - `atsNudge`: `{ active: boolean }` — trigger for the v8.2 "Check ATS" spotlight on `#checkAtsBtn` (set by the popup's What's New modal via `startAtsNudge()`, consumed by the options page via `ATS_NUDGE_TOUR_STEPS` + an `'atsnudge'` tour mode)
-- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'8.6'` current)
+- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'8.7'` current)
 - `featureVideoDeclined`: boolean — user declined the one-time feature-tour video offer; prompt never reappears (header button still opens it)
 - `trackerPlanCache`: `{ proAccess, isPro, promoActive, signedIn, checkedAt }` — last Job Tracker access resolution, used for first paint / offline
+- `proAccessCache`: same shape as `trackerPlanCache` — last **signed-in** access resolution, written by `getAccessState()` (page + SW) and cleared on sign-out. Background `getFormFillAccess()` falls back to it when the service-worker Clerk client reports signed-out, so Form Filler gating matches the page-context plan check.
 - `trackerLockDismissed`: boolean — user dismissed the Job Tracker lock banner
 
 Legacy migration: `userProfile` → `resumes[0].content`
@@ -262,8 +263,8 @@ Access resolution lives in `src/cloud-sync.js`:
 
 Architecture:
 
-- `src/cloud-sync.js` — IIFE source, bundled by esbuild → `cloud-sync.js` (gitignored). Loaded by `options.html`, `tracker.html`, and imported by `background.js` (popup does not load it). Provides auth (`signIn`/`signUp`/`isSignedIn`/`getUserProfile`), plan checks (`hasCloudSyncAccess`/`hasProAccess`/`getAccessState`/`isPromoTrialActive`), the Clerk pricing table mount, and resume sync (`pushAllResumes`/`pullAllResumes`/`onLocalResumesChanged` via Convex)
-- `background.js` — auto-pushes resume changes when signed in (`chrome.storage.onChanged` → `onLocalResumesChanged`, debounced 2s); answers `CHECK_PRO_ACCESS` and gates `FILL_APPLICATION_FORM` on `getFormFillAccess()` (`hasProAccess()`)
+- `src/cloud-sync.js` — IIFE source, bundled by esbuild → `cloud-sync.js` (gitignored). Loaded by `options.html`, `tracker.html`, and imported by `background.js` (popup does not load it). Provides auth (`signIn`/`signUp`/`isSignedIn`/`getUserProfile`), plan checks (`hasCloudSyncAccess`/`hasProAccess`/`getAccessState`/`isPromoTrialActive`), the Clerk pricing table mount, and resume sync (`pushAllResumes`/`pullAllResumes`/`onLocalResumesChanged` via Convex). `getAccessState()` persists a signed-in snapshot to `proAccessCache` and, in the service worker, rebuilds the Clerk client once (throttled) when it initialised before sign-in and reports no user.
+- `background.js` — auto-pushes resume changes when signed in (`chrome.storage.onChanged` → `onLocalResumesChanged`, debounced 2s); answers `CHECK_PRO_ACCESS` and gates `FILL_APPLICATION_FORM` on `getFormFillAccess()` (`getAccessState().proAccess`), falling back to `proAccessCache` when the service-worker Clerk client reports signed-out so the popup gate matches the page-context check
 - `options.js` — always-visible account card at the top of the left panel: signed-out offer (badge + feature bullets + Create free account / See Pro plans / Sign in) or signed-in row (avatar + name + plan pill + Upgrade · Manage plan / Sign out). **Push/Restore only render when signed in** (inside the signed-in branch). Pricing table mounts inline.
 - `popup.js` — header `#accountBtn` (Sign in / Start free / Upgrade / Pro pill, resolved via `CHECK_PRO_ACCESS`) and the bulleted `#fillProCard` upgrade card
 - `tracker.js` — `checkAccess()` gates the Job Tracker via `window.CloudSync.getAccessState()`; caches the result in `trackerPlanCache`

@@ -11,6 +11,12 @@ Notes on history:
 
 ---
 
+## [8.7] — 2026-09-27
+
+### Fixed
+
+- Form Filler showed the upgrade card ("Every Pro feature free until Oct 31 / Create free account") to signed-in Pro and launch-trial users. The Pro check runs in the background service worker, whose Clerk client could report signed-out even though the page contexts (Job Tracker, Settings) saw the session. Access now falls back to the last signed-in resolution cached in `proAccessCache`, and the worker rebuilds its Clerk client once when it initialised before sign-in.
+
 ## [8.6] — 2026-09-27
 
 ### Added

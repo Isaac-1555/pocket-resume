@@ -11,6 +11,8 @@
     cloudSyncStatus: 'cloudSyncStatus',
   };
 
+  const ACCESS_CACHE_KEY = 'proAccessCache';
+
   const CLOUD_CONFIG = {
     clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY || '',
     convexUrl: process.env.CONVEX_URL || '',
@@ -35,6 +37,7 @@
   let isInitialized = false;
   let syncInProgress = false;
   let authInfo = null;
+  let clerkRebuildAt = 0;
 
   const EXTENSION_URL = chrome.runtime.getURL('.');
   const OPTIONS_URL = EXTENSION_URL + 'options.html';
@@ -73,8 +76,29 @@
     return plans.includes(plan) || plans.some((p) => features.includes(p));
   }
 
-  async function getAccessState() {
+  async function ensureClerkUser() {
     await init();
+    if (clerkClient && clerkClient.user) return;
+    if (typeof document !== 'undefined') return;
+    if (Date.now() - clerkRebuildAt < 5000) return;
+    clerkRebuildAt = Date.now();
+    clerkClient = null;
+    convexClient = null;
+    authInfo = null;
+    await init();
+  }
+
+  function persistAccessCache(state) {
+    if (!state || !state.signedIn) return;
+    try {
+      chrome.storage.local.set({ [ACCESS_CACHE_KEY]: { ...state, checkedAt: Date.now() } });
+    } catch (err) {
+      console.warn('[CloudSync] Could not cache access state:', err);
+    }
+  }
+
+  async function getAccessState() {
+    await ensureClerkUser();
     const promoActive = isPromoTrialActive();
     if (!clerkClient || !clerkClient.user) {
       return {
@@ -89,7 +113,7 @@
     const proPlans = [CLOUD_CONFIG.requiredPlan, ...CLOUD_CONFIG.legacyPlans];
     const isPro = userMatchesPlan(proPlans);
     const isFreeSubscriber = isPro || userMatchesPlan([CLOUD_CONFIG.freePlan]);
-    return {
+    const state = {
       signedIn: true,
       isFreeSubscriber,
       isPro,
@@ -97,6 +121,8 @@
       cloudSyncAccess: isFreeSubscriber,
       proAccess: isPro || (promoActive && isFreeSubscriber),
     };
+    persistAccessCache(state);
+    return state;
   }
 
   async function hasCloudSyncAccess() {
@@ -310,6 +336,11 @@
   }
 
   async function signOut() {
+    try {
+      chrome.storage.local.remove(ACCESS_CACHE_KEY);
+    } catch (err) {
+      console.warn('[CloudSync] Could not clear access cache:', err);
+    }
     if (!clerkClient) return;
     await clerkClient.signOut({ redirectUrl: OPTIONS_URL });
   }

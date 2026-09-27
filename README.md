@@ -24,12 +24,11 @@
 - **Free & Pro Plans** — A free account syncs your resumes across devices; Pro adds the full Job Tracker and Form Filler (sign in from Settings → Account & Cloud Sync). During the launch promo every Pro feature is free until Oct 31
 - **Privacy First** — API keys and profile data stored locally
 
-### What's New in v8.6
+### What's New in v8.7
 
-- **Free & Pro plans** — Create a free account to sync resumes on every device. Pro adds the full Job Tracker + Form Filler.
-- **Launch offer** — Free-plan subscribers get the Job Tracker, Form Filler, and cloud sync free until Oct 31.
-- **Easier upgrading** — A clear account card in Settings and an account button in the popup header replace the old hidden avatar menu.
-- **Clearer button colors** — Blue for parallel actions, green to confirm, red for destructive.
+- **Form Filler access fixed** — Signed-in Pro and launch-trial users no longer see the upgrade card; Form Filler now unlocks correctly.
+- **Consistent plan checks** — The popup, Job Tracker, and Settings resolve Pro access the same way.
+- **Launch offer** — Every Pro feature stays free until Oct 31.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
