@@ -82,6 +82,23 @@ Requires `CONVEX_DEPLOYMENT` in `.env.local`. Generated code goes to `convex/_ge
 
 None configured. No test runner or linter. Validate by hand: load unpacked, generate a resume with a real API key, inspect the PDF + the service worker console.
 
+### Versioning & changelog
+
+**On every `manifest.json` version bump, you MUST also update `CHANGELOG.md`** and the popup "What's New" announcement:
+
+1. Bump `manifest.json` → `version`.
+2. Add a new top entry to `CHANGELOG.md` (`## [X.Y] — YYYY-MM-DD`) summarizing the change under Added / Changed / Fixed / Removed. Newest first.
+3. Update the popup "What's New" modal: `ANNOUNCEMENT_VERSION` + `ANNOUNCEMENT_SEEN_VALUE` in `popup.js` and the modal copy in `popup.html` (`#whatsNewModal`). The modal shows once per version.
+4. Build the store zip: `npm run build:clerk` first (if `src/cloud-sync.js` changed), then zip the runtime file set into `dist/pocketresume-vX.Y.zip` — see "Store build" below.
+
+### Store build (zip)
+
+Chrome Web Store upload = a zip with `manifest.json` at the root and **only runtime files**. Include:
+
+`manifest.json`, `background.js`, `content.js`, `form-filler.js`, `form-profile.js`, `popup.html`, `popup.js`, `options.html`, `options.js`, `tracker.html`, `tracker.js`, `resume-renderers.js`, `feature-video.js`, `feature-video.css`, `cloud-sync.js`, `icon.png`, `libs/` (jsPDF, ldrs loader, animations), `assets/tour/`.
+
+Exclude: `node_modules/`, `dist/`, `.git`, `.github/`, `convex/`, `scripts/`, `src/`, `store-assets/`, `redesign/`, `models/`, `*.md`, `package*.json`, `.env*`. Output to `dist/pocketresume-vX.Y.zip`.
+
 ## High-level architecture
 
 ### Generation pipeline (main user flow)
@@ -209,7 +226,7 @@ Important keys:
 - `appProfileOnboarding`: `{ active: boolean }` — trigger for the Form Filler setup spotlight tour (set by the popup, consumed by the options page)
 - `refineNudge`: `{ active: boolean }` — trigger for the v8.2 "Smarter Refine" spotlight on `#refineResumeBtn` (set by the popup's What's New modal via `startRefineNudge()`, consumed by the options page via `NUDGE_TOUR_STEPS` + a `'nudge'` tour mode)
 - `atsNudge`: `{ active: boolean }` — trigger for the v8.2 "Check ATS" spotlight on `#checkAtsBtn` (set by the popup's What's New modal via `startAtsNudge()`, consumed by the options page via `ATS_NUDGE_TOUR_STEPS` + an `'atsnudge'` tour mode)
-- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'8.4'` current)
+- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'8.6'` current)
 - `featureVideoDeclined`: boolean — user declined the one-time feature-tour video offer; prompt never reappears (header button still opens it)
 - `trackerPlanCache`: `{ proAccess, isPro, promoActive, signedIn, checkedAt }` — last Job Tracker access resolution, used for first paint / offline
 - `trackerLockDismissed`: boolean — user dismissed the Job Tracker lock banner
@@ -284,6 +301,7 @@ PocketResume/
 ├── scripts/build-clerk.mjs  # Build script for the Pro (Clerk) bundle
 ├── .env.example             # Template for .env.local
 ├── AGENTS.md                # This file
+├── CHANGELOG.md             # Version history — update on every version bump
 ├── CONTRIBUTING.md
 ├── CODE_OF_CONDUCT.md
 ├── SECURITY.md

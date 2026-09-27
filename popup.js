@@ -556,10 +556,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- What's New modal (once per version) ---
   const whatsNewModal = document.getElementById('whatsNewModal');
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
-  const whatsNewTourBtn = document.getElementById('whatsNewTourBtn');
+  const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '8.4';
-  const ANNOUNCEMENT_SEEN_VALUE = '8.4';
+  const ANNOUNCEMENT_VERSION = '8.6';
+  const ANNOUNCEMENT_SEEN_VALUE = '8.6';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
@@ -579,10 +579,10 @@ document.addEventListener('DOMContentLoaded', () => {
     whatsNewModal.style.display = 'flex';
   });
   if (whatsNewGotBtn) whatsNewGotBtn.addEventListener('click', dismissWhatsNew);
-  if (whatsNewTourBtn) {
-    whatsNewTourBtn.addEventListener('click', () => {
+  if (whatsNewPlansBtn) {
+    whatsNewPlansBtn.addEventListener('click', () => {
       dismissWhatsNew();
-      if (window.PocketResumeFeatureVideo) window.PocketResumeFeatureVideo.open(true);
+      chrome.tabs.create({ url: chrome.runtime.getURL('options.html#cloud-pricing') });
     });
   }
 

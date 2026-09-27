@@ -78,7 +78,7 @@ const shim = (seed) => {
             runtime: {
                 lastError: undefined,
                 getURL: (p) => new URL(p, window.location.href).href,
-                getManifest: () => ({ version: '8.4', name: 'PocketResume' }),
+                getManifest: () => ({ version: '8.6', name: 'PocketResume' }),
                 openOptionsPage() {},
                 sendMessage(msg, cb) {
                     setTimeout(() => {
@@ -107,7 +107,7 @@ const baseSeed = () => ({
     resumes: [{ id: 'r1', label: 'Resume 1', content: 'Maya Chen\nSenior Frontend Engineer\n(415) 555-0192 | maya.chen@hey.com | linkedin.com/in/mayachen\n\nEXPERIENCE\nBrightline - Senior Frontend Engineer (2022 - Present)\nLed design systems...\nCoreli - Frontend Engineer (2019 - 2022)\n\nEDUCATION\nUC Davis, B.S. Computer Science' }],
     onboardingCompleted: true,
     onboarding: { step: null, dismissed: true },
-    lastSeenAnnouncement: '8.4',
+    lastSeenAnnouncement: '8.6',
     coverLetterEnabled: false,
     trackerCaptureEnabled: true,
     applicationProfile: { firstName: 'Maya', lastName: 'Chen', email: 'maya.chen@hey.com', phone: '(415) 555-0192', city: 'San Francisco', state: 'CA', workAuthorized: 'Yes', needsSponsorship: 'No', salaryAmount: '165000', salaryCurrency: 'USD', salaryPeriod: 'year', streetAddress: '1400 Smith St', addressLine2: '', postalCode: '94110', country: 'USA', yearsExperience: '6 - 9', linkedin: 'linkedin.com/in/mayachen', github: 'github.com/mayachen', website: 'mayachen.dev', eeoOptIn: false, customQA: [{ id: 'q1', question: 'Why do you want to work here?', answer: 'Your analytics workspace is the kind of product I like making fast.' }], updatedAt: Date.now() },
