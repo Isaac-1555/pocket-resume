@@ -1,12 +1,5 @@
 // popup.js
 document.addEventListener('DOMContentLoaded', () => {
-  trackEvent('popup_open');
-  document.addEventListener('click', (e) => {
-    const el = e.target && e.target.closest ? e.target.closest('button, [role="button"]') : null;
-    if (!el) return;
-    const id = el.id || el.getAttribute('data-track-id');
-    if (id) trackEvent('button_clicked', { id });
-  }, true);
   const generateBtn = document.getElementById('generateBtn');
   const fillFormBtn = document.getElementById('fillFormBtn');
   const fillFormLabel = document.getElementById('fillFormLabel');
@@ -298,7 +291,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (setupVideoOffer) setupVideoOffer.style.display = 'grid';
     if (setupDoneText) setupDoneText.innerHTML = "You're all set. Visit a job posting and click <strong>Generate PDF Resume</strong>. Want a quick tour of every feature first?";
     setupCard.style.display = 'block';
-    trackEvent('feature_video_offered');
     chrome.storage.local.set({ onboardingCompleted: true });
   }
 
@@ -334,7 +326,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (setupVideoNoBtn) {
     setupVideoNoBtn.addEventListener('click', () => {
       chrome.storage.local.set({ featureVideoDeclined: true });
-      trackEvent('feature_video_declined');
       if (setupVideoOffer) setupVideoOffer.style.display = 'none';
       if (setupDoneText) {
         setupDoneText.innerHTML = "You're all set. You can watch the <strong>feature tour</strong> anytime — the ▶ Feature tour button in the header above.";
@@ -553,7 +544,6 @@ document.addEventListener('DOMContentLoaded', () => {
         apps[existingIdx] = { ...apps[existingIdx], ...application, id: apps[existingIdx].id, dateSaved: apps[existingIdx].dateSaved, updatedAt: Date.now() };
       } else {
         apps.push(application);
-        trackEvent('application_added', { source: 'generated' });
       }
       const writes = { applications: apps };
       if (!data.trackerTrialStartedAt) {

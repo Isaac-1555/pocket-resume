@@ -179,7 +179,6 @@ async function main() {
             growthRatingPrompt: { converted: true },
             growthSharePrompt: { converted: true },
             coverLetterEnabled: true,
-            analyticsEnabled: true,
             trackerCaptureEnabled: true,
         }));
         const page = await context.newPage();
@@ -326,7 +325,6 @@ async function main() {
             growthRatingPrompt: { converted: true },
             growthSharePrompt: { converted: true },
             coverLetterEnabled: false,
-            analyticsEnabled: true,
         }));
         const page = await context.newPage();
         page.on('pageerror', (e) => console.error('[pageerror]', e.message));

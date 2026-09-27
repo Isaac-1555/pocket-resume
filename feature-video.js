@@ -357,7 +357,6 @@
 
   function open(source) {
     ensureBuilt();
-    trackEvent('feature_video_played', { source: source ? 'header' : 'prompt' });
     stepIndex = 0;
     pausedElapsed = 0;
     stepStart = 0;

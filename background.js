@@ -1,6 +1,5 @@
 // background.js
 import './cloud-sync.js';
-import { trackEvent } from './analytics.js';
 import { resolveFormAnswers } from './form-profile.js';
 
 // Auto-push local resume changes when user has enabled cloud sync and is signed in.
@@ -1255,13 +1254,6 @@ async function generateApplicationProfileFromResume(context, sourceText) {
 
 // --- Message Listener ---
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'TRACK_EVENT') {
-        const payload = message.payload || {};
-        trackEvent(payload.name, payload.params || {}).catch(() => {});
-        sendResponse({ status: 'ok' });
-        return false;
-    }
-
     if (message.type === 'START_GENERATION') {
 
         // Async execution wrapper
@@ -1353,23 +1345,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // 5. Success - clear the page cache
                 await chrome.storage.local.remove(PAGE_CACHE_KEY);
                 console.info('[Tracker] Resume generation complete.');
-                trackEvent('resume_generated', {
-                    style: selectedResumeStyle,
-                    layout: getResumeStyleConfig(selectedResumeStyle).layout,
-                    provider,
-                });
-                if (coverLetterText) {
-                    trackEvent('cover_letter_generated', { style: selectedResumeStyle, provider });
-                }
                 sendResponse({ status: 'success', data: resumeText, coverLetterData: coverLetterText });
 
             } catch (error) {
                 console.error("Pipeline Error:", error);
-                trackEvent('generation_error', {
-                    provider,
-                    style: selectedResumeStyle,
-                    code: String((error && error.message) || 'unknown').slice(0, 40),
-                });
                 sendResponse({ status: 'error', message: error.message });
             }
         })();
@@ -1552,15 +1531,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
 
                 console.info('[FormFill] Filled', filled, 'of', fields.length, 'fields.', `(${resolved.length} saved, ${aiAnswers.length} AI)`);
-                trackEvent('form_filled', { provider, cached: String(resolved.length) });
                 await showFormToast(tabId, `PocketResume filled ${filled} field${filled === 1 ? '' : 's'}${resolved.length ? ` (${resolved.length} from saved answers)` : ''}`);
                 sendResponse({ status: 'success', filled, total: fields.length, cached: resolved.length });
             } catch (error) {
                 console.error('Form Fill Error:', error);
-                trackEvent('form_fill_error', {
-                    provider,
-                    code: String((error && error.message) || 'unknown').slice(0, 40),
-                });
                 if (tabId) await showFormToast(tabId, 'PocketResume could not fill this form');
                 sendResponse({ status: 'error', message: error.message });
             }
@@ -1568,15 +1542,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         return true;
     }
-});
-
-// --- Lifecycle Analytics ---
-chrome.runtime.onInstalled.addListener((details) => {
-    if (details.reason === 'install') {
-        trackEvent('install').catch(() => {});
-    }
-});
-
-chrome.runtime.onStartup.addListener(() => {
-    trackEvent('active_day').catch(() => {});
 });

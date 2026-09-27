@@ -1,10 +1,4 @@
 document.addEventListener('DOMContentLoaded', async () => {
-  document.addEventListener('click', (e) => {
-    const el = e.target && e.target.closest ? e.target.closest('button, [role="button"]') : null;
-    if (!el) return;
-    const id = el.id || el.getAttribute('data-track-id');
-    if (id) trackEvent('button_clicked', { id });
-  }, true);
   const apiKeyInput = document.getElementById('apiKey');
   const toggleApiKeyButton = document.getElementById('toggleApiKey');
   const saveButton = document.getElementById('save');
@@ -97,7 +91,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   let editorMode = 'resume';
   let appProfileCustomQa = [];
   let appProfileAutofilling = false;
-  let appProfileWasComplete = false;
 
   function generateId() {
     return 'r_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
@@ -1163,7 +1156,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- Form Filler setup (Application Questions) ---
   fillAppProfileForm(data.applicationProfile || null);
-  appProfileWasComplete = isAppProfileComplete(data.applicationProfile || null);
 
   if (apEeoToggle) {
     apEeoToggle.addEventListener('change', () => {
@@ -1232,7 +1224,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         showStatus('Your resume had no details for these questions. Fill the boxes manually.', 'info', 5000);
       }
-      trackEvent('form_profile_autofill');
     } catch (error) {
       showStatus(`Error: ${error.message}`, 'error', 5000);
     } finally {
@@ -1553,7 +1544,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     try {
       await extractJsonForResume(resume);
-      trackEvent('extract_json_used');
       showStatus('JSON profile extracted and saved successfully.', 'success', 5000);
     } catch (error) {
       showStatus(`Error: ${error.message}`, 'error', 4500);
@@ -1570,7 +1560,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     refiningResumeId = resume.id;
-    trackEvent('refine_used');
     renderTabContent();
     showStatus('Reading your resume to see if any questions are missing…', 'loading', 0);
 
@@ -2079,7 +2068,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   function tourDismiss() {
     tourActive = false;
     tourOverlay.classList.remove('open');
-    trackEvent(tourStepIndex >= tourSteps.length ? 'tour_completed' : 'tour_skipped', { mode: tourMode });
     if (tourMode === 'nudge') {
       chrome.storage.local.set({ refineNudge: { active: false } });
       return;
@@ -2173,7 +2161,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     tourActive = true;
     tourStepIndex = Math.max(0, Math.min(index, tourSteps.length));
     tourOverlay.classList.add('open');
-    trackEvent('tour_started', { mode: tourMode });
     renderTourStep();
   }
 
@@ -2313,14 +2300,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const nowProfileComplete = isAppProfileComplete(readAppProfileFromForm());
       if (nowProfileComplete) {
-        if (!appProfileWasComplete) trackEvent('form_filler_setup', { source: 'options' });
         chrome.storage.local.set({ appProfileOnboarding: { active: false } });
         if (tourActive && tourMode === 'profile' && tourStepIndex < tourSteps.length) {
           tourStepIndex = tourSteps.length;
           renderTourStep();
         }
       }
-      appProfileWasComplete = nowProfileComplete;
     } catch (error) {
       showStatus(`Error: ${error.message}`, 'error', 4500);
       saveButton.disabled = false;

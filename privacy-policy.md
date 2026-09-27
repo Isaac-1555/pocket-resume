@@ -18,29 +18,7 @@ Pocket Resume collects and processes the following user data to provide its core
 
 ### How Data is Used
 
-This data is used solely to generate tailored resumes and cover letters based on your profile and the job description you are viewing. No data is collected for advertising purposes. For anonymous usage statistics, see the section below.
-
-## Anonymous Usage Statistics
-
-PocketResume collects a small set of anonymous usage counters so the developer can understand which features are used (e.g. how many resumes were generated, whether the job tracker is opened). This collection is **always on** and cannot be turned off in the extension, but it is fully anonymous — no personal data of any kind is included.
-
-### What Is Collected
-
-* **Anonymous install ID**: a random UUID generated on your device. It is not linked to your identity, account, email, or browsing history
-* **Extension version**
-* **Event counters**: installs, popup opens, resumes generated, cover letters generated, generation errors (error message category only), job tracker opens, applications added, usage of the resume refinement / JSON extraction / form filler tools, onboarding and setup-tour progress, and feature-tour video interactions
-* **Categorical parameters**: which resume layout you used, which AI provider you selected, and which button (by internal only — e.g. `generateBtn`) was clicked inside the extension popup or settings page
-
-### What Is Never Collected
-
-* Your resume or profile content
-* Job description text or page screenshots
-* URLs, company names, or recruiter details
-* Your API keys or AI request content
-
-### Where It Is Stored
-
-Usage events are sent over HTTPS to the developer's own Convex backend. Raw events are retained for 180 days and then automatically deleted. Aggregate counters are kept longer.
+This data is used solely to generate tailored resumes and cover letters based on your profile and the job description you are viewing. No data is collected for advertising purposes.
 
 ## Data Transmission to Third-Party Services
 
@@ -91,7 +69,7 @@ This locally stored data:
 
 * All data transmitted to AI APIs is sent over secure HTTPS connections
 * Your API keys and profile data are stored locally in Chrome's secure extension storage
-* Your resume content, job descriptions, and API keys are never stored on external servers controlled by the extension developer (only the anonymous usage counters described above touch the developer's backend)
+* Your resume content, job descriptions, and API keys are never stored on external servers controlled by the extension developer
 
 ## Permissions
 

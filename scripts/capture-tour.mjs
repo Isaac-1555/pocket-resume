@@ -82,7 +82,6 @@ const shim = (seed) => {
                 openOptionsPage() {},
                 sendMessage(msg, cb) {
                     setTimeout(() => {
-                        if (msg && msg.type === 'TRACK_EVENT') { cb && cb({}); return; }
                         setTimeout(() => {
                             if (msg && msg.type === 'START_GENERATION') cb({ status: 'success', data: JSON.stringify(resumeData), coverLetterData: JSON.stringify(coverLetterData) });
                             else if (msg && msg.type === 'FILL_APPLICATION_FORM') cb({ status: 'success', filled: 9, total: 9 });
@@ -111,7 +110,6 @@ const baseSeed = () => ({
     lastSeenAnnouncement: '8.4',
     coverLetterEnabled: false,
     trackerCaptureEnabled: true,
-    analyticsEnabled: true,
     applicationProfile: { firstName: 'Maya', lastName: 'Chen', email: 'maya.chen@hey.com', phone: '(415) 555-0192', city: 'San Francisco', state: 'CA', workAuthorized: 'Yes', needsSponsorship: 'No', salaryAmount: '165000', salaryCurrency: 'USD', salaryPeriod: 'year', streetAddress: '1400 Smith St', addressLine2: '', postalCode: '94110', country: 'USA', yearsExperience: '6 - 9', linkedin: 'linkedin.com/in/mayachen', github: 'github.com/mayachen', website: 'mayachen.dev', eeoOptIn: false, customQA: [{ id: 'q1', question: 'Why do you want to work here?', answer: 'Your analytics workspace is the kind of product I like making fast.' }], updatedAt: Date.now() },
     applications: [
         { id: 'a1', company: 'Northwind', role: 'Senior Frontend Engineer', url: 'https://northwind.co/careers/1', status: 'applied', dateSaved: Date.now() - 86400000 * 3, appliedDate: Date.now() - 86400000 * 2, interviewDate: null, notes: 'Recruiter intro call went well', resumeIdUsed: 'r1' },

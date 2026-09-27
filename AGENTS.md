@@ -14,9 +14,8 @@ Key runtime entrypoints (declared in `manifest.json`):
 - **Feature tour video**: `feature-video.js` / `feature-video.css` (player) + `scripts/capture-tour.mjs` / `assets/tour/` (frames) — scripted cursor-follow walkthrough, popup-only
 - **Options page**: `options.html` + `options.js` — API keys + multiple resumes + toggles
 - **Resume renderers**: `resume-renderers.js` — Jake, Deedy, Academic CV PDF layouts
-- **Analytics**: `analytics.js` (service-worker client) + `track-client.js` (page-side helper) — anonymous usage stats sent to the Convex backend
 - **Pro (optional)**: `src/cloud-sync.js` (source) → `cloud-sync.js` (bundle, gitignored) — auth, plan gating, pricing, resume sync
-- **Convex backend (optional)**: `convex/` — auth config + resume schema/functions + analytics functions
+- **Convex backend (optional)**: `convex/` — auth config + resume schema/functions
 
 ## Common commands
 
@@ -167,7 +166,7 @@ One-time onboarding for Form Filler: the user answers common application-form qu
 4. **Saved-answers-first resolution**: `resolveFormAnswers(fields, applicationProfile)` in `form-profile.js` splits fields. Tier 1: canonical label matchers → `applicationProfile` values (name split, address, salary formatting by field type incl. hourly conversion, yes/no, EEO gated by `eeoOptIn`). Tier 2: `customQA` match (normalized equality, containment, Jaccard ≥ 0.85). Select/radio/checkbox-group answers must fuzzy-match one of the field's options, else the field falls to AI. Single checkboxes get boolean intent (`Yes` → check, `No` → leave unchecked). Zero tokens for resolved fields.
 5. `generateFormAnswers(context, userProfile, unresolvedFields, applicationProfile)` — one AI call for **only the unresolved fields** (essays, company-specific questions). Same prompt + a `SAVED PROFILE` JSON line for grounding; skipped entirely when nothing is unresolved (0 tokens).
 6. Merged answers run through `normalizeFormAnswers` (id validation + maxLength truncation), then `__PocketResumeForm.fill(...)` per frame (native value setters + `input`/`change` events for React/Vue compatibility). Checkbox groups: only matching options are checked, never unchecked; already-ticked groups are skipped entirely.
-7. Background toasts on the page's main frame (`"... (N from saved answers)"`), replies `{ status: 'success', filled, total, cached }`, and logs `[FormFill] Filled X of Y fields. (Z saved, W AI)`. `form_filled` analytics carries `cached` (string count; whitelisted in `PARAM_FIELDS` on both sides).
+7. Background toasts on the page's main frame (`"... (N from saved answers)"`), replies `{ status: 'success', filled, total, cached }`, and logs `[FormFill] Filled X of Y fields. (Z saved, W AI)`.
 8. Popup shows "Filled X/Y" on the button; errors go through the standard `setError` path. The popup background glows via `body[data-fill-status]`: `filling` (amber pulse) → `fill-success` (green, auto-reverts after 4s) or `fill-failure` (red, persists until the next Fill/Generate click). Kept separate from `body[data-status]` so the two flows never fight over the glow.
 
 Safety rules (enforced in `form-filler.js` + prompt): never submits the form, never overwrites already-filled fields, never unchecks anything the user already ticked, checkbox/consent widgets with consent-style labels (consent/agree/terms/privacy/newsletter/marketing/subscribe/opt-in/gdpr/cookies) are never touched, skips hidden/disabled/readonly/captcha/search fields, caps at 30 fields. Known gap: custom div widgets (`[role="checkbox"]`/`[role="radio"]` without real inputs, legacy Workday) are not detected.
@@ -241,7 +240,7 @@ Architecture:
 - `options.js` — account chip (Sign In / See Plans), Push Local to Cloud / Restore from Cloud, pricing table mount under Settings → PocketResume Pro
 - `tracker.js` — `checkPlanAccess()` gates the Job Tracker trial/lock via `window.CloudSync`
 - `convex/auth.config.ts` — Clerk → Convex auth wiring; requires `CLERK_FRONTEND_API_URL` env var
-- `convex/schema.ts` — `resumes` table shape + analytics tables
+- `convex/schema.ts` — `resumes` table shape
 - `convex/resumes.ts` — `list`, `upsert`, `remove` queries/mutations
 
 Sign-in behavior: all Clerk redirects (`signInForceRedirectUrl`, `signUpForceRedirectUrl`, `afterSignOutUrl`, `signOut redirectUrl`) point at `options.html` — never `popup.html` (navigating the Settings tab to the popup breaks the React tree with `removeChild` errors). The sign-in modal is themed dark via `appearance.variables` passed to `clerk.load(...)` — explicit input colors are required or typed text inherits the page's light color and becomes invisible inside Clerk's light-styled inputs.
@@ -262,16 +261,12 @@ PocketResume/
 ├── scripts/capture-tour.mjs # Generates assets/tour/*.webp + frames.js (npm run build:tour)
 ├── options.html / options.js# Settings: API keys, resumes, toggles
 ├── resume-renderers.js      # Jake / Deedy / Academic CV PDF layouts
-├── analytics.js             # Anonymous usage-stats client (imported by background.js)
-├── track-client.js          # Page-side trackEvent helper (popup/options/tracker)
 ├── src/cloud-sync.js        # Pro auth/plan/pricing/sync source (bundled → cloud-sync.js)
 ├── cloud-sync.js            # [generated, gitignored] esbuild bundle
 ├── convex/                  # Convex backend
 │   ├── auth.config.ts
 │   ├── schema.ts
 │   ├── resumes.ts
-│   ├── analytics.ts
-│   ├── crons.ts
 │   └── _generated/          # [generated, gitignored]
 ├── libs/jspdf.umd.min.js    # Vendored jsPDF
 ├── libs/ldrs-newtons-cradle.js # [generated, gitignored? no—committed] vendored ldrs Newton's Cradle web component
@@ -297,7 +292,6 @@ PocketResume/
 - **Change settings UI / resume management**: `options.js` / `options.html`.
 - **Change popup UI**: `popup.html` / `popup.js`.
 - **Change popup error messages / mapping**: `popup.js` (`setError` / `mapErrorMessage`). The keyword-based map turns long provider errors into short friendly strings; un-matched messages truncate to ~200 chars.
-- **Change usage analytics events**: `analytics.js` (client: queue + send — always-on, no consent gate), `convex/analytics.ts` (ingest + summary + cleanup), `track-client.js` (page-side `trackEvent` helper). Event names must be whitelisted in both `analytics.js` (`EVENT_NAMES`) and `convex/analytics.ts` (`EVENT_NAMES`), and any new string param must be added to `PARAM_FIELDS` there plus the analyticsEvents schema in `convex/schema.ts`. Every button click in popup/options/tracker fires a generic `button_clicked` event with the button's DOM `id` (capture-phase listener in each page); user-facing stats collection is always on for all users (opt-out toggle removed in v8.4, still fully anonymous), and fires `tour_started`/`tour_completed`/`tour_skipped` plus the `feature_video_*` events.
 - **Change permissions or extension wiring**: `manifest.json`.
 - **Change Pro auth / plan gating / pricing / resume sync**: `src/cloud-sync.js` (then `npm run build:clerk`), `options.js` (account chip + Push/Restore), `background.js` (auto-push listener), `tracker.js` (`checkPlanAccess`).
 - **Change Convex schema or functions**: `convex/schema.ts`, `convex/resumes.ts`, `convex/auth.config.ts` (then `npx convex dev`).
@@ -326,5 +320,4 @@ PocketResume is privacy-first by default. See `privacy-policy.md` for the full p
 - Stores resumes locally in `chrome.storage.local`; cloud sync is opt-in via PocketResume Pro and only talks to the user's own Convex backend
 - Sends data only to the AI provider the user has selected
 - Requires the user to supply their own API key
-- Collects anonymous usage statistics (random per-install UUID + event counters — never resume content, job text, or account info), always on for all users (opt-out removed in v8.4); events go to the project's own Convex backend, raw events auto-delete after 180 days
 - Does not include third-party analytics or advertising trackers
