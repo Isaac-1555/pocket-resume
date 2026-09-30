@@ -11,6 +11,22 @@ Notes on history:
 
 ---
 
+## [8.8] — 2026-09-28
+
+### Added
+
+- **Automatic two-way resume cloud sync.** Signed-in users no longer push or restore manually: resumes merge automatically on Settings load, after sign-in, and on every local edit. Same-`id` resumes resolve by last-write-wins on `updatedAt`; cloud-only resumes are restored locally and local-only resumes are pushed up. Local-only metadata (`refineAnswers`, `lastRefineBackup`) is preserved when the cloud version wins.
+
+### Changed
+
+- Removed the manual **Push Local to Cloud** / **Restore from Cloud** buttons and the restore preview panel; the signed-in account card now notes that resumes sync automatically.
+- Resume deletion now propagates to the cloud via delete tombstones, so auto-restore never resurrects a deleted resume. Orphan deletion on push was removed in favor of explicit tombstones.
+- Resumes gained a persisted `updatedAt` timestamp; legacy resumes fall back to `lastRefineAppliedAt`.
+
+### Fixed
+
+- The "Auto-capture jobs" info tooltip on Settings was painted beneath the Form Filler Setup card (the details panel's stacking context covered it); the toggle row now stacks above it.
+
 ## [8.7] — 2026-09-27
 
 ### Fixed

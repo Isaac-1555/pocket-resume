@@ -217,7 +217,8 @@ Important keys:
 - `googleModel` / `openaiModel` / `anthropicModel` / `openrouterModel`: string model override ("" = provider default)
 - `customEndpoints`: array of `{ id, name, baseUrl, apiKey, model, extraBody }` (OpenAI-compatible endpoints; `apiKey` may be empty for local servers; `extraBody` is an optional raw JSON string shallow-merged into the request body)
 - `activeCustomEndpointId`: which custom endpoint is active when `apiProvider` is `"custom"`
-- `resumes`: array of `{ id, label, content, jsonContent, lastRefineBackup, lastRefineAppliedAt, refineAnswers }` (up to 3)
+- `resumes`: array of `{ id, label, content, jsonContent, lastRefineBackup, lastRefineAppliedAt, refineAnswers, updatedAt }` (up to 3). `updatedAt` (ms) drives cloud sync last-write-wins.
+- `deletedResumeIds`: `[{ id, deletedAt }]` — delete tombstones so automatic cloud restore doesn't resurrect a locally deleted resume
 - `selectedResumeId`: which resume is active in the popup
 - `cloudSyncStatus`: `"idle" | "syncing" | "synced" | "error"` (cloud sync indicator, written by `src/cloud-sync.js`)
 - `resumeType`: `"professional" | "faang" | "deedy" | "academic-cv"`
@@ -263,9 +264,9 @@ Access resolution lives in `src/cloud-sync.js`:
 
 Architecture:
 
-- `src/cloud-sync.js` — IIFE source, bundled by esbuild → `cloud-sync.js` (gitignored). Loaded by `options.html`, `tracker.html`, and imported by `background.js` (popup does not load it). Provides auth (`signIn`/`signUp`/`isSignedIn`/`getUserProfile`), plan checks (`hasCloudSyncAccess`/`hasProAccess`/`getAccessState`/`isPromoTrialActive`), the Clerk pricing table mount, and resume sync (`pushAllResumes`/`pullAllResumes`/`onLocalResumesChanged` via Convex). `getAccessState()` persists a signed-in snapshot to `proAccessCache` and, in the service worker, rebuilds the Clerk client once (throttled) when it initialised before sign-in and reports no user.
-- `background.js` — auto-pushes resume changes when signed in (`chrome.storage.onChanged` → `onLocalResumesChanged`, debounced 2s); answers `CHECK_PRO_ACCESS` and gates `FILL_APPLICATION_FORM` on `getFormFillAccess()` (`getAccessState().proAccess`), falling back to `proAccessCache` when the service-worker Clerk client reports signed-out so the popup gate matches the page-context check
-- `options.js` — always-visible account card at the top of the left panel: signed-out offer (badge + feature bullets + Create free account / See Pro plans / Sign in) or signed-in row (avatar + name + plan pill + Upgrade · Manage plan / Sign out). **Push/Restore only render when signed in** (inside the signed-in branch). Pricing table mounts inline.
+- `src/cloud-sync.js` — IIFE source, bundled by esbuild → `cloud-sync.js` (gitignored). Loaded by `options.html`, `tracker.html`, and imported by `background.js` (popup does not load it). Provides auth (`signIn`/`signUp`/`isSignedIn`/`getUserProfile`), plan checks (`hasCloudSyncAccess`/`hasProAccess`/`getAccessState`/`isPromoTrialActive`), the Clerk pricing table mount, and resume sync. `syncResumes()` is the bidirectional auto-sync: it reads local `resumes` + `deletedResumeIds`, pulls the cloud list, merges by last-write-wins on `updatedAt`, restores cloud-only resumes locally, pushes local-only/newer resumes, applies delete tombstones, and writes back only when the result changed (prevents sync loops). `onLocalResumesChanged()` debounces `syncResumes()` by 2s. `getAccessState()` persists a signed-in snapshot to `proAccessCache` and, in the service worker, rebuilds the Clerk client once (throttled) when it initialised before sign-in and reports no user.
+- `background.js` — auto-syncs resume changes when signed in (`chrome.storage.onChanged` on `resumes`/`deletedResumeIds` → `onLocalResumesChanged`, debounced 2s); answers `CHECK_PRO_ACCESS` and gates `FILL_APPLICATION_FORM` on `getFormFillAccess()` (`getAccessState().proAccess`), falling back to `proAccessCache` when the service-worker Clerk client reports signed-out so the popup gate matches the page-context check
+- `options.js` — always-visible account card at the top of the left panel: signed-out offer (badge + feature bullets + Create free account / See Pro plans / Sign in) or signed-in row (avatar + name + plan pill + Upgrade · Manage plan / Sign out) with a "resumes sync automatically" note. No manual push/restore controls; `runAutoSync()` fires on load and after sign-in. Resume edits bump `updatedAt`; deletes record a `deletedResumeIds` tombstone and sync. Pricing table mounts inline.
 - `popup.js` — header `#accountBtn` (Sign in / Start free / Upgrade / Pro pill, resolved via `CHECK_PRO_ACCESS`) and the bulleted `#fillProCard` upgrade card
 - `tracker.js` — `checkAccess()` gates the Job Tracker via `window.CloudSync.getAccessState()`; caches the result in `trackerPlanCache`
 - `convex/auth.config.ts` — Clerk → Convex auth wiring; requires `CLERK_FRONTEND_API_URL` env var
@@ -324,7 +325,7 @@ PocketResume/
 - **Change popup UI**: `popup.html` / `popup.js`.
 - **Change popup error messages / mapping**: `popup.js` (`setError` / `mapErrorMessage`). The keyword-based map turns long provider errors into short friendly strings; un-matched messages truncate to ~200 chars.
 - **Change permissions or extension wiring**: `manifest.json`.
-- **Change Pro auth / plan gating / pricing / resume sync**: `src/cloud-sync.js` (then `npm run build:clerk`), `options.js` (account card + Push/Restore), `background.js` (auto-push listener + `CHECK_PRO_ACCESS`), `tracker.js` (`checkAccess`).
+- **Change Pro auth / plan gating / pricing / resume sync**: `src/cloud-sync.js` (then `npm run build:clerk`), `options.js` (account card + auto-sync), `background.js` (auto-sync listener + `CHECK_PRO_ACCESS`), `tracker.js` (`checkAccess`).
 - **Change Convex schema or functions**: `convex/schema.ts`, `convex/resumes.ts`, `convex/auth.config.ts` (then `npx convex dev`).
 
 ## Coding conventions
@@ -340,7 +341,7 @@ PocketResume/
 Buttons use semantic accent tokens so paired actions both read as intentional (never "one orange, one disabled-looking"). Tokens live in `:root` of `popup.html` / `options.html` / `tracker.html` (`--accent-blue*`, `--accent-green*`, `--accent-red*`, plus the existing `--orange*`).
 
 - **Orange** (`--orange*`) = primary/most important action. Classes: `.secondary-action-btn` (options), `.setup-goto` (popup), `.btn-primary` / `#generateBtn` / `.cloud-primary-btn`.
-- **Blue** (`--accent-blue*`) = secondary, parallel-but-valid action. Classes: `.accent-btn` (options), `.setup-goto.accent` (popup), `.btn-accent` (tracker). Used for: Check ATS, See Pro plans, Restore from Cloud, Guide me.
+- **Blue** (`--accent-blue*`) = secondary, parallel-but-valid action. Classes: `.accent-btn` (options), `.setup-goto.accent` (popup), `.btn-accent` (tracker). Used for: Check ATS, See Pro plans, Guide me.
 - **Green** (`--accent-green*`) = confirm/apply. Classes: `.success-btn` (options), `.setup-goto.success` (popup), `.btn-success` (tracker). Used for: Apply Refined Resume, Replace Local with Cloud.
 - **Red** (`--accent-red*`) = destructive. Classes: `.danger-btn` (options), `.btn-danger` (tracker).
 - **Glass/ghost** = dismiss/cancel/back/skip/tertiary. Classes: `.ghost-btn` (options), `.setup-goto.ghost` (popup), `.btn-ghost` / `.btn` (tracker).

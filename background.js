@@ -2,13 +2,12 @@
 import './cloud-sync.js';
 import { resolveFormAnswers } from './form-profile.js';
 
-// Auto-push local resume changes when user has enabled cloud sync and is signed in.
+// Auto-sync local resume changes when user has enabled cloud sync and is signed in.
 chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== 'local' || !changes.resumes || !globalThis.CloudSync) return;
-    const nextResumes = changes.resumes.newValue;
-    if (!Array.isArray(nextResumes)) return;
+    if (areaName !== 'local' || !globalThis.CloudSync) return;
+    if (!changes.resumes && !changes.deletedResumeIds) return;
     globalThis.CloudSync.init()
-        .then(() => globalThis.CloudSync.onLocalResumesChanged(nextResumes))
+        .then(() => globalThis.CloudSync.onLocalResumesChanged())
         .catch((error) => console.error('[CloudSync] Auto-sync failed:', error));
 });
 
