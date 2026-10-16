@@ -440,11 +440,11 @@ async function generateTailoredResume(context, userProfile, jobDescription, resu
 
     let styleGuide = "";
     if (styleConfig.promptStyle === "academic-cv") {
-        styleGuide = "Use an academic CV style: emphasize research, publications, teaching, service, academic distinctions, and faithful chronology. Preserve factual detail without forcing everything into an industry-resume framing.";
+        styleGuide = "Use an academic CV style: emphasize research, publications, teaching, service, academic distinctions, and faithful chronology. Preserve factual detail without forcing everything into an industry-resume framing. Lead every experience and project line with a strong action verb.";
     } else if (styleConfig.promptStyle === "faang") {
         styleGuide = "Use the 'FAANG' style: Single column, black and white, highly dense, focus on metrics/impact (X% improvement, Y$ saved), technical skills first, strict reverse chronological. No summary/objective unless specified. Use strong action verbs.";
     } else {
-        styleGuide = "Use a 'Professional' style: Clean, balanced whitespace, professional summary at top, clear section headings, standard corporate formatting. Focus on leadership and clarity.";
+        styleGuide = "Use a 'Professional' style: Clean, balanced whitespace, professional summary at top, clear section headings, standard corporate formatting. Focus on leadership and clarity. Lead every bullet with a strong action verb and land a concrete result.";
     }
 
 
@@ -452,7 +452,7 @@ async function generateTailoredResume(context, userProfile, jobDescription, resu
     let layoutGuide = "Use the current PocketResume layout structure: summary, skills, experience, featured projects, education, and certifications.";
     let documentTask = "Write a tailored, ONE-PAGE resume for this job description based on my profile.";
     let pageRule = "The final PDF will be rendered on a single US-Letter page. Keep bullet points concise so everything fits.";
-    let bulletRule = "Each experience/project bullet point MUST be a single concise line (under ~120 characters). Use short impact statements: Action Verb + Result. Do NOT write multi-line bullet points.";
+    let bulletRule = "Each experience/project bullet point MUST be a single concise line (under ~120 characters). Do NOT write multi-line bullet points. The action verb and the result are non-negotiable: if the line runs long, cut scope, background, and tool detail first.";
 
     if (selectedLayout === "deedy") {
         layoutGuide = "Use a Double Sided layout adapted for PocketResume: dense two-column industry resume. Prefer skills, links, open-source projects, and education for left-column-friendly content, and experience, selected projects, publications, and awards for right-column-friendly content.";
@@ -460,33 +460,48 @@ async function generateTailoredResume(context, userProfile, jobDescription, resu
         layoutGuide = "Use an academic CV layout adapted for PocketResume: multi-page is allowed, with education, research/work experience, research projects, publications, honors, teaching, and service only when those sections are supported by the source profile.";
         documentTask = "Write a tailored academic/research CV for this job description based on my profile.";
         pageRule = "The final PDF may span multiple pages when needed. Stay concise, but do not force the document onto one page.";
-        bulletRule = "Use concise, impact-focused bullets when appropriate, but academic CV sections may also contain short descriptive detail lines where needed.";
+        bulletRule = "Use concise, impact-focused bullets when appropriate, but academic CV sections may also contain short descriptive detail lines where needed. Even on descriptive lines, lead with an action verb that names what you did.";
     }
+
+    const actionVerbRule = `ACTION VERB RULE (CRITICAL — applies to EVERY experience and project bullet in every section):
+    - EVERY bullet MUST start with a strong action verb. Use past tense for roles you no longer hold, present tense for your current role. Never mix tenses inside one bullet.
+    - A bullet MUST NOT start with "I", a bare noun phrase, or a description of a problem/situation. "The API was slow" is not a bullet; "Reduced API latency 38% by adding Redis caching" is.
+    - BANNED openers — never begin a bullet with any of these: Responsible for, Helped with, Worked on, Assisted in, Duties included, Tasked with, Involved in, Participated in, Successfully, Various, In charge of. Convert them to the direct verb (e.g. "Responsible for managing X" → "Managed X").
+    - Bullet shape: Action verb + what you did + tool/method + result. Put the strongest number in the first half of the line.
+    - Vary the verbs. Use at least 10 distinct action verbs across the whole resume, and never repeat the same verb twice within one entry.
+    - Strong verbs to draw from: leadership — Led, Directed, Spearheaded, Drove, Owned, Oversaw, Mentored, Coordinated, Chaired, Mobilized, Delegated, Founded, Launched, Established; technical — Built, Architected, Engineered, Implemented, Deployed, Automated, Refactored, Migrated, Optimized, Instrumented, Containerized, Debugged, Shipped; analysis — Analyzed, Diagnosed, Identified, Audited, Benchmarked, Forecasted, Quantified, Evaluated, Investigated, Isolated; communication/impact — Authored, Drafted, Negotiated, Presented, Documented, Streamlined, Standardized, Resolved, Eliminated, Reduced, Increased, Accelerated, Cut, Grew.`;
+
+    const actionVerbExamples = `BULLET EXAMPLES (weak → strong, match this quality):
+    - WEAK: "Was responsible for the checkout API and helped with performance issues." STRONG: "Cut checkout p95 latency 42% by profiling the payment service and parallelizing token refresh in Node."
+    - WEAK: "Worked on internal tooling that the team used." STRONG: "Built an internal deploy dashboard in React that gave 12 engineers one-click rollbacks, adopted by 3 teams in a quarter."
+    - WEAK: "The marketing team was struggling to keep up with campaign reporting." STRONG: "Automated 6 campaign reports in Looker, replacing 9 hours of weekly manual pulls with a 5-minute dashboard."`;
 
     let bulletFormatRule = "";
     let bulletTailoringRule = "Tailor bullet point wording to match JD keywords.";
-    let bulletImpactRule = "Ensure bullet points are impactful (Action Verb + Context + Result) and concise unless the academic CV layout needs a short descriptive detail line.";
+    let bulletImpactRule = `Ensure bullet points are impactful (Action Verb + Context + Result) and concise.
+    ${actionVerbRule}`;
     let factRule = "Do not invent facts. Rephrase existing profile data to match JD keywords.";
 
     if (styleConfig.promptStyle === "professional") {
         bulletFormatRule = `BULLET FORMAT (CRITICAL — applies to every experience and project):
-    - For EACH experience, write EXACTLY 2 bullet points:
-      1. The problem the company had before I joined. If the target company faces a different problem (per the JOB DESCRIPTION), rewrite this to describe the problem the current company needs solved.
-      2. How I solved that problem using my skills, prioritizing the skills mentioned in the JOB DESCRIPTION.
-    - For EACH project, write EXACTLY 2 bullet points:
-      1. The problem I was solving (rewrite it if needed to match the target company's needs).
-      2. The tools from my skill set I used to fix that issue.
-    - Do NOT add any other bullet points beyond these per entry. Bullets still follow the single-line rule above.`;
+    - For EACH experience, write 2-3 bullet points, ORDERED STRONGEST OUTCOME FIRST:
+      1. The single most impressive, most measurable thing you did. Must contain the strongest result, metric, or scale for this role. If the master resume provides no number, state the concrete scope instead (e.g. team size, users, systems, revenue touched) — never leave the result out.
+      2. A DIFFERENT accomplishment with a DIFFERENT verb, naming the specific tool or skill from my profile you used and the outcome it produced. Prioritize skills named in the JOB DESCRIPTION.
+      3. (Optional, only when you have a genuine leadership/scope/mentorship/ownership accomplishment) Add a third bullet with yet another verb covering scope you owned, people you led, or initiatives you started.
+    - For EACH project, follow the same structure: strongest measurable result first, then the technical approach (specific tool, language, or platform), then optional scope/impact.
+    - NEVER write a bullet whose subject is the company's problem or the situation you walked into. That context may only appear as a short embedded clause inside a verb-led bullet (roughly 8 words or fewer), e.g. "Slashed build times 70% by replacing a flaky CI pipeline after outages hit release cadence."
+    - Do NOT add bullet points beyond these per entry. Bullets still follow the single-line rule above.`;
         bulletTailoringRule = "Bullets follow the BULLET FORMAT above; use JD keywords inside them.";
-        bulletImpactRule = "Follow the BULLET FORMAT above exactly and keep every bullet concise.";
+        bulletImpactRule = "Follow the BULLET FORMAT above exactly and keep every bullet concise.\n    " + actionVerbRule;
     } else if (styleConfig.promptStyle === "faang") {
-        bulletFormatRule = `BULLET FORMAT (CRITICAL — applies to every experience AND every project). Write EXACTLY 3 bullet points per entry:
-      1. The problem the company had before I joined, including a numerical value of how bad the situation was (e.g. % revenue lost, % error rate, hours wasted, users affected). If the master resume has no such number, add a realistic metric that fits the company's size and industry. If the current company faces a different problem (per the JOB DESCRIPTION), rewrite this to describe the problem the company needs solved.
-      2. How I solved that problem using my skills, prioritizing the skills mentioned in the JOB DESCRIPTION.
-      3. The measurable value the solution brought, with a concrete metric (e.g. +X% efficiency, Y hours saved/month, Z% revenue lift). If the master resume does not provide one, estimate a realistic number that fits the context.
+        bulletFormatRule = `BULLET FORMAT (CRITICAL — applies to every experience AND every project). Write EXACTLY 3 bullet points per entry, ORDERED STRONGEST OUTCOME FIRST:
+      1. Your strongest quantified accomplishment: verb + what you built/did + the best metric. Include a numerical value for the outcome (e.g. +X% efficiency, Y hours saved/month, Z% revenue lift). If the master resume does not provide one, estimate a realistic number that fits the context and company size.
+      2. A second accomplishment using a DIFFERENT verb, naming the specific tool/technology/skill and its measurable result. If the master resume has no metric, estimate a realistic one that fits the context.
+      3. Scale and scope: team size, number of users/systems/services touched, budget, or breadth of ownership — still verb-led and still carrying a number or scale figure.
+    - Do NOT spend a bullet narrating the problem the company had before you joined. That context only appears inside a verb-led bullet as a short clause (roughly 8 words or fewer).
     - Do NOT add any other bullet points beyond these. Bullets still follow the single-line rule above; keep numbers compact.`;
         bulletTailoringRule = "Bullets follow the BULLET FORMAT above; use JD keywords inside them.";
-        bulletImpactRule = "Follow the BULLET FORMAT above exactly and keep every bullet concise.";
+        bulletImpactRule = "Follow the BULLET FORMAT above exactly and keep every bullet concise.\n    " + actionVerbRule;
         factRule = "Do not invent facts. Rephrase existing profile data to match JD keywords. (Single exception: the metrics explicitly required by the BULLET FORMAT above may be estimated when the master resume lacks them.)";
     }
 
@@ -521,6 +536,7 @@ async function generateTailoredResume(context, userProfile, jobDescription, resu
     - If the profile clearly includes links, honors/awards, publications, teaching, service, or academic distinctions, include them in the structured fields below.
     - ${bulletRule}
     - ${bulletFormatRule}
+    ${actionVerbExamples}
     - Professional summary: 2-3 sentences max unless the academic CV layout needs a slightly longer profile section.
     
     IMPORTANT:
@@ -713,6 +729,11 @@ function buildAtsScoringRules() {
       - suggestedFix: the concrete edit that fixes it (AI-fixable formatting/wording only).
       - userMustFix: things only the resume owner can resolve (confirm a date, name a missing employer, explain a gap). Empty string when not applicable.
       - userMustFix items must be reported EVEN IF the score is 100.
+    - bulletIssues: a SEPARATE advisory list about bullet quality. It NEVER affects the score, which stays parser-readiness only. Check exactly these two things:
+      - Bullets that do not start with a strong action verb (they begin with a filler phrase like "Responsible for"/"Helped with"/"Worked on", with "I", with a bare noun phrase, or with a description of the situation/problem).
+      - Bullets that state no result: no number, metric, percentage, scale, team size, volume, or time saved.
+    - bulletIssues uses the same field shape as criticalIssues and the same ordering/max-6 limit, but is not restricted to parser-visible problems.
+    - Do not report the same bullet under both lists: a bullet with no action verb AND no result is one bulletIssues entry, not two.
   `;
 }
 
@@ -748,7 +769,8 @@ function normalizeAtsBlock(value, fallbackBefore, fallbackAfter) {
     return {
         before,
         after,
-        criticalIssues: normalizeAtsIssues(value?.criticalIssues)
+        criticalIssues: normalizeAtsIssues(value?.criticalIssues),
+        bulletIssues: normalizeAtsIssues(value?.bulletIssues)
     };
 }
 
@@ -776,6 +798,9 @@ async function refineResumeSource(context, userProfile, answers = []) {
     - Preserve every supported fact from the source somewhere in the refined text: names, contact info, employers, titles, locations, dates, projects, publications, awards, degrees, certifications, skills, links, teaching, service, and research details.
     - Never add or guess metrics, dates, technologies, employers, titles, publications, awards, links, citations, star counts, or claims that are not explicitly supported by the source.
     - You may reorganize content into clearer sections, split dense paragraphs into bullets, normalize wording, and improve readability.
+    - Rewrite every experience/project bullet so it starts with a strong action verb (past tense for prior roles, present tense for the current one). Never leave a bullet starting with "I", a bare noun phrase, a filler opener ("Responsible for", "Helped with", "Worked on", "Assisted in"), or a description of the situation/problem.
+    - Where the source supports it, land a result on the bullet: a number, percentage, scale, volume, team size, or time saved. When the source has no metric, use the concrete scope the source does support (team size, systems, users, volume). Never invent a metric to satisfy this rule; if a strong bullet genuinely has no result available, report it in warnings and in bulletIssues with userMustFix so the owner can supply the number.
+    - Keep each bullet on one line and vary the verbs: aim for at least 10 distinct action verbs across the document.
     - You may rewrite academic or publication-first language into clearer system/project/impact language ONLY when that wording is directly grounded in the source. If the source does not support a stronger claim, keep the conservative wording.
     - Do not tailor this to any job description. This is a reusable master resume source.
     - Use plain text with obvious section headings and bullets. No markdown tables. No code fences.
@@ -806,7 +831,8 @@ async function refineResumeSource(context, userProfile, answers = []) {
       "ats": {
         "before": Number,
         "after": Number,
-        "criticalIssues": [{ "stage": "before|after|both", "issue": "String", "whyFlagged": "String", "suggestedFix": "String", "userMustFix": "String" }]
+        "criticalIssues": [{ "stage": "before|after|both", "issue": "String", "whyFlagged": "String", "suggestedFix": "String", "userMustFix": "String" }],
+        "bulletIssues": [{ "stage": "before|after|both", "issue": "String", "whyFlagged": "String", "suggestedFix": "String", "userMustFix": "String" }]
       }
     }
 
@@ -816,6 +842,7 @@ async function refineResumeSource(context, userProfile, answers = []) {
     - changeSummary should contain 3-8 concise bullets describing the structural or editorial changes you made.
     - aiFilled must list one short entry per unanswered question you filled yourself, naming the gap that was filled. Use [] when none were filled.
     - ats.before scores SOURCE RESUME as-is; ats.after scores the refinedText you return. criticalIssues describe what remains wrong in either (stage before/after/both); issues fully resolved by your rewrite only appear with stage "before" or are omitted.
+    - ats.bulletIssues is advisory and never changes the score: report bullets that lack a leading action verb or lack any result/scale. If your rewrite fixed those bullets, they belong in bulletIssues only with stage "before".
     - Return raw JSON only. Do not wrap it in markdown.
   `;
 
@@ -827,7 +854,7 @@ async function refineResumeSource(context, userProfile, answers = []) {
         throw new Error("Resume refinement returned empty content.");
     }
 
-    let ats = { before: null, after: null, criticalIssues: [] };
+    let ats = { before: null, after: null, criticalIssues: [], bulletIssues: [] };
     if (parsed.ats && typeof parsed.ats === 'object') {
         ats = normalizeAtsBlock(parsed.ats, null, null);
     }
@@ -912,12 +939,14 @@ async function generateAtsCheck(context, userProfile) {
     Return strictly valid JSON with this schema:
     {
       "score": Number,
-      "criticalIssues": [{ "stage": "before", "issue": "String", "whyFlagged": "String", "suggestedFix": "String", "userMustFix": "String" }]
+      "criticalIssues": [{ "stage": "before", "issue": "String", "whyFlagged": "String", "suggestedFix": "String", "userMustFix": "String" }],
+      "bulletIssues": [{ "stage": "before", "issue": "String", "whyFlagged": "String", "suggestedFix": "String", "userMustFix": "String" }]
     }
 
     OUTPUT REQUIREMENTS:
     - score: the ATS parse-readiness of the resume as-is, 0-100.
     - criticalIssues: use stage "before" for every entry (single-document audit).
+    - bulletIssues: also use stage "before" (single-document audit).
     - Return raw JSON only. Do not wrap it in markdown.
   `;
 
@@ -927,7 +956,8 @@ async function generateAtsCheck(context, userProfile) {
 
     return {
         score,
-        criticalIssues: normalizeAtsIssues(parsed.criticalIssues)
+        criticalIssues: normalizeAtsIssues(parsed.criticalIssues),
+        bulletIssues: normalizeAtsIssues(parsed.bulletIssues)
     };
 }
 

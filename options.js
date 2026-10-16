@@ -1288,6 +1288,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const atsAfter = atsData ? atsData.after : null;
     const hasAtsScores = typeof atsBefore === 'number' && typeof atsAfter === 'number';
     const issues = atsData && Array.isArray(atsData.criticalIssues) ? atsData.criticalIssues : [];
+    const bulletIssues = atsData && Array.isArray(atsData.bulletIssues) ? atsData.bulletIssues : [];
 
     function renderListCard(title, items) {
       if (!items.length) return '';
@@ -1322,7 +1323,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="ats-score-summary ${getAtsSummaryClass(atsAfter)}">Before ${atsBefore} &rarr; After ${atsAfter}</div>
         </div>
       </div>
-      ${renderAtsIssuesCard(issues)}` : ''}
+      ${renderAtsIssuesCard(issues)}
+      ${renderBulletIssuesCard(bulletIssues)}` : ''}
       <div class="review-preview-grid">
         <div class="review-preview-column">
           <label>Current resume</label>
@@ -1801,10 +1803,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     requestAnimationFrame(frame);
   }
 
-  function renderAtsIssueRow(item, index) {
+  function renderAtsIssueRow(item, index, key = 'ats') {
     const showStage = item.stage === 'after' || item.stage === 'both';
     const fixHtml = item.suggestedFix
-      ? `<button type="button" class="ghost-btn ats-fix-toggle" data-ats-issue-index="${index}">Fix</button>`
+      ? `<button type="button" class="ghost-btn ats-fix-toggle" data-${key}-issue-index="${index}">Fix</button>`
       : '';
     return `
       <div class="ats-issue-row">
@@ -1816,7 +1818,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
           ${fixHtml}
         </div>
-        ${item.suggestedFix ? `<div class="ats-fix-reveal" data-ats-issue-reveal="${index}" style="display: none;"><em>AI suggested fix</em>${escapeHtml(item.suggestedFix)}</div>` : ''}
+        ${item.suggestedFix ? `<div class="ats-fix-reveal" data-${key}-issue-reveal="${index}" style="display: none;"><em>AI suggested fix</em>${escapeHtml(item.suggestedFix)}</div>` : ''}
         ${item.userMustFix ? `<div class="ats-user-fix"><em>You'll need to</em>${escapeHtml(item.userMustFix)}</div>` : ''}
       </div>
     `;
@@ -1829,15 +1831,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `
       <div class="ats-issues">
         <h4>Critical ATS issues</h4>
-        ${items.map(renderAtsIssueRow).join('')}
+        ${items.map((item, index) => renderAtsIssueRow(item, index, 'ats')).join('')}
+      </div>
+    `;
+  }
+
+  function renderBulletIssuesCard(items) {
+    if (!Array.isArray(items) || !items.length) return '';
+    return `
+      <div class="ats-issues">
+        <h4>Bullet quality (does not affect the score)</h4>
+        ${items.map((item, index) => renderAtsIssueRow(item, index, 'bullet')).join('')}
       </div>
     `;
   }
 
   function wireAtsFixToggles() {
     document.querySelectorAll('.ats-fix-toggle').forEach((btn) => {
-      const index = btn.dataset.atsIssueIndex;
-      const reveal = document.querySelector(`[data-ats-issue-reveal="${index}"]`);
+      const rawKey = (btn.getAttributeNames() || []).find((name) => name.startsWith('data-') && name.endsWith('-issue-index'));
+      if (!rawKey) return;
+      const key = rawKey.slice('data-'.length, -'-issue-index'.length);
+      const index = btn.getAttribute(rawKey);
+      const reveal = document.querySelector(`[data-${key}-issue-reveal="${index}"]`);
       if (!reveal) return;
       btn.addEventListener('click', () => {
         const open = reveal.style.display === 'block';
@@ -1850,6 +1865,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function showAtsResultModal(data) {
     const score = typeof data?.score === 'number' ? data.score : 0;
     const issues = Array.isArray(data?.criticalIssues) ? data.criticalIssues : [];
+    const bulletIssues = Array.isArray(data?.bulletIssues) ? data.bulletIssues : [];
     const cls = getAtsColorClass(score);
 
     atsResultContent.innerHTML = `
@@ -1863,6 +1879,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
       </div>
       ${renderAtsIssuesCard(issues)}
+      ${renderBulletIssuesCard(bulletIssues)}
       <div class="review-actions refine-question-actions">
         <button type="button" class="ghost-btn" id="atsCloseBtn">Close</button>
       </div>
