@@ -2,13 +2,12 @@
 import './cloud-sync.js';
 import { resolveFormAnswers } from './form-profile.js';
 
-// Auto-push local resume changes when user has enabled cloud sync and is signed in.
+// Auto-sync local resume changes when user has enabled cloud sync and is signed in.
 chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== 'local' || !changes.resumes || !globalThis.CloudSync) return;
-    const nextResumes = changes.resumes.newValue;
-    if (!Array.isArray(nextResumes)) return;
+    if (areaName !== 'local' || !globalThis.CloudSync) return;
+    if (!changes.resumes && !changes.deletedResumeIds) return;
     globalThis.CloudSync.init()
-        .then(() => globalThis.CloudSync.onLocalResumesChanged(nextResumes))
+        .then(() => globalThis.CloudSync.onLocalResumesChanged())
         .catch((error) => console.error('[CloudSync] Auto-sync failed:', error));
 });
 
@@ -1058,6 +1057,22 @@ ${tone.body}
 
 // --- Form Filler Pipeline ---
 const FORM_FIELD_LIMIT = 30;
+const ACCESS_CACHE_KEY = 'proAccessCache';
+const ACCESS_CACHE_MAX_AGE_MS = 60 * 60 * 1000;
+
+async function readCachedAccess() {
+    try {
+        const data = await chrome.storage.local.get(ACCESS_CACHE_KEY);
+        const cached = data && data[ACCESS_CACHE_KEY];
+        if (cached && typeof cached.proAccess === 'boolean') {
+            if (Date.now() - (cached.checkedAt || 0) > ACCESS_CACHE_MAX_AGE_MS) return null;
+            return cached;
+        }
+    } catch (err) {
+        console.warn('[FormFill] Could not read cached access:', err);
+    }
+    return null;
+}
 
 async function getFormFillAccess() {
     if (!globalThis.CloudSync || typeof globalThis.CloudSync.getAccessState !== 'function') {
@@ -1069,12 +1084,29 @@ async function getFormFillAccess() {
     try {
         await globalThis.CloudSync.init();
         const access = await globalThis.CloudSync.getAccessState();
-        return {
+        const live = {
             allowed: !!access.proAccess,
             promoActive: !!access.promoActive,
             signedIn: !!access.signedIn,
             isPro: !!access.isPro,
+            resolved: !!access.resolved,
         };
+        if (live.signedIn) return live;
+        if (live.resolved) {
+            try { await chrome.storage.local.remove(ACCESS_CACHE_KEY); } catch (err) { /* ignore */ }
+            return live;
+        }
+        const cached = await readCachedAccess();
+        if (cached && cached.proAccess) {
+            return {
+                allowed: true,
+                promoActive: !!cached.promoActive,
+                signedIn: !!cached.signedIn,
+                isPro: !!cached.isPro,
+                cached: true,
+            };
+        }
+        return live;
     } catch (err) {
         console.warn('[FormFill] Plan check failed:', err);
         return { allowed: true, promoActive: false, signedIn: false, isPro: false, unknown: true };

@@ -45,12 +45,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const cloudAuthStatus = document.getElementById('cloudAuthStatus');
   const cloudManagePlanBtn = document.getElementById('cloudManagePlanBtn');
   const cloudSignOutBtn = document.getElementById('cloudSignOutBtn');
-  const cloudPushBtn = document.getElementById('cloudPushBtn');
-  const cloudRestoreBtn = document.getElementById('cloudRestoreBtn');
-  const cloudRestorePanel = document.getElementById('cloudRestorePanel');
-  const cloudRestorePreview = document.getElementById('cloudRestorePreview');
-  const cloudApplyRestoreBtn = document.getElementById('cloudApplyRestoreBtn');
-  const cloudCancelRestoreBtn = document.getElementById('cloudCancelRestoreBtn');
   const cloudPricingPanel = document.getElementById('cloudPricingPanel');
   const cloudPricingTable = document.getElementById('cloudPricingTable');
   const cloudPricingFallback = document.getElementById('cloudPricingFallback');
@@ -81,7 +75,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
   let activeProvider = 'google';
   let currentlyViewedProvider = 'google';
-  let cloudRestoreDraft = [];
   let providerModels = { google: '', openai: '', anthropic: '', openrouter: '' };
   let customEndpoints = [];
   let activeCustomEndpointId = '';
@@ -161,6 +154,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       lastRefineBackup: '',
       lastRefineAppliedAt: '',
       refineAnswers: [],
+      updatedAt: Date.now(),
       _lastSavedContent: content || '',
       pendingRefine: null
     };
@@ -187,14 +181,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function normalizeResumeEntry(resume, index) {
     const content = typeof resume?.content === 'string' ? resume.content : '';
+    const lastRefineAppliedAt = typeof resume?.lastRefineAppliedAt === 'string' ? resume.lastRefineAppliedAt : '';
+    const explicitUpdatedAt = Number(resume?.updatedAt);
+    const updatedAt = Number.isFinite(explicitUpdatedAt) && explicitUpdatedAt > 0
+      ? explicitUpdatedAt
+      : (Date.parse(lastRefineAppliedAt) || 0);
     return {
       id: typeof resume?.id === 'string' && resume.id.trim() ? resume.id : generateId(),
       label: typeof resume?.label === 'string' && resume.label.trim() ? resume.label : `Resume ${index + 1}`,
       content,
       jsonContent: typeof resume?.jsonContent === 'string' ? resume.jsonContent : '',
       lastRefineBackup: typeof resume?.lastRefineBackup === 'string' ? resume.lastRefineBackup : '',
-      lastRefineAppliedAt: typeof resume?.lastRefineAppliedAt === 'string' ? resume.lastRefineAppliedAt : '',
+      lastRefineAppliedAt,
       refineAnswers: normalizeRefineAnswersList(resume?.refineAnswers),
+      updatedAt,
       _lastSavedContent: content,
       pendingRefine: null
     };
@@ -208,7 +208,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       jsonContent: resume.jsonContent || '',
       lastRefineBackup: resume.lastRefineBackup || '',
       lastRefineAppliedAt: resume.lastRefineAppliedAt || '',
-      refineAnswers: normalizeRefineAnswersList(resume.refineAnswers)
+      refineAnswers: normalizeRefineAnswersList(resume.refineAnswers),
+      updatedAt: Number(resume.updatedAt) || 0
     };
   }
 
@@ -550,9 +551,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           cloudAuthStatus.textContent = 'Free account required';
           cloudAuthStatus.className = 'cloud-status-pill error';
         }
-        if (cloudPushBtn) cloudPushBtn.style.display = canSync ? 'inline-block' : 'none';
-        if (cloudRestoreBtn) cloudRestoreBtn.style.display = canSync ? 'inline-block' : 'none';
         if (cloudManagePlanBtn) cloudManagePlanBtn.textContent = access.proAccess ? 'Upgrade · Manage plan' : 'Upgrade to Pro';
+        if (canSync) runAutoSync();
       } else {
         if (accountSignedIn) accountSignedIn.style.display = 'none';
         if (accountSignedOut) accountSignedOut.style.display = 'flex';
@@ -565,17 +565,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function normalizeCloudResume(doc, index) {
-    return {
-      id: typeof doc.resumeId === 'string' && doc.resumeId ? doc.resumeId : generateId(),
-      label: doc.label || `Resume ${index + 1}`,
-      content: doc.content || '',
-      jsonContent: doc.jsonContent || '',
-      lastRefineBackup: '',
-      lastRefineAppliedAt: '',
-      _lastSavedContent: doc.content || '',
-      pendingRefine: null
-    };
+  let autoSyncRunning = false;
+
+  async function recordDeletedResume(id) {
+    try {
+      const data = await chrome.storage.local.get('deletedResumeIds');
+      const list = Array.isArray(data.deletedResumeIds) ? data.deletedResumeIds : [];
+      list.push({ id, deletedAt: Date.now() });
+      await chrome.storage.local.set({ deletedResumeIds: list.slice(-50) });
+    } catch (error) {
+      console.warn('[CloudSync] Could not record deletion:', error);
+    }
+  }
+
+  async function runAutoSync() {
+    if (autoSyncRunning) return;
+    if (!window.CloudSync || typeof window.CloudSync.syncResumes !== 'function') return;
+    autoSyncRunning = true;
+    try {
+      const result = await window.CloudSync.syncResumes();
+      if (result && result.changed && Array.isArray(result.resumes) && result.resumes.length) {
+        const data = await chrome.storage.local.get('resumes');
+        if (Array.isArray(data.resumes) && data.resumes.length) {
+          resumes = data.resumes.map((resume, index) => normalizeResumeEntry(resume, index));
+          activeTabIndex = Math.min(activeTabIndex, resumes.length - 1);
+          renderTabBar();
+          renderTabContent();
+        }
+        showStatus('Resumes synced with the cloud.', 'success', 3000);
+      }
+    } catch (error) {
+      console.warn('[CloudSync] Auto-sync skipped:', error);
+    } finally {
+      autoSyncRunning = false;
+    }
   }
 
   function sanitizeJsonControlChars(text) {
@@ -655,6 +678,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     resume.lastRefineBackup = resume.content;
     resume.lastRefineAppliedAt = new Date().toISOString();
+    resume.updatedAt = Date.now();
     resume.content = resume.pendingRefine.refinedText;
     mergeRefineAnswers(resume, resume.pendingRefine.answers);
     resume.pendingRefine = null;
@@ -681,6 +705,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         throw new Error(response?.message || 'Unknown extraction error');
       }
       resume.jsonContent = formatExtractedJson(response.data);
+      resume.updatedAt = Date.now();
       await setLocalStorage({ resumes: getPersistedResumes() });
       resume._lastSavedContent = resume.content;
       return resume.jsonContent;
@@ -1115,70 +1140,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  if (cloudPushBtn) {
-    cloudPushBtn.addEventListener('click', async () => {
-      try {
-        saveCurrentTabToState();
-        await commitViewedProviderCredentials();
-        const storedCredentials = await getStoredProviderCredentials();
-        await setLocalStorage(getSettingsPayload(storedCredentials));
-        if (!window.CloudSync) throw new Error('Pro service failed to load.');
-        showStatus('Pushing resumes to cloud...', 'loading', 0);
-        await window.CloudSync.init();
-        await window.CloudSync.pushAllResumes(getPersistedResumes());
-        showStatus('Resumes pushed to cloud.', 'success', 5000);
-        await updateCloudStatus();
-      } catch (error) {
-        showStatus(`Cloud push failed: ${error.message}`, 'error', 7000);
-      }
-    });
-  }
-
-  if (cloudRestoreBtn) {
-    cloudRestoreBtn.addEventListener('click', async () => {
-      try {
-        if (!window.CloudSync) throw new Error('Pro service failed to load.');
-        showStatus('Loading cloud resumes...', 'loading', 0);
-        await window.CloudSync.init();
-        const cloudDocs = await window.CloudSync.pullAllResumes();
-        cloudRestoreDraft = cloudDocs.map(normalizeCloudResume);
-        if (!cloudRestoreDraft.length) {
-          showStatus('No cloud resumes found.', 'info', 4000);
-          return;
-        }
-        if (accountCard) accountCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        cloudRestorePreview.value = JSON.stringify(cloudRestoreDraft.map(serializeResumeEntry), null, 2);
-        cloudRestorePanel.style.display = 'block';
-        showStatus('Review cloud resumes before replacing local data.', 'info', 5000);
-      } catch (error) {
-        showStatus(`Restore failed: ${error.message}`, 'error', 7000);
-      }
-    });
-  }
-
-  if (cloudApplyRestoreBtn) {
-    cloudApplyRestoreBtn.addEventListener('click', async () => {
-      if (!cloudRestoreDraft.length) return;
-      if (!confirm('Replace local resumes with cloud resumes? This changes local storage.')) return;
-      resumes = cloudRestoreDraft.map((resume, index) => normalizeResumeEntry(resume, index)).slice(0, 3);
-      activeTabIndex = 0;
-      await setLocalStorage({ resumes: getPersistedResumes() });
-      cloudRestorePanel.style.display = 'none';
-      cloudRestoreDraft = [];
-      renderTabBar();
-      renderTabContent();
-      showStatus('Local resumes replaced with cloud data.', 'success', 5000);
-    });
-  }
-
-  if (cloudCancelRestoreBtn) {
-    cloudCancelRestoreBtn.addEventListener('click', () => {
-      cloudRestoreDraft = [];
-      cloudRestorePanel.style.display = 'none';
-      cloudRestorePreview.value = '';
-    });
-  }
-
   if (data.resumes && data.resumes.length > 0) {
     resumes = data.resumes.map((resume, index) => normalizeResumeEntry(resume, index));
   } else if (data.userProfile) {
@@ -1192,6 +1153,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!resumes.length) {
     resumes = [createResumeEntry('Resume 1', '')];
   }
+
+  runAutoSync();
 
   // --- Form Filler setup (Application Questions) ---
   fillAppProfileForm(data.applicationProfile || null);
@@ -1275,18 +1238,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function saveCurrentTabToState() {
     const resume = getActiveResume();
+    if (!resume) return;
+    let dirty = false;
     const labelInput = document.getElementById('resumeLabelInput');
-    if (labelInput && resume) {
-      resume.label = labelInput.value.trim() || `Resume ${activeTabIndex + 1}`;
+    if (labelInput) {
+      const nextLabel = labelInput.value.trim() || `Resume ${activeTabIndex + 1}`;
+      if (nextLabel !== resume.label) {
+        resume.label = nextLabel;
+        dirty = true;
+      }
     }
     const contentTextarea = document.getElementById('resumeContentTextarea');
-    if (contentTextarea) {
+    if (contentTextarea && contentTextarea.value !== resume.content) {
       resume.content = contentTextarea.value;
+      dirty = true;
     }
     const jsonTextarea = document.getElementById('resumeJsonTextarea');
-    if (jsonTextarea) {
+    if (jsonTextarea && jsonTextarea.value !== resume.jsonContent) {
       resume.jsonContent = jsonTextarea.value;
+      dirty = true;
     }
+    if (dirty) resume.updatedAt = Date.now();
   }
 
   function setEditorMode(mode) {
@@ -1427,12 +1399,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       addBtn.className = 'add-tab-btn';
       addBtn.textContent = '+';
       addBtn.title = 'Add a new resume (max 3)';
-      addBtn.addEventListener('click', () => {
+      addBtn.addEventListener('click', async () => {
         saveCurrentTabToState();
         resumes.push(createResumeEntry(`Resume ${resumes.length + 1}`, ''));
         activeTabIndex = resumes.length - 1;
+        await setLocalStorage({ resumes: getPersistedResumes() });
         renderTabBar();
         renderTabContent();
+        runAutoSync();
       });
       tabBar.appendChild(addBtn);
     }
@@ -1497,14 +1471,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const deleteBtn = document.getElementById('deleteTabBtn');
     if (deleteBtn) {
-      deleteBtn.addEventListener('click', () => {
+      deleteBtn.addEventListener('click', async () => {
         if (resumes.length <= 1) return;
-        const label = resumes[activeTabIndex].label || `Resume ${activeTabIndex + 1}`;
+        const target = resumes[activeTabIndex];
+        const label = target.label || `Resume ${activeTabIndex + 1}`;
         if (!confirm(`Delete "${label}"? This cannot be undone.`)) return;
+        await recordDeletedResume(target.id);
         resumes.splice(activeTabIndex, 1);
         if (activeTabIndex >= resumes.length) activeTabIndex = resumes.length - 1;
+        await setLocalStorage({ resumes: getPersistedResumes() });
         renderTabBar();
         renderTabContent();
+        runAutoSync();
       });
     }
 
@@ -1568,6 +1546,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     resume.content = resume.lastRefineBackup;
     resume.lastRefineBackup = '';
     resume.lastRefineAppliedAt = '';
+    resume.updatedAt = Date.now();
     renderTabBar();
     renderTabContent();
     showStatus('Original resume restored. Click Save Settings to persist.', 'info', 4500);

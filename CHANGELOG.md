@@ -11,6 +11,41 @@ Notes on history:
 
 ---
 
+## [8.9] — 2026-10-16
+
+### Fixed
+
+- **Signed-out users no longer show a stale Pro state.** The `proAccessCache` written while signed in was only cleared on an explicit sign-out, so a session that expired server-side left a stale "Pro" badge and an open Form Filler gate behind. The Pro-access cache is now age-bounded (60 min) and is cleared as soon as the Clerk client gives a definitive signed-out answer (a `resolved` flag distinguishes a real sign-out from a still-initializing service worker).
+
+### Changed
+
+- **Sessions stay active longer.** The Clerk instance's maximum session lifetime was raised from 7 days to 10 years (dev; prod is gated on a paid Clerk plan), so users stay signed in until they sign out.
+- Added a Clerk `addListener` hook that removes the access cache the moment the session ends, and applied the same staleness guard to the Job Tracker's first-paint plan cache.
+
+---
+
+## [8.8] — 2026-09-28
+
+### Added
+
+- **Automatic two-way resume cloud sync.** Signed-in users no longer push or restore manually: resumes merge automatically on Settings load, after sign-in, and on every local edit. Same-`id` resumes resolve by last-write-wins on `updatedAt`; cloud-only resumes are restored locally and local-only resumes are pushed up. Local-only metadata (`refineAnswers`, `lastRefineBackup`) is preserved when the cloud version wins.
+
+### Changed
+
+- Removed the manual **Push Local to Cloud** / **Restore from Cloud** buttons and the restore preview panel; the signed-in account card now notes that resumes sync automatically.
+- Resume deletion now propagates to the cloud via delete tombstones, so auto-restore never resurrects a deleted resume. Orphan deletion on push was removed in favor of explicit tombstones.
+- Resumes gained a persisted `updatedAt` timestamp; legacy resumes fall back to `lastRefineAppliedAt`.
+
+### Fixed
+
+- The "Auto-capture jobs" info tooltip on Settings was painted beneath the Form Filler Setup card (the details panel's stacking context covered it); the toggle row now stacks above it.
+
+## [8.7] — 2026-09-27
+
+### Fixed
+
+- Form Filler showed the upgrade card ("Every Pro feature free until Oct 31 / Create free account") to signed-in Pro and launch-trial users. The Pro check runs in the background service worker, whose Clerk client could report signed-out even though the page contexts (Job Tracker, Settings) saw the session. Access now falls back to the last signed-in resolution cached in `proAccessCache`, and the worker rebuilds its Clerk client once when it initialised before sign-in.
+
 ## [8.6] — 2026-09-27
 
 ### Added

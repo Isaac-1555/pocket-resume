@@ -1023,26 +1023,6 @@
       display: none;
     }
 
-    .cloud-restore-panel {
-      padding: 10px;
-      border: 1px solid var(--orange-border);
-      border-radius: var(--radius-sm);
-      background: var(--orange-fill);
-      display: none;
-    }
-
-    .cloud-restore-panel textarea {
-      height: 120px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 11px;
-    }
-
-    .cloud-restore-panel p {
-      margin: 0 0 6px;
-      color: var(--text-dim);
-      font-size: 11px;
-    }
-
     .cloud-pricing-panel-header {
       display: flex;
       align-items: flex-start;
@@ -1080,6 +1060,7 @@
 
     .tracker-toggle-row {
       position: relative;
+      z-index: 51;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -2170,10 +2151,7 @@
             <button type="button" id="cloudManagePlanBtn" class="secondary-action-btn">Upgrade · Manage plan</button>
             <button type="button" id="cloudSignOutBtn" class="ghost-btn">Sign out</button>
           </div>
-          <div class="cloud-actions">
-            <button type="button" id="cloudPushBtn" class="secondary-action-btn">Push Local to Cloud</button>
-            <button type="button" id="cloudRestoreBtn" class="accent-btn">Restore from Cloud</button>
-          </div>
+          <p class="account-footnote" id="cloudSyncNote">Resumes sync automatically to the cloud.</p>
         </div>
 
         <div id="cloudPricingPanel" class="cloud-pricing-panel">
@@ -2186,15 +2164,6 @@
           </div>
           <div id="cloudPricingFallback" class="cloud-pricing-fallback"></div>
           <div id="cloudPricingTable" class="cloud-pricing-table"></div>
-        </div>
-
-        <div id="cloudRestorePanel" class="cloud-restore-panel">
-          <p>Cloud resumes found. Review below, then replace local resumes if correct.</p>
-          <textarea id="cloudRestorePreview" readonly></textarea>
-          <div class="cloud-actions">
-            <button type="button" id="cloudApplyRestoreBtn" class="success-btn">Replace Local with Cloud</button>
-            <button type="button" id="cloudCancelRestoreBtn" class="ghost-btn">Cancel</button>
-          </div>
         </div>
       </div>
 

@@ -11,6 +11,10 @@
     cloudSyncStatus: 'cloudSyncStatus',
   };
 
+  const ACCESS_CACHE_KEY = 'proAccessCache';
+  const DELETED_KEY = 'deletedResumeIds';
+  const MAX_RESUMES = 3;
+
   const CLOUD_CONFIG = {
     clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY || '',
     convexUrl: process.env.CONVEX_URL || '',
@@ -35,6 +39,8 @@
   let isInitialized = false;
   let syncInProgress = false;
   let authInfo = null;
+  let clerkRebuildAt = 0;
+  let cacheListenerBound = false;
 
   const EXTENSION_URL = chrome.runtime.getURL('.');
   const OPTIONS_URL = EXTENSION_URL + 'options.html';
@@ -73,8 +79,46 @@
     return plans.includes(plan) || plans.some((p) => features.includes(p));
   }
 
-  async function getAccessState() {
+  async function ensureClerkUser() {
     await init();
+    if (clerkClient && clerkClient.user) return;
+    if (typeof document !== 'undefined') return;
+    if (Date.now() - clerkRebuildAt < 5000) return;
+    clerkRebuildAt = Date.now();
+    clerkClient = null;
+    convexClient = null;
+    authInfo = null;
+    await init();
+  }
+
+  function persistAccessCache(state) {
+    if (!state || !state.signedIn) return;
+    try {
+      chrome.storage.local.set({ [ACCESS_CACHE_KEY]: { ...state, checkedAt: Date.now() } });
+    } catch (err) {
+      console.warn('[CloudSync] Could not cache access state:', err);
+    }
+  }
+
+  function bindCacheInvalidation() {
+    if (cacheListenerBound) return;
+    if (!clerkClient || typeof clerkClient.addListener !== 'function') return;
+    cacheListenerBound = true;
+    try {
+      clerkClient.addListener(({ user }) => {
+        if (!user) {
+          chrome.storage.local.remove(ACCESS_CACHE_KEY);
+        } else {
+          getAccessState().catch(() => {});
+        }
+      });
+    } catch (err) {
+      console.warn('[CloudSync] Could not bind Clerk cache invalidation listener:', err);
+    }
+  }
+
+  async function getAccessState() {
+    await ensureClerkUser();
     const promoActive = isPromoTrialActive();
     if (!clerkClient || !clerkClient.user) {
       return {
@@ -84,19 +128,23 @@
         promoActive,
         cloudSyncAccess: false,
         proAccess: false,
+        resolved: !!clerkClient,
       };
     }
     const proPlans = [CLOUD_CONFIG.requiredPlan, ...CLOUD_CONFIG.legacyPlans];
     const isPro = userMatchesPlan(proPlans);
     const isFreeSubscriber = isPro || userMatchesPlan([CLOUD_CONFIG.freePlan]);
-    return {
+    const state = {
       signedIn: true,
       isFreeSubscriber,
       isPro,
       promoActive,
       cloudSyncAccess: isFreeSubscriber,
       proAccess: isPro || (promoActive && isFreeSubscriber),
+      resolved: true,
     };
+    persistAccessCache(state);
+    return state;
   }
 
   async function hasCloudSyncAccess() {
@@ -205,6 +253,7 @@
       }
 
       authInfo = buildAuthInfo();
+      bindCacheInvalidation();
 
       console.log('[CloudSync] Clerk initialized');
       return clerkClient;
@@ -310,6 +359,11 @@
   }
 
   async function signOut() {
+    try {
+      chrome.storage.local.remove(ACCESS_CACHE_KEY);
+    } catch (err) {
+      console.warn('[CloudSync] Could not clear access cache:', err);
+    }
     if (!clerkClient) return;
     await clerkClient.signOut({ redirectUrl: OPTIONS_URL });
   }
@@ -324,9 +378,8 @@
     }
 
     try {
-      const updatedAt = resume.lastRefineAppliedAt
-        ? new Date(resume.lastRefineAppliedAt).getTime()
-        : Date.now();
+      const ts = Number(resume.updatedAt);
+      const updatedAt = Number.isFinite(ts) && ts > 0 ? ts : Date.now();
 
       await convexClient.mutation('resumes:upsert', {
         resumeId: resume.id,
@@ -355,18 +408,6 @@
     notifySyncStatus('syncing');
 
     try {
-      const localIds = new Set((resumes || []).map(r => r.id));
-
-      const cloudResumes = await convexClient.query('resumes:list', {});
-      const orphanIds = cloudResumes
-        .map(r => r.resumeId)
-        .filter(id => !localIds.has(id));
-
-      for (const id of orphanIds) {
-        await convexClient.mutation('resumes:remove', { resumeId: id });
-        console.log('[CloudSync] Deleted orphan cloud resume:', id);
-      }
-
       if (resumes && resumes.length > 0) {
         for (const resume of resumes) {
           await pushResume(resume);
@@ -415,6 +456,166 @@
     }
   }
 
+  // --- Bidirectional auto-sync ---
+  function cloudToLocal(doc) {
+    return {
+      id: doc.resumeId,
+      label: doc.label || 'Resume',
+      content: doc.content || '',
+      jsonContent: doc.jsonContent || '',
+      lastRefineBackup: '',
+      lastRefineAppliedAt: '',
+      refineAnswers: [],
+      updatedAt: Number(doc.updatedAt) || 0,
+    };
+  }
+
+  function resumeUpdatedAt(resume) {
+    const n = Number(resume && resume.updatedAt);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function sameResumeSets(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b)) return false;
+    if (a.length !== b.length) return false;
+    const byId = new Map(b.map((r) => [r.id, r]));
+    for (const r of a) {
+      const o = byId.get(r.id);
+      if (!o) return false;
+      if ((r.label || '') !== (o.label || '')) return false;
+      if ((r.content || '') !== (o.content || '')) return false;
+      if ((r.jsonContent || '') !== (o.jsonContent || '')) return false;
+    }
+    return true;
+  }
+
+  function tombstonesToObject(entries) {
+    return entries.map(([id, deletedAt]) => ({ id, deletedAt }));
+  }
+
+  async function syncResumes() {
+    if (!convexClient) return { changed: false, resumes: [] };
+    if (syncInProgress) return { changed: false, resumes: [] };
+    if (!(await hasCloudSyncAccess())) return { changed: false, resumes: [] };
+
+    syncInProgress = true;
+    notifySyncStatus('syncing');
+
+    try {
+      const stored = await chrome.storage.local.get(['resumes', DELETED_KEY]);
+      const localResumes = Array.isArray(stored.resumes) ? stored.resumes : [];
+      const tombstoneEntries = Array.isArray(stored[DELETED_KEY]) ? stored[DELETED_KEY] : [];
+      const tombstoneAt = new Map(
+        tombstoneEntries
+          .filter((entry) => entry && typeof entry.id === 'string')
+          .map((entry) => [entry.id, Number(entry.deletedAt) || 0])
+      );
+
+      const cloud = (await convexClient.query('resumes:list', {})) || [];
+      const cloudById = new Map(cloud.map((doc) => [doc.resumeId, doc]));
+      const localById = new Map(localResumes.map((resume) => [resume.id, resume]));
+
+      const toPush = [];
+      const toDelete = new Set();
+      const remainingTombstones = new Map(tombstoneAt);
+      const merged = [];
+
+      for (const local of localResumes) {
+        const cloudDoc = cloudById.get(local.id);
+        const cloudAt = cloudDoc ? (Number(cloudDoc.updatedAt) || 0) : 0;
+        const deletedAt = tombstoneAt.get(local.id);
+
+        if (deletedAt) {
+          if (!cloudDoc || deletedAt >= cloudAt) {
+            if (cloudDoc) toDelete.add(local.id);
+            remainingTombstones.delete(local.id);
+            continue;
+          }
+          remainingTombstones.delete(local.id);
+        }
+
+        const isBlank = !(local.content || '').trim() && !(local.jsonContent || '').trim();
+        if (isBlank && !cloudDoc && localResumes.length === 1 && cloud.length > 0) {
+          continue;
+        }
+
+        if (cloudDoc && cloudAt > resumeUpdatedAt(local)) {
+          merged.push({
+            ...cloudToLocal(cloudDoc),
+            lastRefineBackup: local.lastRefineBackup || '',
+            refineAnswers: Array.isArray(local.refineAnswers) ? local.refineAnswers : [],
+          });
+        } else {
+          merged.push(local);
+          if (!cloudDoc || resumeUpdatedAt(local) > cloudAt) toPush.push(local);
+        }
+      }
+
+      for (const doc of cloud) {
+        if (localById.has(doc.resumeId)) continue;
+        const deletedAt = tombstoneAt.get(doc.resumeId);
+        if (deletedAt) {
+          const cloudAt = Number(doc.updatedAt) || 0;
+          remainingTombstones.delete(doc.resumeId);
+          if (deletedAt >= cloudAt) {
+            toDelete.add(doc.resumeId);
+            continue;
+          }
+        }
+        merged.push(cloudToLocal(doc));
+      }
+
+      merged.sort((a, b) => resumeUpdatedAt(b) - resumeUpdatedAt(a));
+      const limited = merged.slice(0, MAX_RESUMES);
+      for (const dropped of merged.slice(MAX_RESUMES)) {
+        if (cloudById.has(dropped.id)) toDelete.add(dropped.id);
+      }
+
+      for (const id of toDelete) {
+        try {
+          await convexClient.mutation('resumes:remove', { resumeId: id });
+        } catch (err) {
+          console.error('[CloudSync] Cloud delete failed:', err);
+        }
+      }
+
+      for (const resume of toPush) {
+        if (limited.some((r) => r.id === resume.id)) {
+          await pushResume(resume);
+        }
+      }
+
+      const changed = !sameResumeSets(localResumes, limited);
+      const persistedTombstones = tombstonesToObject(
+        [...remainingTombstones.entries()].filter(([id]) => localById.has(id) || cloudById.has(id))
+      );
+      if (changed) {
+        const persisted = limited.map((r) => ({
+          id: r.id,
+          label: r.label,
+          content: r.content || '',
+          jsonContent: r.jsonContent || '',
+          lastRefineBackup: r.lastRefineBackup || '',
+          lastRefineAppliedAt: r.lastRefineAppliedAt || '',
+          refineAnswers: Array.isArray(r.refineAnswers) ? r.refineAnswers : [],
+          updatedAt: resumeUpdatedAt(r),
+        }));
+        await chrome.storage.local.set({ resumes: persisted, [DELETED_KEY]: persistedTombstones });
+      } else if (persistedTombstones.length !== tombstoneEntries.length) {
+        await chrome.storage.local.set({ [DELETED_KEY]: persistedTombstones });
+      }
+
+      notifySyncStatus('synced');
+      return { changed, resumes: limited };
+    } catch (err) {
+      console.error('[CloudSync] Sync failed:', err);
+      notifySyncStatus('error');
+      return { changed: false, resumes: [] };
+    } finally {
+      syncInProgress = false;
+    }
+  }
+
   // --- Auto-sync hook ---
   let syncDebounceTimer = null;
 
@@ -424,13 +625,13 @@
     chrome.storage.local.set(obj);
   }
 
-  async function onLocalResumesChanged(resumes) {
+  async function onLocalResumesChanged() {
     if (!clerkClient || !clerkClient.user) return;
     if (syncInProgress) return;
 
     if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
     syncDebounceTimer = setTimeout(() => {
-      pushAllResumes(resumes);
+      syncResumes();
     }, 2000);
   }
 
@@ -456,6 +657,7 @@
     pushAllResumes,
     pullAllResumes,
     deleteCloudResume,
+    syncResumes,
     onLocalResumesChanged,
   };
 })();
