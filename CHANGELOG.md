@@ -11,6 +11,19 @@ Notes on history:
 
 ---
 
+## [8.9] — 2026-10-16
+
+### Fixed
+
+- **Signed-out users no longer show a stale Pro state.** The `proAccessCache` written while signed in was only cleared on an explicit sign-out, so a session that expired server-side left a stale "Pro" badge and an open Form Filler gate behind. The Pro-access cache is now age-bounded (60 min) and is cleared as soon as the Clerk client gives a definitive signed-out answer (a `resolved` flag distinguishes a real sign-out from a still-initializing service worker).
+
+### Changed
+
+- **Sessions stay active longer.** The Clerk instance's maximum session lifetime was raised from 7 days to 10 years (dev; prod is gated on a paid Clerk plan), so users stay signed in until they sign out.
+- Added a Clerk `addListener` hook that removes the access cache the moment the session ends, and applied the same staleness guard to the Job Tracker's first-paint plan cache.
+
+---
+
 ## [8.8] — 2026-09-28
 
 ### Added

@@ -40,6 +40,7 @@
   let syncInProgress = false;
   let authInfo = null;
   let clerkRebuildAt = 0;
+  let cacheListenerBound = false;
 
   const EXTENSION_URL = chrome.runtime.getURL('.');
   const OPTIONS_URL = EXTENSION_URL + 'options.html';
@@ -99,6 +100,23 @@
     }
   }
 
+  function bindCacheInvalidation() {
+    if (cacheListenerBound) return;
+    if (!clerkClient || typeof clerkClient.addListener !== 'function') return;
+    cacheListenerBound = true;
+    try {
+      clerkClient.addListener(({ user }) => {
+        if (!user) {
+          chrome.storage.local.remove(ACCESS_CACHE_KEY);
+        } else {
+          getAccessState().catch(() => {});
+        }
+      });
+    } catch (err) {
+      console.warn('[CloudSync] Could not bind Clerk cache invalidation listener:', err);
+    }
+  }
+
   async function getAccessState() {
     await ensureClerkUser();
     const promoActive = isPromoTrialActive();
@@ -110,6 +128,7 @@
         promoActive,
         cloudSyncAccess: false,
         proAccess: false,
+        resolved: !!clerkClient,
       };
     }
     const proPlans = [CLOUD_CONFIG.requiredPlan, ...CLOUD_CONFIG.legacyPlans];
@@ -122,6 +141,7 @@
       promoActive,
       cloudSyncAccess: isFreeSubscriber,
       proAccess: isPro || (promoActive && isFreeSubscriber),
+      resolved: true,
     };
     persistAccessCache(state);
     return state;
@@ -233,6 +253,7 @@
       }
 
       authInfo = buildAuthInfo();
+      bindCacheInvalidation();
 
       console.log('[CloudSync] Clerk initialized');
       return clerkClient;

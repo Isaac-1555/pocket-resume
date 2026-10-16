@@ -8,6 +8,7 @@ const STORAGE_KEYS = [
 ];
 
 const PLAN_CHECK_TIMEOUT_MS = 4000;
+const PLAN_CACHE_MAX_AGE_MS = 60 * 60 * 1000;
 
 const COLUMNS = ['saved', 'applied', 'interview', 'offer', 'rejected', 'withdrawn'];
 
@@ -152,7 +153,7 @@ async function init() {
   const tourSeen = !!data.trackerTourSeen;
 
   const cached = data.trackerPlanCache;
-  if (cached && typeof cached.proAccess === 'boolean') {
+  if (cached && typeof cached.proAccess === 'boolean' && Date.now() - (cached.checkedAt || 0) <= PLAN_CACHE_MAX_AGE_MS) {
     accessInfo.proAccess = cached.proAccess;
     accessInfo.isPro = !!cached.isPro;
     accessInfo.promoActive = !!cached.promoActive;

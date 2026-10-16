@@ -558,8 +558,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '8.8';
-  const ANNOUNCEMENT_SEEN_VALUE = '8.8';
+  const ANNOUNCEMENT_VERSION = '8.9';
+  const ANNOUNCEMENT_SEEN_VALUE = '8.9';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {

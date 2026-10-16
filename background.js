@@ -1058,12 +1058,16 @@ ${tone.body}
 // --- Form Filler Pipeline ---
 const FORM_FIELD_LIMIT = 30;
 const ACCESS_CACHE_KEY = 'proAccessCache';
+const ACCESS_CACHE_MAX_AGE_MS = 60 * 60 * 1000;
 
 async function readCachedAccess() {
     try {
         const data = await chrome.storage.local.get(ACCESS_CACHE_KEY);
         const cached = data && data[ACCESS_CACHE_KEY];
-        if (cached && typeof cached.proAccess === 'boolean') return cached;
+        if (cached && typeof cached.proAccess === 'boolean') {
+            if (Date.now() - (cached.checkedAt || 0) > ACCESS_CACHE_MAX_AGE_MS) return null;
+            return cached;
+        }
     } catch (err) {
         console.warn('[FormFill] Could not read cached access:', err);
     }
@@ -1085,8 +1089,13 @@ async function getFormFillAccess() {
             promoActive: !!access.promoActive,
             signedIn: !!access.signedIn,
             isPro: !!access.isPro,
+            resolved: !!access.resolved,
         };
         if (live.signedIn) return live;
+        if (live.resolved) {
+            try { await chrome.storage.local.remove(ACCESS_CACHE_KEY); } catch (err) { /* ignore */ }
+            return live;
+        }
         const cached = await readCachedAccess();
         if (cached && cached.proAccess) {
             return {
