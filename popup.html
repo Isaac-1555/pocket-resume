@@ -184,55 +184,73 @@
     }
 
     /* ============================
-       Horizon Glow Line
+       Horizon Glow — bloom behind content, hairline across it
        ============================ */
-    .glow-line {
+    .glow-bloom {
       position: absolute;
       left: 0;
       right: 0;
       top: 50%;
-      height: 72px;
+      height: 260px;
       z-index: 1;
       pointer-events: none;
-      opacity: 0.38;
-      transform: translateY(-50%) scaleX(var(--line-s, 0.55));
+      opacity: 0.55;
+      transform: translateY(-50%) scaleX(var(--line-s, 0.72));
       transform-origin: 50% 50%;
-      background: radial-gradient(ellipse 64% 46% at 50% 50%,
+      background: radial-gradient(ellipse 72% 50% at 50% 50%,
         rgba(var(--line-c), 0.55),
-        rgba(var(--line-c), 0.16) 58%,
-        transparent 80%);
+        rgba(var(--line-c), 0.2) 52%,
+        rgba(var(--line-c), 0.05) 74%,
+        transparent 88%);
+      filter: blur(10px);
       transition: transform 700ms var(--ease), opacity 700ms var(--ease);
     }
 
-    /* Bright hairline core — reads as a line wherever the backdrop is clear */
-    .glow-line::after {
-      content: "";
+    .glow-line {
       position: absolute;
       left: 0;
       right: 0;
       top: 50%;
       height: 1px;
       transform: translateY(-50%);
+      z-index: 3;
+      pointer-events: none;
+      opacity: 0.9;
       background: linear-gradient(90deg,
-        transparent,
-        rgba(var(--line-c), 0.95) 50%,
-        transparent);
-      box-shadow: 0 0 12px 2px rgba(var(--line-c), 0.5);
+        rgba(var(--line-c), 0.4) 0%,
+        rgba(var(--line-c), 0.8) 20%,
+        rgba(var(--line-c), 1) 50%,
+        rgba(var(--line-c), 0.8) 80%,
+        rgba(var(--line-c), 0.4) 100%);
+      box-shadow:
+        0 0 8px 1px rgba(var(--line-c), 0.55),
+        0 0 24px 6px rgba(var(--line-c), 0.35),
+        0 0 60px 18px rgba(var(--line-c), 0.22);
+      transition: opacity 700ms var(--ease), box-shadow 700ms var(--ease);
     }
 
-    body[data-status="generating"] .glow-line,
-    body[data-fill-status="filling"] .glow-line {
+    body[data-status="generating"] .glow-bloom,
+    body[data-fill-status="filling"] .glow-bloom {
       --line-s: 1;
       opacity: 0.95;
       animation: linePulse 1.6s ease-in-out infinite;
     }
 
+    body[data-status="success"] .glow-bloom,
+    body[data-status="failure"] .glow-bloom,
+    body[data-fill-status="fill-success"] .glow-bloom,
+    body[data-fill-status="fill-failure"] .glow-bloom {
+      --line-s: 1;
+      opacity: 0.85;
+    }
+
+    body[data-status="generating"] .glow-line,
+    body[data-fill-status="filling"] .glow-line,
     body[data-status="success"] .glow-line,
     body[data-status="failure"] .glow-line,
     body[data-fill-status="fill-success"] .glow-line,
     body[data-fill-status="fill-failure"] .glow-line {
-      --line-s: 1;
-      opacity: 0.9;
+      opacity: 1;
     }
 
     @keyframes linePulse {
@@ -1342,6 +1360,7 @@
   <link rel="stylesheet" href="feature-video.css">
 </head>
 <body data-status="idle">
+  <div class="glow-bloom" aria-hidden="true"></div>
   <div class="glow-line" aria-hidden="true"></div>
   <header class="app-header">
     <div class="header-side header-left">
