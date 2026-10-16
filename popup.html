@@ -36,12 +36,25 @@
       --accent-red-border: rgba(255, 86, 86, 0.45);
 
       --glow-idle: 20, 20, 22;
+      --line-idle: 139, 92, 246;
       --glow-generating: 56, 132, 255;
       --glow-success: 43, 214, 132;
       --glow-failure: 255, 86, 86;
       --glow-filling: 244, 147, 59;
 
       --ease: 180ms ease;
+
+      /* Spacing scale */
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+
+      /* Radii + shared interactive row height */
+      --radius-card: 16px;
+      --radius-ctl: 10px;
+      --row-h: 45px;
     }
 
     * { box-sizing: border-box; }
@@ -83,39 +96,46 @@
       --glow-c: var(--glow-idle);
       --glow-o: 0.55;
       --wash-o: 0.10;
+      --line-c: var(--line-idle);
     }
 
     body[data-status="generating"] {
+      --line-c: var(--glow-generating);
       --glow-c: var(--glow-generating);
       --glow-o: 1;
       --wash-o: 0.32;
     }
 
     body[data-status="success"] {
+      --line-c: var(--glow-success);
       --glow-c: var(--glow-success);
       --glow-o: 1;
       --wash-o: 0.32;
     }
 
     body[data-status="failure"] {
+      --line-c: var(--glow-failure);
       --glow-c: var(--glow-failure);
       --glow-o: 1;
       --wash-o: 0.32;
     }
 
     body[data-fill-status="filling"] {
+      --line-c: var(--glow-filling);
       --glow-c: var(--glow-filling);
       --glow-o: 1;
       --wash-o: 0.32;
     }
 
     body[data-fill-status="fill-success"] {
+      --line-c: var(--glow-success);
       --glow-c: var(--glow-success);
       --glow-o: 1;
       --wash-o: 0.32;
     }
 
     body[data-fill-status="fill-failure"] {
+      --line-c: var(--glow-failure);
       --glow-c: var(--glow-failure);
       --glow-o: 1;
       --wash-o: 0.32;
@@ -163,6 +183,63 @@
       to   { opacity: 0.9; }
     }
 
+    /* ============================
+       Horizon Glow Line
+       ============================ */
+    .glow-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 72px;
+      z-index: 1;
+      pointer-events: none;
+      opacity: 0.38;
+      transform: translateY(-50%) scaleX(var(--line-s, 0.55));
+      transform-origin: 50% 50%;
+      background: radial-gradient(ellipse 64% 46% at 50% 50%,
+        rgba(var(--line-c), 0.55),
+        rgba(var(--line-c), 0.16) 58%,
+        transparent 80%);
+      transition: transform 700ms var(--ease), opacity 700ms var(--ease);
+    }
+
+    /* Bright hairline core — reads as a line wherever the backdrop is clear */
+    .glow-line::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 1px;
+      transform: translateY(-50%);
+      background: linear-gradient(90deg,
+        transparent,
+        rgba(var(--line-c), 0.95) 50%,
+        transparent);
+      box-shadow: 0 0 12px 2px rgba(var(--line-c), 0.5);
+    }
+
+    body[data-status="generating"] .glow-line,
+    body[data-fill-status="filling"] .glow-line {
+      --line-s: 1;
+      opacity: 0.95;
+      animation: linePulse 1.6s ease-in-out infinite;
+    }
+
+    body[data-status="success"] .glow-line,
+    body[data-status="failure"] .glow-line,
+    body[data-fill-status="fill-success"] .glow-line,
+    body[data-fill-status="fill-failure"] .glow-line {
+      --line-s: 1;
+      opacity: 0.9;
+    }
+
+    @keyframes linePulse {
+      0%, 100% { opacity: 0.55; }
+      50%      { opacity: 1; }
+    }
+
     body::after {
       content: "";
       position: absolute;
@@ -175,7 +252,7 @@
     }
 
     .app-header, #resumeSelector, .toggle-group,
-    #generateBtn, #settingsBtn, .list-row-pair {
+    #generateBtn, .list-row-pair {
       position: relative;
       z-index: 1;
     }
@@ -191,7 +268,7 @@
     .glass {
       background: var(--glass-fill);
       border: 1px solid var(--glass-border);
-      border-radius: 16px;
+      border-radius: var(--radius-card);
       backdrop-filter: blur(20px) saturate(150%);
       -webkit-backdrop-filter: blur(20px) saturate(150%);
       box-shadow: inset 0 1px 0 var(--glass-highlight),
@@ -202,12 +279,40 @@
     /* ============================
        Header
        ============================ */
+    .app-header {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: start;
+      margin-bottom: var(--space-4);
+    }
+
+    .header-side {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding-top: 2px;
+    }
+
+    .header-left {
+      justify-self: start;
+    }
+
+    .header-right {
+      justify-self: end;
+    }
+
+    .header-brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
     .error-info-btn {
-      position: absolute;
-      top: -2px;
-      left: -2px;
       width: 30px;
       height: 30px;
+      flex-shrink: 0;
       border: 1px solid rgba(255, 86, 86, 0.5);
       border-radius: 50%;
       background: rgba(255, 86, 86, 0.14);
@@ -217,7 +322,6 @@
       line-height: 1;
       cursor: pointer;
       transition: all var(--ease);
-      z-index: 5;
       display: none;
       align-items: center;
       justify-content: center;
@@ -232,22 +336,11 @@
       transform: scale(0.94);
     }
 
-    .app-header {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      margin-bottom: 20px;
-    }
-
     .feature-video-btn {
-      position: absolute;
-      top: 0;
-      right: 0;
       width: 30px;
       height: 30px;
-      border-radius: 9px;
+      flex-shrink: 0;
+      border-radius: var(--radius-ctl);
       background: var(--glass-fill);
       border: 1px solid var(--glass-border);
       color: var(--text-dim);
@@ -272,13 +365,10 @@
     }
 
     .account-btn {
-      position: absolute;
-      top: 0;
-      left: 0;
       padding: 6px 10px;
       font-size: 11.5px;
       font-weight: 600;
-      border-radius: 9px;
+      border-radius: var(--radius-ctl);
       background: var(--orange-fill);
       border: 1px solid var(--orange-border);
       color: var(--orange);
@@ -340,36 +430,6 @@
       color: var(--text);
     }
 
-    .error-info-btn {
-      position: absolute;
-      top: -2px;
-      left: -2px;
-      width: 30px;
-      height: 30px;
-      border: 1px solid rgba(255, 86, 86, 0.5);
-      border-radius: 50%;
-      background: rgba(255, 86, 86, 0.14);
-      color: #ff8a8a;
-      font-size: 14px;
-      font-weight: 600;
-      line-height: 1;
-      cursor: pointer;
-      transition: all var(--ease);
-      z-index: 5;
-      display: none;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .error-info-btn:hover {
-      border-color: rgba(255, 86, 86, 0.75);
-      background: rgba(255, 86, 86, 0.24);
-    }
-
-    .error-info-btn:active {
-      transform: scale(0.94);
-    }
-
     /* ============================
        Section Label
        ============================ */
@@ -380,7 +440,7 @@
       font-size: 12.5px;
       color: var(--text-dim);
       font-weight: 500;
-      margin: 18px 0 8px;
+      margin: 0 0 var(--space-2);
     }
 
     .section-label svg {
@@ -406,7 +466,8 @@
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      padding: 15px 16px;
+      min-height: var(--row-h);
+      padding: var(--space-3) var(--space-4);
       font-size: 14.5px;
       font-weight: 500;
       color: var(--text);
@@ -441,7 +502,7 @@
       flex-direction: column;
       gap: 2px;
       padding: 6px;
-      border-radius: 16px;
+      border-radius: var(--radius-card);
       background: rgba(16, 16, 19, 0.92);
       backdrop-filter: blur(24px) saturate(150%);
       -webkit-backdrop-filter: blur(24px) saturate(150%);
@@ -463,7 +524,7 @@
 
     .custom-option {
       padding: 11px 12px;
-      border-radius: 10px;
+      border-radius: var(--radius-ctl);
       font-size: 13.5px;
       color: var(--text-dim);
       line-height: 1.35;
@@ -487,8 +548,8 @@
        ============================ */
     #resumeSelector {
       display: none;
-      gap: 10px;
-      margin-top: 10px;
+      gap: var(--space-2);
+      margin-top: var(--space-3);
     }
 
     .style-btn {
@@ -547,8 +608,8 @@
        Cover Letter Toggle Row
        ============================ */
     .toggle-group {
-      margin-top: 14px;
-      padding: 16px;
+      margin-top: var(--space-3);
+      padding: var(--space-3) var(--space-4);
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -644,10 +705,11 @@
        Primary CTA — Orange Glass
        ============================ */
     #generateBtn {
-      margin-top: 18px;
+      margin-top: var(--space-4);
       width: 100%;
-      padding: 17px;
-      border-radius: 16px;
+      min-height: 56px;
+      padding: var(--space-4);
+      border-radius: var(--radius-card);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -710,9 +772,10 @@
 
     .gen-icon {
       display: none;
-      width: 17px;
-      height: 17px;
+      width: 18px;
+      height: 18px;
       flex-shrink: 0;
+      place-items: center;
     }
 
     .gen-icon svg {
@@ -724,7 +787,7 @@
     body:not([data-status="generating"]):not([data-status="success"]):not([data-status="failure"]) .gen-idle,
     body[data-status="success"] .gen-success,
     body[data-status="failure"] .gen-failure {
-      display: block;
+      display: grid;
     }
 
     #generateLabel {
@@ -732,19 +795,20 @@
       overflow: hidden;
       text-overflow: ellipsis;
       max-width: 100%;
+      line-height: 1;
     }
 
     /* ============================
        List Rows — Settings / Tracker
        ============================ */
     .list-row {
-      margin-top: 12px;
+      margin-top: var(--space-3);
       width: 100%;
-      padding: 15px 16px;
+      padding: var(--space-3) var(--space-4);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: var(--space-3);
       font-size: 14.5px;
       font-weight: 500;
       color: var(--text);
@@ -761,20 +825,20 @@
     }
 
     .list-row-pair {
-      margin-top: 12px;
+      margin-top: var(--space-3);
       display: flex;
       align-items: stretch;
-      gap: 8px;
+      gap: var(--space-2);
     }
 
     .list-row-pair .list-row {
       margin-top: 0;
       flex: 1;
       min-width: 0;
-      min-height: 43px;
-      padding: 11px 12px;
+      min-height: var(--row-h);
+      padding: var(--space-3);
       font-size: 13px;
-      gap: 8px;
+      gap: var(--space-2);
     }
 
     .list-row-pair .list-row-left {
@@ -952,7 +1016,7 @@
       padding: 6px 12px;
       font-size: 12px;
       font-weight: 500;
-      border-radius: 9px;
+      border-radius: var(--radius-ctl);
       cursor: pointer;
       background: var(--orange-fill);
       border: 1px solid var(--orange-border);
@@ -1278,15 +1342,22 @@
   <link rel="stylesheet" href="feature-video.css">
 </head>
 <body data-status="idle">
+  <div class="glow-line" aria-hidden="true"></div>
   <header class="app-header">
-    <button id="accountBtn" class="account-btn" type="button" style="display: none;">Sign in</button>
-    <button id="featureVideoBtn" class="feature-video-btn" type="button" title="Watch the feature tour" aria-label="Watch the feature tour"><span class="fv-play-tri" aria-hidden="true"></span></button>
-    <button id="errorInfoBtn" class="error-info-btn" type="button" aria-label="Show error details">?</button>
-    <button class="logo-mark" id="logoLink" type="button" title="pocket-resume.xyz" aria-label="Visit pocket-resume.xyz">
-      <img src="icon.png" alt="">
-    </button>
-    <h1>PocketResume</h1>
-    <p class="tagline" id="websiteLink" role="link" tabindex="0" title="pocket-resume.xyz">One Click. One Tailored Resume.</p>
+    <div class="header-side header-left">
+      <button id="accountBtn" class="account-btn" type="button" style="display: none;">Sign in</button>
+    </div>
+    <div class="header-brand">
+      <button class="logo-mark" id="logoLink" type="button" title="pocket-resume.xyz" aria-label="Visit pocket-resume.xyz">
+        <img src="icon.png" alt="">
+      </button>
+      <h1>PocketResume</h1>
+      <p class="tagline" id="websiteLink" role="link" tabindex="0" title="pocket-resume.xyz">One Click. One Tailored Resume.</p>
+    </div>
+    <div class="header-side header-right">
+      <button id="errorInfoBtn" class="error-info-btn" type="button" aria-label="Show error details">?</button>
+      <button id="featureVideoBtn" class="feature-video-btn" type="button" title="Watch the feature tour" aria-label="Watch the feature tour"><span class="fv-play-tri" aria-hidden="true"></span></button>
+    </div>
   </header>
 
   <div id="setupCard" class="setup-card glass" style="display: none;">
@@ -1413,7 +1484,7 @@
 
   <button id="generateBtn" type="button">
     <span class="gen-icon gen-idle" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.6L19 9l-5.2 1.4L12 16l-1.8-5.6L5 9l5.2-1.4z"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.6L13.5 10.5L19.4 12L13.5 13.5L12 19.4L10.5 13.5L4.6 12L10.5 10.5Z"/></svg>
     </span>
     <span class="gen-icon gen-success" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>

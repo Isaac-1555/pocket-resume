@@ -15,7 +15,7 @@ window.PocketResumeTourAssets = {
     ],
     "settingsBtn": [
      0.244,
-     0.651
+     0.656
     ]
    },
    "clipH": 400
@@ -85,7 +85,7 @@ window.PocketResumeTourAssets = {
      0.5
     ],
     "genLabel": [
-     0.538,
+     0.54,
      0.5
     ]
    },
