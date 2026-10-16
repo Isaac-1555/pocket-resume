@@ -189,6 +189,15 @@ One-time onboarding for Form Filler: the user answers common application-form qu
 
 Safety rules (enforced in `form-filler.js` + prompt): never submits the form, never overwrites already-filled fields, never unchecks anything the user already ticked, checkbox/consent widgets with consent-style labels (consent/agree/terms/privacy/newsletter/marketing/subscribe/opt-in/gdpr/cookies) are never touched, skips hidden/disabled/readonly/captcha/search fields, caps at 30 fields. Known gap: custom div widgets (`[role="checkbox"]`/`[role="radio"]` without real inputs, legacy Workday) are not detected.
 
+### Quick Download flow (v9.0)
+
+1. User clicks `#quickDownloadBtn` (popup button paired with Settings in the same `.list-row-pair` row). No config gate, no API key, no active-tab requirement — it stays clickable even when Generate is disabled by onboarding.
+2. The popup reads `{ resumes, selectedResumeId, userProfile }` from `chrome.storage.local`, resolves the selected resume (legacy `userProfile` fallback), and takes `resume.jsonContent` — the same schema `extractResumeProfileJson` produces and `generatePDF` consumes. Markdown fences are stripped before `JSON.parse` (same helper the Generate path uses).
+3. It calls `generatePDF(resumeData, 'professional')` directly in the popup. **No AI call, no `START_GENERATION`, no cover letter** — the style is always the professional PocketResume layout, regardless of the popup's style selector. Costs 0 tokens.
+4. Error paths go through `setError` (red glow + `?` → error modal with **Open Provider Settings**, which appears because the messages mention Settings): no resumes at all, no `jsonContent` (prompt to run **Extract JSON**), or unparseable JSON. `mapErrorMessage` has a `/quick download|extract json/i` pass-through so these user-facing messages are not rewritten by the generic "invalid JSON" rule.
+5. The What's New modal's primary button (`#whatsNewPlansBtn`) dismisses the modal and triggers the same handler; its "New" badge (`#quickDownloadNewBadge`) is removed on first hover/focus and persisted via `quickDownloadNewBadgeDismissed`, matching the Tracker/Fill Form badges.
+6. Layout note: all four bottom buttons (Settings, Quick Download, Tracker, Fill Form) stay identical at **166×43px** — `.list-row-pair .list-row` carries `flex: 1` + `min-height: 43px` so the badge-bearing rows (43px) and the badge-less rows (41px) line up. "Quick Download" cannot fit next to its NEW badge in a 166px button, so while the badge is on screen the button carries `.has-badge`: label drops to **10px**, icon to 15px, row gap to 4px, and the badge shrinks to 7.5px. `popup.js` adds/removes `.has-badge` alongside the badge itself, so the first hover restores the full **13px** label in the same 200ms `font-size` transition that fades the badge.
+
 ## Resume styles & layout mapping
 
 Configured by `getResumeStyleConfig(...)` in `background.js`:
@@ -227,8 +236,9 @@ Important keys:
 - `appProfileOnboarding`: `{ active: boolean }` — trigger for the Form Filler setup spotlight tour (set by the popup, consumed by the options page)
 - `refineNudge`: `{ active: boolean }` — trigger for the v8.2 "Smarter Refine" spotlight on `#refineResumeBtn` (set by the popup's What's New modal via `startRefineNudge()`, consumed by the options page via `NUDGE_TOUR_STEPS` + a `'nudge'` tour mode)
 - `atsNudge`: `{ active: boolean }` — trigger for the v8.2 "Check ATS" spotlight on `#checkAtsBtn` (set by the popup's What's New modal via `startAtsNudge()`, consumed by the options page via `ATS_NUDGE_TOUR_STEPS` + an `'atsnudge'` tour mode)
-- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'8.7'` current)
+- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'9.0'` current)
 - `featureVideoDeclined`: boolean — user declined the one-time feature-tour video offer; prompt never reappears (header button still opens it)
+- `quickDownloadNewBadgeDismissed`: boolean — the Quick Download "New" badge is removed after the user's first hover/focus and never returns
 - `trackerPlanCache`: `{ proAccess, isPro, promoActive, signedIn, checkedAt }` — last Job Tracker access resolution, used for first paint / offline (ignored when `checkedAt` is older than 60 min)
 - `proAccessCache`: same shape as `trackerPlanCache` — last **signed-in** access resolution, written by `getAccessState()` (page + SW), cleared on sign-out, and removed by a Clerk `addListener` the moment the session ends. Background `getFormFillAccess()` falls back to it **only when the service-worker Clerk client has not resolved** (not initialised yet) and only while it is younger than 60 min — a definitive signed-out answer (`getAccessState().resolved === true`) clears the cache and blocks Pro, so stale signed-in state can never keep showing "Pro" after a session expiry.
 - `trackerLockDismissed`: boolean — user dismissed the Job Tracker lock banner

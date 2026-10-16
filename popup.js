@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastError = '';
   let lastErrorRaw = '';
   const settingsBtn = document.getElementById('settingsBtn');
+  const quickDownloadBtn = document.getElementById('quickDownloadBtn');
   const resumeType = document.getElementById('resumeType');
   const resumeSelectorDiv = document.getElementById('resumeSelector');
   const coverLetterToggle = document.getElementById('coverLetterToggle');
@@ -256,6 +257,52 @@ document.addEventListener('DOMContentLoaded', () => {
   settingsBtn.addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
   });
+
+  // --- Quick Download: render the saved resume JSON as a professional PDF (no AI) ---
+  if (quickDownloadBtn) {
+    quickDownloadBtn.addEventListener('click', () => {
+      chrome.storage.local.get(['resumes', 'selectedResumeId', 'userProfile'], (data) => {
+        let resumes = Array.isArray(data.resumes) ? data.resumes.slice() : [];
+        if (resumes.length === 0 && data.userProfile) {
+          resumes = [{ id: 'migrated_1', label: 'Resume 1', content: data.userProfile }];
+        }
+
+        if (resumes.length === 0) {
+          setError('Quick Download needs a saved resume. Open Settings to add one.');
+          return;
+        }
+
+        const selected = resumes.find((r) => r.id === data.selectedResumeId) || resumes[0];
+        const rawJson = selected && selected.jsonContent ? String(selected.jsonContent).trim() : '';
+        if (!rawJson) {
+          setError('Quick Download needs your resume JSON. Open Settings and click "Extract JSON" first.');
+          return;
+        }
+
+        let resumeData;
+        try {
+          let clean = rawJson;
+          if (clean.startsWith('```json')) {
+            clean = clean.replace(/^```json/, '').replace(/```$/, '');
+          } else if (clean.startsWith('```')) {
+            clean = clean.replace(/^```/, '').replace(/```$/, '');
+          }
+          resumeData = JSON.parse(sanitizeJsonControlChars(clean));
+        } catch (e) {
+          console.error('Quick Download JSON Parse Error:', e);
+          setError('Could not read your saved resume JSON. Open Settings and re-run "Extract JSON".');
+          return;
+        }
+
+        try {
+          generatePDF(resumeData, 'professional');
+        } catch (e) {
+          console.error('Quick Download Error:', e);
+          setError(e.message || 'Quick Download failed. Please try again.');
+        }
+      });
+    });
+  }
 
   // --- Setup / onboarding card ---
   function setSetupStepDone(stepId, done) {
@@ -553,13 +600,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // --- NEW badge on Quick Download (permanently dismissed after first hover) ---
+  const quickDownloadNewBadge = document.getElementById('quickDownloadNewBadge');
+  chrome.storage.local.get('quickDownloadNewBadgeDismissed', (data) => {
+    if (data.quickDownloadNewBadgeDismissed) {
+      if (quickDownloadNewBadge) quickDownloadNewBadge.remove();
+    } else if (quickDownloadNewBadge) {
+      quickDownloadBtn.classList.add('has-badge');
+      const dismiss = () => {
+        quickDownloadNewBadge.classList.add('gone');
+        quickDownloadNewBadge.addEventListener('transitionend', () => quickDownloadNewBadge.remove(), { once: true });
+        quickDownloadBtn.classList.remove('has-badge');
+        chrome.storage.local.set({ quickDownloadNewBadgeDismissed: true });
+      };
+      quickDownloadBtn.addEventListener('mouseenter', dismiss, { once: true });
+      quickDownloadBtn.addEventListener('focus', dismiss, { once: true });
+    }
+  });
+
   // --- What's New modal (once per version) ---
   const whatsNewModal = document.getElementById('whatsNewModal');
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '8.9';
-  const ANNOUNCEMENT_SEEN_VALUE = '8.9';
+  const ANNOUNCEMENT_VERSION = '9.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '9.0';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
@@ -582,7 +647,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (whatsNewPlansBtn) {
     whatsNewPlansBtn.addEventListener('click', () => {
       dismissWhatsNew();
-      chrome.tabs.create({ url: chrome.runtime.getURL('options.html#cloud-pricing') });
+      if (quickDownloadBtn) quickDownloadBtn.click();
     });
   }
 
@@ -870,6 +935,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (/no active tab/i.test(lower)) {
       return 'No active tab found. Open the page with the form and try again.';
+    }
+    if (/quick download|extract json/i.test(lower)) {
+      return msg;
     }
     if (/parse|invalid json|unexpected token|json/i.test(lower)) {
       return 'Model returned invalid data. Please try again.';

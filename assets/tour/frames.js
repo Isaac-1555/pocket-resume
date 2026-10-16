@@ -14,8 +14,8 @@ window.PocketResumeTourAssets = {
      0.5
     ],
     "settingsBtn": [
-     0.5,
-     0.659
+     0.244,
+     0.651
     ]
    },
    "clipH": 400
@@ -137,7 +137,7 @@ window.PocketResumeTourAssets = {
      0.499
     ],
     "atsBtn": [
-     0.8,
+     0.802,
      0.499
     ]
    },
@@ -155,7 +155,7 @@ window.PocketResumeTourAssets = {
    "hotspots": {
     "autofillBtn": [
      0.29,
-     0.5
+     0.499
     ]
    },
    "clipH": 300

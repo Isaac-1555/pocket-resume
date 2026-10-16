@@ -11,6 +11,18 @@ Notes on history:
 
 ---
 
+## [9.0] — 2026-10-17
+
+### Added
+
+- **Quick Download** — a new popup button (paired with Settings) that instantly exports the selected saved resume as a professional PocketResume PDF. No job page, no AI call, and no API key required: it renders straight from the resume's extracted JSON (`resumes[].jsonContent`). If the resume JSON hasn't been extracted yet, it prompts the user to run **Extract JSON** in Settings. The button stays enabled even before setup.
+
+### Changed
+
+- **Settings row resized** — Settings now shares a two-up row with Quick Download (same pattern as Tracker / Fill Form) instead of spanning the full width.
+
+---
+
 ## [8.9] — 2026-10-16
 
 ### Fixed

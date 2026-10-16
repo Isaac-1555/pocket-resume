@@ -217,11 +217,11 @@ async function main() {
         await popupPage.click('#fillFormBtn');
         await popupPage.waitForFunction(() => document.body.getAttribute('data-fill-status') === 'filling', { timeout: 4000 }).catch(() => {});
         await popupPage.waitForTimeout(200);
-        await snap(popupPage, 'fillFilling', '.list-row-pair', { h: 300, spots: { fillBtn: '#fillFormBtn' } });
+        await snap(popupPage, 'fillFilling', '.feature-pair', { h: 300, spots: { fillBtn: '#fillFormBtn' } });
 
         await popupPage.waitForFunction(() => document.body.getAttribute('data-fill-status') === 'fill-success', { timeout: 6000 }).catch(() => {});
         await popupPage.waitForTimeout(100);
-        await snap(popupPage, 'fillSuccess', '.list-row-pair', { h: 300, spots: { fillBtn: '#fillFormBtn' } });
+        await snap(popupPage, 'fillSuccess', '.feature-pair', { h: 300, spots: { fillBtn: '#fillFormBtn' } });
 
         // setup-complete offer card (fresh state)
         const setupPage = await newPage(browser, { ...baseSeed(), onboardingCompleted: false }, `${baseUrl}/popup.html`);
@@ -265,6 +265,11 @@ async function main() {
         popupPage.context().close().catch(() => {});
         optionsPage.context().close().catch(() => {});
         fs.writeFileSync(path.join(OUT, 'frames.js'), `window.PocketResumeTourAssets = ${JSON.stringify(manifest, null, 1)};\n`);
+    } catch (err) {
+        console.error('TOUR-CAPTURE-FAILED after', manifest.frames.length, 'frames:', err && err.message ? err.message : err);
+        await browser.close();
+        server.close();
+        process.exit(1);
     } finally {
         await browser.close();
         server.close();
@@ -279,6 +284,11 @@ async function newPage(browser, seed, url, size) {
     await page.addInitScript(shim(seed));
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
     await page.waitForTimeout(600);
+    // The What's New modal shows once per version and would intercept every scripted click.
+    await page.evaluate(() => {
+        const m = document.getElementById('whatsNewModal');
+        if (m) m.style.display = 'none';
+    });
     return page;
 }
 
