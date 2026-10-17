@@ -129,7 +129,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       await window.CloudSync.mountPricingTable(cloudPricingTable);
     } catch (error) {
       if (cloudPricingFallback) {
-        cloudPricingFallback.textContent = `Could not load Clerk pricing. Confirm Billing is enabled and at least one user plan is public in Clerk. Details: ${error.message}`;
+        cloudPricingFallback.textContent = `Could not load the Pro pricing table. Details: ${error.message} If it keeps failing, check the Settings page console (F12), then confirm Billing is enabled in Clerk with at least one public user plan.`;
         cloudPricingFallback.style.display = 'block';
       }
       showStatus('Could not load pricing. Check the message in the Pro panel.', 'error', 7000);
@@ -1155,6 +1155,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   runAutoSync();
+
+  // Resume edits sync from a page realm: the service worker cannot mint a Convex
+  // token, so the storage listener has to live where the Clerk session is.
+  if (window.CloudSync && typeof window.CloudSync.startAutoSync === 'function') {
+    window.CloudSync.startAutoSync();
+  }
 
   // --- Form Filler setup (Application Questions) ---
   fillAppProfileForm(data.applicationProfile || null);

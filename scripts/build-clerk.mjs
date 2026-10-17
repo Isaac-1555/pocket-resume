@@ -37,16 +37,36 @@ if (!convexUrl) {
   console.warn('[build:clerk] CONVEX_URL is empty. Cloud sync will be disabled until you set it.');
 }
 
-await build({
+const defineBase = {
+  'process.env.CLERK_PUBLISHABLE_KEY': JSON.stringify(clerkKey),
+  'process.env.CONVEX_URL': JSON.stringify(convexUrl),
+};
+
+const shared = {
   entryPoints: ['src/cloud-sync.js'],
   bundle: true,
-  outfile: 'cloud-sync.js',
-  format: 'iife',
   platform: 'browser',
   target: 'es2022',
-  define: {
-    'process.env.CLERK_PUBLISHABLE_KEY': JSON.stringify(clerkKey),
-    'process.env.CONVEX_URL': JSON.stringify(convexUrl),
-  },
+  minify: true,
+  legalComments: 'none',
   logLevel: 'info',
+};
+
+// options.html: full bundle. The Clerk UI is attached so the sign-in modal and
+// the pricing table mount.
+await build({
+  ...shared,
+  outfile: 'cloud-sync.js',
+  format: 'iife',
+  define: { ...defineBase, __CLERK_UI__: 'true' },
+});
+
+// popup.html + tracker.html + background.js: same logic, no Clerk UI and no
+// @clerk/chrome-extension (whose dynamic @clerk/ui import is what made the old
+// single bundle 6.5 MB).
+await build({
+  ...shared,
+  outfile: 'cloud-sync-core.js',
+  format: 'iife',
+  define: { ...defineBase, __CLERK_UI__: 'false' },
 });

@@ -40,7 +40,17 @@
   let syncInProgress = false;
   let authInfo = null;
   let clerkRebuildAt = 0;
+  let clerkHealthy = false;
   let cacheListenerBound = false;
+  let userRefreshedAt = 0;
+  let autoSyncBound = false;
+  let swClerkNoticeLogged = false;
+  let initPromise = null;
+  const USER_REFRESH_MAX_AGE_MS = 60 * 1000;
+
+  const IS_SERVICE_WORKER = typeof document === 'undefined';
+  const ACCESS_SOURCE = IS_SERVICE_WORKER ? 'sw' : 'page';
+  const HAS_CLERK_UI = __CLERK_UI__ === true;
 
   const EXTENSION_URL = chrome.runtime.getURL('.');
   const OPTIONS_URL = EXTENSION_URL + 'options.html';
@@ -82,19 +92,24 @@
   async function ensureClerkUser() {
     await init();
     if (clerkClient && clerkClient.user) return;
-    if (typeof document !== 'undefined') return;
+    if (!IS_SERVICE_WORKER) return;
     if (Date.now() - clerkRebuildAt < 5000) return;
     clerkRebuildAt = Date.now();
     clerkClient = null;
     convexClient = null;
     authInfo = null;
+    clerkHealthy = false;
+    initPromise = null;
     await init();
   }
 
+  // `proAccessCache` is written by page realms only — they are the sole holders of
+  // a Clerk session. The service worker reads it but never writes it, so its own
+  // signed-out view can never clobber the page's answer.
   function persistAccessCache(state) {
-    if (!state || !state.signedIn) return;
+    if (!state || IS_SERVICE_WORKER) return;
     try {
-      chrome.storage.local.set({ [ACCESS_CACHE_KEY]: { ...state, checkedAt: Date.now() } });
+      chrome.storage.local.set({ [ACCESS_CACHE_KEY]: { ...state, source: ACCESS_SOURCE, checkedAt: Date.now() } });
     } catch (err) {
       console.warn('[CloudSync] Could not cache access state:', err);
     }
@@ -107,7 +122,7 @@
     try {
       clerkClient.addListener(({ user }) => {
         if (!user) {
-          chrome.storage.local.remove(ACCESS_CACHE_KEY);
+          persistAccessCache({ signedIn: false, isFreeSubscriber: false, isPro: false, promoActive: isPromoTrialActive(), cloudSyncAccess: false, proAccess: false, resolved: true, healthy: clerkHealthy });
         } else {
           getAccessState().catch(() => {});
         }
@@ -117,20 +132,40 @@
     }
   }
 
+  // Dashboard-side metadata edits only reach the client on a fresh user
+  // resource, so refresh before reading the plan (throttled).
+  async function refreshUserIfStale() {
+    const user = clerkClient && clerkClient.user;
+    if (!user || typeof user.reload !== 'function') return;
+    if (Date.now() - userRefreshedAt < USER_REFRESH_MAX_AGE_MS) return;
+    userRefreshedAt = Date.now();
+    try {
+      await user.reload();
+    } catch (err) {
+      console.warn('[CloudSync] Could not refresh Clerk user:', err);
+    }
+  }
+
   async function getAccessState() {
     await ensureClerkUser();
     const promoActive = isPromoTrialActive();
+    const healthy = clerkHealthy && !!clerkClient && !!clerkClient.client;
     if (!clerkClient || !clerkClient.user) {
-      return {
+      const signedOut = {
         signedIn: false,
         isFreeSubscriber: false,
         isPro: false,
         promoActive,
         cloudSyncAccess: false,
         proAccess: false,
-        resolved: !!clerkClient,
+        resolved: healthy,
+        healthy,
       };
+      console.log('[CloudSync] access', { source: ACCESS_SOURCE, user: null, plan: '', isPro: false, healthy, resolved: signedOut.resolved });
+      persistAccessCache(signedOut);
+      return signedOut;
     }
+    await refreshUserIfStale();
     const proPlans = [CLOUD_CONFIG.requiredPlan, ...CLOUD_CONFIG.legacyPlans];
     const isPro = userMatchesPlan(proPlans);
     const isFreeSubscriber = isPro || userMatchesPlan([CLOUD_CONFIG.freePlan]);
@@ -141,8 +176,17 @@
       promoActive,
       cloudSyncAccess: isFreeSubscriber,
       proAccess: isPro || (promoActive && isFreeSubscriber),
-      resolved: true,
+      resolved: healthy,
+      healthy,
     };
+    console.log('[CloudSync] access', {
+      source: ACCESS_SOURCE,
+      user: clerkClient.user.id,
+      plan: (clerkClient.user.publicMetadata || {}).plan || (clerkClient.user.unsafeMetadata || {}).plan || '',
+      isPro,
+      healthy,
+      resolved: state.resolved,
+    });
     persistAccessCache(state);
     return state;
   }
@@ -165,8 +209,14 @@
 
   async function mountPricingTable(node, options = {}) {
     await init();
+    if (!HAS_CLERK_UI) {
+      throw new Error('The pricing table needs the full Clerk bundle (options page).');
+    }
     if (!clerkClient) {
       throw new Error('Pro is not configured yet.');
+    }
+    if (clerkClient.loaded === false) {
+      throw new Error('Clerk is still starting up. Close and reopen Settings, then try again.');
     }
     if (!node) {
       throw new Error('Pricing table container is missing.');
@@ -209,6 +259,17 @@
   }
 
   async function initClerk() {
+    // The service worker holds no Clerk session: clerk-js keeps the client JWT in
+    // an httpOnly cookie on the Frontend API domain, which a service worker
+    // cannot read or refresh. Pages own auth, and the worker trusts the snapshot
+    // they publish to `proAccessCache`.
+    if (IS_SERVICE_WORKER) {
+      if (!swClerkNoticeLogged) {
+        swClerkNoticeLogged = true;
+        console.log('[CloudSync] Clerk is page-only; the service worker reads the access snapshot');
+      }
+      return null;
+    }
     if (clerkClient) {
       if (!authInfo) authInfo = buildAuthInfo();
       return clerkClient;
@@ -221,17 +282,11 @@
     }
 
     try {
-      const isServiceWorker = typeof document === 'undefined';
-      const clerkModule = isServiceWorker
-        ? await import('@clerk/chrome-extension/background')
-        : await import('@clerk/chrome-extension/client');
-
-      clerkClient = await clerkModule.createClerkClient({
-        publishableKey
-      });
+      const { Clerk } = await import('@clerk/clerk-js/no-rhc');
+      clerkClient = new Clerk(publishableKey, {});
 
       if (typeof clerkClient.load === 'function') {
-        await clerkClient.load({
+        const loadOptions = {
           afterSignOutUrl: OPTIONS_URL,
           signInForceRedirectUrl: OPTIONS_URL,
           signUpForceRedirectUrl: OPTIONS_URL,
@@ -249,15 +304,26 @@
               borderRadius: '0.75rem'
             }
           }
-        });
+        };
+        if (__CLERK_UI__) {
+          // Clerk wants the branded `ui` object exported by @clerk/ui, not the
+          // module namespace: with the namespace, `load()` skips attaching its UI
+          // components and `mountPricingTable` throws "not loaded with Ui
+          // components" even though init reported success.
+          const clerkUi = await import('@clerk/ui/no-rhc');
+          loadOptions.ui = clerkUi.ui || clerkUi;
+        } else delete loadOptions.appearance;
+        await clerkClient.load(loadOptions);
       }
 
       authInfo = buildAuthInfo();
       bindCacheInvalidation();
+      clerkHealthy = true;
 
-      console.log('[CloudSync] Clerk initialized');
+      console.log('[CloudSync] Clerk initialized', { source: ACCESS_SOURCE, ui: HAS_CLERK_UI });
       return clerkClient;
     } catch (err) {
+      clerkHealthy = false;
       console.error('[CloudSync] Clerk init failed:', err);
       return null;
     }
@@ -297,12 +363,30 @@
 
   // --- Public API ---
 
-  async function init() {
-    if (convexClient) return;
-    const clerk = await initClerk();
-    if (clerk) {
-      await initConvex();
+  // Memoized so concurrent callers share one in-flight load: `initClerk()` sets
+  // `clerkClient` before `load()` resolves, and Clerk only attaches its UI
+  // components during `load()`. Without this, a second caller (e.g. the pricing
+  // panel opening while the page is still starting up) gets a half-loaded client
+  // and `mountPricingTable` / `openSignIn` throw "not loaded with Ui components".
+  // A failed start must reject (not resolve) or the memo would pin a broken
+  // client for the rest of the page's life.
+  function init() {
+    if (convexClient) return Promise.resolve();
+    if (!initPromise) {
+      initPromise = (async () => {
+        const clerk = await initClerk();
+        if (clerk) {
+          await initConvex();
+        }
+        if (!IS_SERVICE_WORKER && !clerkHealthy) {
+          throw new Error('Clerk could not start. See the page console for the underlying error.');
+        }
+      })().catch((err) => {
+        initPromise = null;
+        throw err;
+      });
     }
+    return initPromise;
   }
 
   async function isSignedIn() {
@@ -340,6 +424,9 @@
 
   async function signIn() {
     await init();
+    if (!HAS_CLERK_UI) {
+      throw new Error('Sign-in needs the full Clerk bundle (options page).');
+    }
     if (!clerkClient) {
       throw new Error('Pro is not configured yet.');
     }
@@ -348,6 +435,9 @@
 
   async function signUp() {
     await init();
+    if (!HAS_CLERK_UI) {
+      throw new Error('Sign-up needs the full Clerk bundle (options page).');
+    }
     if (!clerkClient) {
       throw new Error('Pro is not configured yet.');
     }
@@ -359,10 +449,8 @@
   }
 
   async function signOut() {
-    try {
-      chrome.storage.local.remove(ACCESS_CACHE_KEY);
-    } catch (err) {
-      console.warn('[CloudSync] Could not clear access cache:', err);
+    if (!IS_SERVICE_WORKER) {
+      persistAccessCache({ signedIn: false, isFreeSubscriber: false, isPro: false, promoActive: isPromoTrialActive(), cloudSyncAccess: false, proAccess: false, resolved: true, healthy: clerkHealthy });
     }
     if (!clerkClient) return;
     await clerkClient.signOut({ redirectUrl: OPTIONS_URL });
@@ -635,6 +723,22 @@
     }, 2000);
   }
 
+  // Auto-sync must run in a page realm: only pages hold a Clerk session, so the
+  // service worker can never mint a Convex token.
+  function startAutoSync() {
+    if (IS_SERVICE_WORKER || autoSyncBound) return false;
+    if (!chrome.storage || !chrome.storage.onChanged) return false;
+    autoSyncBound = true;
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== 'local') return;
+      if (!changes.resumes && !changes.deletedResumeIds) return;
+      init()
+        .then(() => onLocalResumesChanged())
+        .catch((error) => console.error('[CloudSync] Auto-sync failed:', error));
+    });
+    return true;
+  }
+
   // --- Module export ---
   globalThis.CloudSync = {
     init,
@@ -659,5 +763,6 @@
     deleteCloudResume,
     syncResumes,
     onLocalResumesChanged,
+    startAutoSync,
   };
 })();

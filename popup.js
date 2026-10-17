@@ -432,18 +432,65 @@ document.addEventListener('DOMContentLoaded', () => {
     fillProCard.style.display = 'block';
   }
 
-  function checkProAccess() {
+  function withTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise((resolve) => setTimeout(() => resolve(null), ms)),
+    ]);
+  }
+
+  function localAccessState() {
+    const cloudSync = window.CloudSync;
+    if (!cloudSync || typeof cloudSync.getAccessState !== 'function') return Promise.resolve(null);
+    if (typeof cloudSync.isConfigured === 'function' && !cloudSync.isConfigured()) return Promise.resolve(null);
+    return withTimeout(cloudSync.getAccessState().catch(() => null), 2500);
+  }
+
+  function requestBackgroundAccess(retried) {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage({ type: 'CHECK_PRO_ACCESS' }, (response) => {
-        if (chrome.runtime.lastError) return resolve({ allowed: true });
-        resolve(response || { allowed: false });
+        if (chrome.runtime.lastError) {
+          console.warn('[Popup] CHECK_PRO_ACCESS failed:', chrome.runtime.lastError.message);
+          if (!retried) {
+            setTimeout(() => resolve(requestBackgroundAccess(true)), 300);
+            return;
+          }
+          resolve({ allowed: false, promoActive: false, signedIn: false, error: true });
+          return;
+        }
+        resolve(response || { allowed: false, promoActive: false, signedIn: false, error: true });
       });
     });
+  }
+
+  // The popup holds a real Clerk session, so its own copy of the plan is
+  // authoritative. The service worker only has the page-published snapshot, used
+  // when the page client cannot resolve.
+  async function checkProAccess() {
+    const local = await localAccessState();
+    if (local && local.healthy) {
+      return {
+        allowed: !!local.proAccess,
+        promoActive: !!local.promoActive,
+        signedIn: !!local.signedIn,
+        isPro: !!local.isPro,
+        source: 'page',
+      };
+    }
+    const background = await requestBackgroundAccess(false);
+    return { ...background, source: background.source || 'sw' };
   }
 
   async function updateAccountButton() {
     if (!accountBtn) return;
     const access = await checkProAccess();
+    console.log('[Popup] access', {
+      source: access.source,
+      signedIn: !!access.signedIn,
+      isPro: !!access.isPro,
+      allowed: !!access.allowed,
+      error: !!access.error,
+    });
     if (access.allowed) {
       if (access.signedIn) {
         accountBtn.style.display = 'inline-block';
@@ -623,8 +670,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '9.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '9.0';
+  const ANNOUNCEMENT_VERSION = '9.0.1';
+  const ANNOUNCEMENT_SEEN_VALUE = '9.0.1';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
@@ -647,7 +694,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (whatsNewPlansBtn) {
     whatsNewPlansBtn.addEventListener('click', () => {
       dismissWhatsNew();
-      if (quickDownloadBtn) quickDownloadBtn.click();
+      chrome.tabs.create({ url: chrome.runtime.getURL('options.html') });
     });
   }
 

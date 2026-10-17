@@ -1,6 +1,7 @@
 {
   "dependencies": {
-    "@clerk/chrome-extension": "^3.1.35",
+    "@clerk/clerk-js": "^6.16.1",
+    "@clerk/ui": "^1.16.1",
     "convex": "^1.41.0",
     "jspdf": "^4.0.0"
   },
@@ -13,6 +14,7 @@
     "build:clerk": "node scripts/build-clerk.mjs",
     "build:ldrs": "esbuild node_modules/ldrs/dist/auto/newtonsCradle.js --bundle --minify --format=iife --outfile=libs/ldrs-newtons-cradle.js",
     "build:tour": "node scripts/capture-tour.mjs",
-    "clean": "rm -f cloud-sync.js && rm -rf convex/_generated"
+    "clean": "rm -f cloud-sync.js cloud-sync-core.js && rm -rf convex/_generated",
+    "build:zip": "node scripts/build-zip.mjs"
   }
 }

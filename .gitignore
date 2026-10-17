@@ -4,6 +4,7 @@ node_modules/
 # Build output
 dist/
 cloud-sync.js
+cloud-sync-core.js
 
 # Convex build output
 convex/_generated/

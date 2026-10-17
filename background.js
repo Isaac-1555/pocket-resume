@@ -1,15 +1,6 @@
 // background.js
-import './cloud-sync.js';
+import './cloud-sync-core.js';
 import { resolveFormAnswers } from './form-profile.js';
-
-// Auto-sync local resume changes when user has enabled cloud sync and is signed in.
-chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== 'local' || !globalThis.CloudSync) return;
-    if (!changes.resumes && !changes.deletedResumeIds) return;
-    globalThis.CloudSync.init()
-        .then(() => globalThis.CloudSync.onLocalResumesChanged())
-        .catch((error) => console.error('[CloudSync] Auto-sync failed:', error));
-});
 
 // --- Pipeline Utilities ---
 function normalizeResumeStyle(selectedStyle) {
@@ -1090,6 +1081,9 @@ const FORM_FIELD_LIMIT = 30;
 const ACCESS_CACHE_KEY = 'proAccessCache';
 const ACCESS_CACHE_MAX_AGE_MS = 60 * 60 * 1000;
 
+// The service worker cannot resolve a Clerk session (see cloud-sync initClerk),
+// so plan gating reads the snapshot that the page realms publish: options,
+// tracker and popup all resolve the real session and write `proAccessCache`.
 async function readCachedAccess() {
     try {
         const data = await chrome.storage.local.get(ACCESS_CACHE_KEY);
@@ -1112,31 +1106,38 @@ async function getFormFillAccess() {
         return { allowed: true, promoActive: false, signedIn: false, unconfigured: true };
     }
     try {
-        await globalThis.CloudSync.init();
         const access = await globalThis.CloudSync.getAccessState();
-        const live = {
-            allowed: !!access.proAccess,
-            promoActive: !!access.promoActive,
-            signedIn: !!access.signedIn,
-            isPro: !!access.isPro,
-            resolved: !!access.resolved,
-        };
-        if (live.signedIn) return live;
-        if (live.resolved) {
-            try { await chrome.storage.local.remove(ACCESS_CACHE_KEY); } catch (err) { /* ignore */ }
-            return live;
+        if (access && access.healthy && access.signedIn) {
+            return {
+                allowed: !!access.proAccess,
+                promoActive: !!access.promoActive,
+                signedIn: true,
+                isPro: !!access.isPro,
+                live: true,
+            };
         }
         const cached = await readCachedAccess();
-        if (cached && cached.proAccess) {
+        if (cached) {
+            console.log('[FormFill] Using page access snapshot', {
+                source: cached.source,
+                signedIn: !!cached.signedIn,
+                isPro: !!cached.isPro,
+                ageMs: Date.now() - (cached.checkedAt || 0),
+            });
             return {
-                allowed: true,
+                allowed: !!cached.proAccess,
                 promoActive: !!cached.promoActive,
                 signedIn: !!cached.signedIn,
                 isPro: !!cached.isPro,
                 cached: true,
             };
         }
-        return live;
+        return {
+            allowed: !!access.proAccess,
+            promoActive: !!access.promoActive,
+            signedIn: !!access.signedIn,
+            isPro: !!access.isPro,
+        };
     } catch (err) {
         console.warn('[FormFill] Plan check failed:', err);
         return { allowed: true, promoActive: false, signedIn: false, isPro: false, unknown: true };

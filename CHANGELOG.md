@@ -11,6 +11,22 @@ Notes on history:
 
 ---
 
+## [9.0.1] — 2026-10-17
+
+### Fixed
+
+- **Pro plans are recognised again — Form Filler and the Job Tracker unlock for paying accounts.** The plan was only ever resolved inside the service worker, and the worker cannot hold a Clerk session: clerk-js keeps its client token in an httpOnly cookie on Clerk's Frontend API domain, which a service worker can neither read nor refresh. Every plan check therefore came back "signed out", which failed the Pro gate closed — the popup showed "Start free", Form Filler answered "upgrade required", and the signed-in state the options page had published was being deleted on every check. Sign-in is now performed in the page realms (options, popup, tracker), which do hold the session, and the worker trusts the access snapshot those pages publish. Anyone on a paid plan who was locked out should reload the extension once.
+- **The popup no longer hides its own account button.** A failed message to the worker used to resolve as "allowed" with no signed-in state, which rendered nothing at all; it now retries once and shows Sign in / Start free / Upgrade instead of vanishing.
+- **The Pro pricing table loads reliably.** Opening Settings → "See Pro plans" could fail with "Clerk was not loaded with Ui components" even with everything configured correctly in Clerk. Two causes: Clerk's UI was handed over as a module namespace instead of the branded UI object Clerk expects, so `load()` finished successfully while quietly skipping its UI components; and a second caller could pick up the Clerk client before that load finished. Clerk is now given the branded UI object, initialisation is a single shared promise every caller waits on, and a Clerk start-up failure now reports itself instead of surfacing later as a pricing error.
+- **Plan changes in the Clerk dashboard apply without signing out again.** The user record is refreshed (throttled to once a minute) before the plan is read, so metadata edits land on the next check.
+
+### Changed
+
+- **The account bundle is built twice from one source.** `cloud-sync.js` (options page only) keeps the Clerk UI needed for the sign-in modal and pricing table; `cloud-sync-core.js` (popup, tracker, service worker) ships without it. Both are minified: the popup/tracker/worker copy drops from 6.5 MB to 0.9 MB, and the options copy from 6.5 MB to 2.8 MB.
+- **Resume auto-sync moved out of the service worker** into the pages that own the session (`CloudSync.startAutoSync()`), since the worker could never authenticate a Convex request. Sync now runs while the options page is open rather than always.
+
+---
+
 ## [9.0] — 2026-10-17
 
 ### Added
