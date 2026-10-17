@@ -612,7 +612,10 @@
       addParagraph(roleLine, 11, 'normal', 2, headingColor);
     }
 
-    const headerLine = [formatContactLine(data), data.location].filter(Boolean).join(' | ');
+    const contactLine = formatContactLine(data);
+    const headerLoc = (data.location || '').trim().toLowerCase();
+    const headerLocation = headerLoc && !contactLine.toLowerCase().includes(headerLoc) ? data.location : '';
+    const headerLine = [contactLine, headerLocation].filter(Boolean).join(' | ');
     if (headerLine) addParagraph(headerLine, 10, 'normal', 4);
 
     if (data.links.length && data.hasExplicitLinks) {
