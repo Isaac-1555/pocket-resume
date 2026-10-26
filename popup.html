@@ -184,24 +184,28 @@
     }
 
     /* ============================
-       Horizon Glow — bloom behind content, hairline across it
+       Edge Glow — twin vertical hairlines + bloom at each edge
        ============================ */
     .glow-bloom {
       position: absolute;
       left: 0;
       right: 0;
-      top: 50%;
-      height: 260px;
+      top: 0;
+      bottom: 0;
       z-index: 1;
       pointer-events: none;
       opacity: 0.55;
-      transform: translateY(-50%) scaleX(var(--line-s, 0.72));
+      transform: scaleY(var(--line-s, 0.72));
       transform-origin: 50% 50%;
-      background: radial-gradient(ellipse 72% 50% at 50% 50%,
-        rgba(var(--line-c), 0.55),
-        rgba(var(--line-c), 0.2) 52%,
-        rgba(var(--line-c), 0.05) 74%,
-        transparent 88%);
+      background:
+        radial-gradient(ellipse 22% 46% at 0% 50%,
+          rgba(var(--line-c), 0.55),
+          rgba(var(--line-c), 0.18) 55%,
+          transparent 78%),
+        radial-gradient(ellipse 22% 46% at 100% 50%,
+          rgba(var(--line-c), 0.55),
+          rgba(var(--line-c), 0.18) 55%,
+          transparent 78%);
       filter: blur(10px);
       transition: transform 700ms var(--ease), opacity 700ms var(--ease);
     }
@@ -210,24 +214,37 @@
       position: absolute;
       left: 0;
       right: 0;
-      top: 50%;
-      height: 1px;
-      transform: translateY(-50%);
+      top: 0;
+      bottom: 0;
       z-index: 3;
       pointer-events: none;
       opacity: 0.9;
-      background: linear-gradient(90deg,
-        rgba(var(--line-c), 0.4) 0%,
-        rgba(var(--line-c), 0.8) 20%,
+      transition: opacity 700ms var(--ease);
+    }
+
+    .glow-line::before,
+    .glow-line::after {
+      content: "";
+      position: absolute;
+      top: 24px;
+      bottom: 24px;
+      width: 1px;
+      border-radius: 999px;
+      background: linear-gradient(180deg,
+        rgba(var(--line-c), 0) 0%,
+        rgba(var(--line-c), 0.75) 18%,
         rgba(var(--line-c), 1) 50%,
-        rgba(var(--line-c), 0.8) 80%,
-        rgba(var(--line-c), 0.4) 100%);
+        rgba(var(--line-c), 0.75) 82%,
+        rgba(var(--line-c), 0) 100%);
       box-shadow:
         0 0 8px 1px rgba(var(--line-c), 0.55),
         0 0 24px 6px rgba(var(--line-c), 0.35),
         0 0 60px 18px rgba(var(--line-c), 0.22);
-      transition: opacity 700ms var(--ease), box-shadow 700ms var(--ease);
+      transition: box-shadow 700ms var(--ease);
     }
+
+    .glow-line::before { left: 6px; }
+    .glow-line::after { right: 6px; }
 
     body[data-status="generating"] .glow-bloom,
     body[data-fill-status="filling"] .glow-bloom {
@@ -1348,6 +1365,154 @@
     }
 
     /* ============================
+       Mode switch + offline surfaces
+       ============================ */
+    .mode-bar {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: -8px 0 12px;
+    }
+
+    .mode-switch {
+      display: inline-flex;
+      gap: 2px;
+      padding: 3px;
+      border-radius: 999px;
+      background: var(--glass-fill);
+      border: 1px solid var(--glass-border);
+    }
+
+    .mode-switch button {
+      border-radius: 999px;
+      padding: 4px 11px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all var(--ease);
+    }
+
+    .mode-switch button[aria-pressed="true"] {
+      background: rgba(244, 147, 59, 0.18);
+      color: #ffb06b;
+      box-shadow: inset 0 0 0 1px rgba(244, 147, 59, 0.45);
+    }
+
+    body[data-mode="offline"] .mode-switch button[data-mode="offline"] {
+      background: rgba(139, 92, 246, 0.22);
+      color: #cbaaff;
+      box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.5);
+    }
+
+    body[data-mode="offline"] .mode-switch button[data-mode="ai"] {
+      background: transparent;
+      color: var(--text-dim);
+      box-shadow: none;
+    }
+
+    .mode-lock {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(203, 170, 255, 0.85);
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      border-radius: 999px;
+      padding: 2px 6px;
+    }
+
+    .offline-notice {
+      display: none;
+      margin: 10px 0 0;
+      padding: 9px 11px;
+      border-radius: 12px;
+      border: 1px dashed rgba(139, 92, 246, 0.45);
+      background: rgba(139, 92, 246, 0.10);
+      font-size: 11px;
+      line-height: 1.45;
+      color: rgba(233, 222, 255, 0.82);
+    }
+
+    body[data-mode="offline"] .offline-notice { display: block; }
+
+    .offline-report {
+      display: none;
+      margin-top: 8px;
+      font-size: 10.5px;
+      line-height: 1.4;
+      color: var(--text-dim);
+      text-align: center;
+    }
+
+    .offline-report.show { display: block; }
+
+    .offline-warning {
+      margin: 8px 0 0;
+      font-size: 10.5px;
+      line-height: 1.4;
+      color: rgba(255, 196, 120, 0.82);
+    }
+
+    .offline-letter-note {
+      margin: 8px 0 0;
+      font-size: 10.5px;
+      line-height: 1.45;
+      text-align: center;
+      color: rgba(255, 196, 120, 0.9);
+    }
+
+    .offline-letter-link {
+      color: #cbaaff;
+      font-size: 10.5px;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      cursor: pointer;
+    }
+
+    body[data-mode="offline"] #setupCard,
+    body[data-mode="offline"] #setupCompact,
+    body[data-mode="offline"] #quickDownloadBtn,
+    body[data-mode="offline"] .feature-pair {
+      display: none !important;
+    }
+
+    .offline-offer {
+      display: none;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .offline-offer-text {
+      margin: 0 0 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text-dim);
+    }
+
+    .offline-remember {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--text-dim);
+      cursor: pointer;
+    }
+
+    .offline-remember input {
+      width: 14px;
+      height: 14px;
+      accent-color: #8b5cf6;
+      cursor: pointer;
+    }
+
+    /* ============================
        Reduced Motion
        ============================ */
     @media (prefers-reduced-motion: reduce) {
@@ -1378,6 +1543,14 @@
       <button id="featureVideoBtn" class="feature-video-btn" type="button" title="Watch the feature tour" aria-label="Watch the feature tour"><span class="fv-play-tri" aria-hidden="true"></span></button>
     </div>
   </header>
+
+  <div class="mode-bar">
+    <div class="mode-switch" role="group" aria-label="Generation mode">
+      <button type="button" id="modeAiBtn" data-mode="ai" aria-pressed="true">AI</button>
+      <button type="button" id="modeOfflineBtn" data-mode="offline" aria-pressed="false">Offline</button>
+    </div>
+    <span class="mode-lock" id="modeLockHint" style="display: none;">Pro</span>
+  </div>
 
   <div id="setupCard" class="setup-card glass" style="display: none;">
     <div class="setup-head">
@@ -1452,6 +1625,19 @@
     <p class="fill-pro-footnote" id="fillProFootnote" style="display: none;">No card required during the launch trial.</p>
   </div>
 
+  <div id="noJsonCard" class="setup-card glass" style="display: none;">
+    <div class="setup-head">
+      <p class="setup-title">Offline mode needs a structured profile</p>
+      <button type="button" id="noJsonSkipBtn" class="setup-skip">Not now</button>
+    </div>
+    <p class="setup-done-text">Run <strong>Extract JSON</strong> once so the offline aligner can read your sections. One AI call, stored locally.</p>
+    <div style="display: grid; gap: 8px;">
+      <button type="button" id="noJsonExtractBtn" class="setup-goto setup-goto-wide">Extract JSON in Settings</button>
+      <button type="button" id="noJsonRawBtn" class="setup-goto setup-goto-wide ghost" style="font-size: 11px; min-height: 34px;">Try offline parse from raw text</button>
+    </div>
+    <p class="offline-warning">Guessed from raw text — may misread sections, dates, and job titles.</p>
+  </div>
+
   <div class="control-group">
     <div class="section-label">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
@@ -1514,6 +1700,10 @@
     <span id="generateLabel">Generate PDF Resume</span>
   </button>
 
+  <p class="offline-notice" id="offlineNotice">No AI. Built from your saved profile with on-device rules — sections reordered and matched to this posting, wording never rewritten.</p>
+  <p class="offline-report" id="offlineReport"></p>
+  <p class="offline-letter-note" id="offlineLetterNote" style="display: none;"><span id="offlineLetterNoteText">Cover letter skipped —</span> <button type="button" id="offlineLetterSettingsBtn" class="offline-letter-link">add a universal cover letter</button></p>
+
   <div class="list-row-pair">
     <button id="settingsBtn" class="list-row glass" type="button">
       <span class="list-row-left">
@@ -1559,6 +1749,15 @@
       </div>
       <h2>Something went wrong</h2>
       <p id="errorMessageText" class="error-message"></p>
+      <div id="offlineOffer" class="offline-offer">
+        <p class="offline-offer-text" id="offlineOfferText">AI couldn't finish. Generate an offline, job-aligned resume instead?</p>
+        <button id="errorOfflineBtn" class="cloud-primary-btn" type="button">Generate offline</button>
+        <label class="offline-remember">
+          <input type="checkbox" id="offlineRememberToggle">
+          <span>Always use offline when AI fails</span>
+        </label>
+        <p class="offline-warning" id="offlineOfferNote" style="display: none;"></p>
+      </div>
       <div class="onboarding-actions">
         <button id="errorOpenSettingsBtn" class="cloud-secondary-btn" style="display: none;">Open Provider Settings</button>
         <button id="errorCopyBtn" class="cloud-secondary-btn">Copy Details</button>
@@ -1606,14 +1805,15 @@
       <div class="onboarding-icon" aria-hidden="true">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m5.6 5.6 2.8 2.8"/><path d="m15.6 15.6 2.8 2.8"/><path d="m18.4 5.6-2.8 2.8"/><path d="m8.4 15.6-2.8 2.8"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> — Pro plans finally switch on</h2>
+      <h2>New in <span id="whatsNewVersion"></span> — offline mode, zero tokens</h2>
       <p class="error-message">
-        Pro was checked in a place that couldn't see your sign-in, so paid plans never registered. It's checked where your account actually is now.
+        AI still writes the best resume. When it fails — or when you'd rather not spend a token — PocketResume can now build a job-aligned resume entirely on your device.
       </p>
       <ul class="whatsnew-collected">
-        <li><strong>Pro now unlocks Form Filler and the Job Tracker</strong> for accounts with a Pro plan</li>
-        <li><strong>Plan changes apply straight away</strong> — no signing out and back in</li>
-        <li><strong>Settings pricing table fixed</strong>, and the popup account bundle shrank from 6.5 MB to 0.9 MB</li>
+        <li><strong>Offline switch in the popup header</strong> — deterministic JD alignment: sections reordered, skills matched, wording never rewritten</li>
+        <li><strong>Automatic fallback</strong> after three AI failures, with a remember-my-choice toggle</li>
+        <li><strong>Universal cover letter</strong> in Settings, used whenever the AI letter fails</li>
+        <li><strong>Skill directory</strong> refreshed weekly from the public O*NET database (Pro)</li>
       </ul>
       <div class="onboarding-actions">
         <button id="whatsNewPlansBtn" class="cloud-primary-btn">Check my plan</button>

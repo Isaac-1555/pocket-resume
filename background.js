@@ -1,6 +1,24 @@
 // background.js
 import './cloud-sync-core.js';
 import { resolveFormAnswers } from './form-profile.js';
+import {
+    parseJobPosting,
+    alignResumeJson,
+    parseResumeText,
+    buildCoverLetterFromTemplate
+} from './resume-align.js';
+import {
+    ONET_ORIGIN,
+    ONET_PINNED_RELEASE,
+    parseOnetRelease,
+    buildOnetUrls,
+    buildLexiconFromOnet,
+    mergeLexicons,
+    compactLexicon,
+    expandLexicon,
+    emptyLexicon
+} from './skill-lexicon.js';
+import { SKILL_LEXICON_BASE } from './libs/skills-lexicon.js';
 
 // --- Pipeline Utilities ---
 function normalizeResumeStyle(selectedStyle) {
@@ -251,7 +269,7 @@ async function getPageContentForTab(tabId) {
         cached.jobText.trim() &&
         now - (cached.savedAt || 0) < PAGE_CACHE_TTL_MS
     ) {
-        return cached.jobText;
+        return { jobText: cached.jobText, structured: cached.structured || {}, title: cached.title || '' };
     }
 
     const contentData = await new Promise((resolve) => {
@@ -273,11 +291,115 @@ async function getPageContentForTab(tabId) {
     });
 
     const jobText = contentData.text || "No text found on page.";
+    const structured = contentData.structured && typeof contentData.structured === 'object' ? contentData.structured : {};
+    const title = typeof contentData.title === 'string' ? contentData.title : '';
     await chrome.storage.local.set({
-        [PAGE_CACHE_KEY]: { tabId, jobText, savedAt: now }
+        [PAGE_CACHE_KEY]: { tabId, jobText, structured, title, savedAt: now }
     });
-    return jobText;
+    return { jobText, structured, title };
 }
+
+// --- Deterministic alignment (offline mode) ---
+const SKILL_LEXICON_KEY = 'skillLexicon';
+const SKILL_LEXICON_META_KEY = 'skillLexiconMeta';
+const SKILL_LEXICON_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const SKILL_LEXICON_ALARM = 'skillLexiconWeekly';
+
+function getBundledLexicon() {
+    const expanded = expandLexicon(SKILL_LEXICON_BASE);
+    return expanded && Array.isArray(expanded.terms) && expanded.terms.length ? expanded : emptyLexicon();
+}
+
+async function getSkillLexicon() {
+    try {
+        const data = await chrome.storage.local.get(SKILL_LEXICON_KEY);
+        const stored = expandLexicon(data[SKILL_LEXICON_KEY]);
+        if (stored && Array.isArray(stored.terms) && stored.terms.length) return stored;
+    } catch (error) {
+        console.warn('[Align] Could not read the skill lexicon:', error);
+    }
+    return getBundledLexicon();
+}
+
+async function fetchTextWithTimeout(url, timeoutMs = 45000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+        return await response.text();
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+async function updateSkillLexicon() {
+    let release = ONET_PINNED_RELEASE;
+    try {
+        const indexHtml = await fetchTextWithTimeout(`${ONET_ORIGIN}/database.html`, 20000);
+        release = parseOnetRelease(indexHtml) || ONET_PINNED_RELEASE;
+    } catch (error) {
+        console.warn('[Align] Could not resolve the newest O*NET release, using the pinned one:', error.message);
+    }
+    const urls = buildOnetUrls(release);
+    const [softwareCsv, essentialCsv, transferableCsv] = await Promise.all([
+        fetchTextWithTimeout(urls.software),
+        fetchTextWithTimeout(urls.essential),
+        fetchTextWithTimeout(urls.transferable)
+    ]);
+    const fresh = buildLexiconFromOnet({ softwareCsv, essentialCsv, transferableCsv, version: release });
+    const merged = mergeLexicons(getBundledLexicon(), fresh);
+    const compact = compactLexicon(merged);
+    const meta = {
+        source: merged.source,
+        version: merged.version,
+        fetchedAt: merged.fetchedAt,
+        count: merged.count,
+        lastError: ''
+    };
+    await chrome.storage.local.set({
+        [SKILL_LEXICON_KEY]: compact,
+        [SKILL_LEXICON_META_KEY]: meta
+    });
+    return meta;
+}
+
+async function maybeAutoUpdateSkillLexicon() {
+    try {
+        const data = await chrome.storage.local.get([SKILL_LEXICON_META_KEY, 'skillLexiconAutoUpdate']);
+        if (data.skillLexiconAutoUpdate === false) return;
+        const meta = data[SKILL_LEXICON_META_KEY];
+        const age = Date.now() - (meta?.fetchedAt || 0);
+        if (meta && age < SKILL_LEXICON_MAX_AGE_MS) return;
+        const permission = await chrome.permissions.contains({ origins: ['https://www.onetcenter.org/*'] });
+        if (!permission) return;
+        const access = await getFormFillAccess();
+        if (!access.allowed) return;
+        await updateSkillLexicon();
+        console.log('[Align] Skill lexicon updated.');
+    } catch (error) {
+        console.warn('[Align] Skill lexicon auto-update failed:', error);
+        await chrome.storage.local.set({
+            [SKILL_LEXICON_META_KEY]: {
+                ...(await chrome.storage.local.get(SKILL_LEXICON_META_KEY))[SKILL_LEXICON_META_KEY],
+                lastError: error.message || String(error)
+            }
+        });
+    }
+}
+
+chrome.alarms.create(SKILL_LEXICON_ALARM, { periodInMinutes: 7 * 24 * 60, delayInMinutes: 3 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === SKILL_LEXICON_ALARM) maybeAutoUpdateSkillLexicon();
+});
+chrome.runtime.onStartup.addListener(() => {
+    maybeAutoUpdateSkillLexicon();
+});
+chrome.runtime.onInstalled.addListener(() => {
+    maybeAutoUpdateSkillLexicon();
+});
+maybeAutoUpdateSkillLexicon();
+
 
 async function fetchWithRetry(url, options = {}, contextLabel = '') {
     let lastError = null;
@@ -1379,7 +1501,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 const tab = await chrome.tabs.get(tabId);
 
                 // 3. Get Content from Tab (reuses fresh cache; clears only on success)
-                const jobText = await getPageContentForTab(tabId);
+                const page = await getPageContentForTab(tabId);
+                const jobText = page.jobText;
+                const jobMeta = parseJobPosting({ title: page.title, text: jobText, structured: page.structured });
 
                 // 4. Pipeline with retries (page content comes from cache on retries)
                 let resumeText = null;
@@ -1430,7 +1554,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // 5. Success - clear the page cache
                 await chrome.storage.local.remove(PAGE_CACHE_KEY);
                 console.info('[Tracker] Resume generation complete.');
-                sendResponse({ status: 'success', data: resumeText, coverLetterData: coverLetterText });
+                sendResponse({
+                    status: 'success',
+                    data: resumeText,
+                    coverLetterData: coverLetterText,
+                    jobMeta: {
+                        title: jobMeta.title,
+                        company: jobMeta.company,
+                        location: jobMeta.location,
+                        recruiterName: jobMeta.recruiterName
+                    }
+                });
 
             } catch (error) {
                 console.error("Pipeline Error:", error);
@@ -1559,6 +1693,202 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 sendResponse({ status: 'success', data: profile });
             } catch (error) {
                 console.error('Profile Autofill Error:', error);
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+
+        return true;
+    }
+
+    if (message.type === 'OFFLINE_ALIGN') {
+        (async () => {
+            try {
+                const payload = message.payload || {};
+                const access = await getFormFillAccess();
+                if (!access.allowed) {
+                    sendResponse({ status: 'upgrade_required', promoActive: !!access.promoActive, allowed: false });
+                    return;
+                }
+
+                const tabId = payload.tabId;
+                if (!tabId) throw new Error('Open the job posting tab first.');
+
+                const settings = await chrome.storage.local.get(
+                    PROVIDER_SETTINGS_KEYS.concat(['resumes', 'userProfile', 'coverLetterEnabled', 'universalCoverLetter'])
+                );
+                const resumeStyle = normalizeResumeStyle(payload.resumeStyle);
+                const styleConfig = getResumeStyleConfig(resumeStyle);
+
+                const entries = Array.isArray(settings.resumes) ? settings.resumes : [];
+                const entry = entries.find((item) => item && item.id === payload.resumeId) || entries[0] || null;
+                if (!entry) throw new Error('Add your resume in Settings first.');
+
+                let profile = null;
+                let parseQuality = 'high';
+                let parseWarnings = [];
+                const storedJson = typeof entry.jsonContent === 'string' ? entry.jsonContent.trim() : '';
+                if (storedJson) {
+                    try {
+                        profile = parseJsonText(storedJson, 'Profile');
+                    } catch (error) {
+                        console.warn('[Align] Stored JSON profile is unreadable:', error);
+                    }
+                }
+                if (!profile && !payload.allowRawText) {
+                    sendResponse({ status: 'needs_json', message: 'Run Extract JSON in Settings for an accurate offline resume.' });
+                    return;
+                }
+                if (!profile) {
+                    profile = parseResumeText(entry.content || settings.userProfile || '');
+                    parseQuality = 'low';
+                    parseWarnings = parseWarnings.concat(profile.parseWarnings || []);
+                }
+                if (!profile || typeof profile !== 'object' || Array.isArray(profile)) throw new Error('Could not read your resume.');
+
+                const tab = await chrome.tabs.get(tabId);
+                const page = await getPageContentForTab(tabId);
+                const jd = parseJobPosting({ title: page.title || tab.title, text: page.jobText, structured: page.structured });
+                const lexicon = await getSkillLexicon();
+
+                const { resume, report } = alignResumeJson(profile, jd, {
+                    lexicon,
+                    styleConfig,
+                    generateSummary: !!payload.generateSummary
+                });
+
+                let coverLetterData = null;
+                let coverLetterStatus = 'disabled';
+                const coverLetterWanted = typeof payload.coverLetterEnabled === 'boolean'
+                    ? payload.coverLetterEnabled
+                    : !!settings.coverLetterEnabled;
+                if (coverLetterWanted) {
+                    coverLetterStatus = 'no_template';
+                    const template = settings.universalCoverLetter;
+                    if (template && String(template.body || '').trim()) {
+                        coverLetterStatus = 'empty';
+                        const letter = buildCoverLetterFromTemplate(template, {
+                            applicantName: resume.name || '',
+                            applicantContact: resume.contact || '',
+                            company: jd.company || resume.company || '',
+                            role: jd.title || '',
+                            recipientName: jd.recruiterName || ''
+                        });
+                        if (letter) {
+                            coverLetterData = JSON.stringify(letter);
+                            coverLetterStatus = 'sent';
+                        }
+                    }
+                }
+                console.log('[Align] Offline run', {
+                    style: resumeStyle,
+                    score: report.score,
+                    coverLetterWanted,
+                    coverLetterStatus,
+                    hasTemplate: !!(settings.universalCoverLetter && String(settings.universalCoverLetter.body || '').trim()),
+                    parseQuality
+                });
+
+                sendResponse({
+                    status: 'success',
+                    data: JSON.stringify(resume),
+                    coverLetterData,
+                    coverLetterStatus,
+                    report: { ...report, parseQuality, parseWarnings },
+                    jobMeta: {
+                        title: jd.title,
+                        company: jd.company,
+                        location: jd.location,
+                        recruiterName: jd.recruiterName
+                    }
+                });
+            } catch (error) {
+                console.error('Offline Align Error:', error);
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+
+        return true;
+    }
+
+    if (message.type === 'BUILD_COVER_LETTER') {
+        (async () => {
+            try {
+                const access = await getFormFillAccess();
+                if (!access.allowed) {
+                    sendResponse({ status: 'upgrade_required', promoActive: !!access.promoActive });
+                    return;
+                }
+                const payload = message.payload || {};
+                const data = await chrome.storage.local.get('universalCoverLetter');
+                const template = data.universalCoverLetter;
+                if (!template || !String(template.body || '').trim()) {
+                    sendResponse({ status: 'error', message: 'Add a universal cover letter in Settings first.' });
+                    return;
+                }
+                const letter = buildCoverLetterFromTemplate(template, {
+                    applicantName: payload.applicantName || '',
+                    applicantContact: payload.applicantContact || '',
+                    company: payload.company || '',
+                    role: payload.role || '',
+                    recipientName: payload.recipientName || ''
+                });
+                if (!letter) {
+                    sendResponse({ status: 'error', message: 'The universal cover letter is empty.' });
+                    return;
+                }
+                sendResponse({ status: 'success', data: JSON.stringify(letter) });
+            } catch (error) {
+                console.error('Cover Letter Build Error:', error);
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+
+        return true;
+    }
+
+    if (message.type === 'UPDATE_SKILL_LEXICON') {
+        (async () => {
+            try {
+                const access = await getFormFillAccess();
+                if (!access.allowed) {
+                    sendResponse({ status: 'upgrade_required', promoActive: !!access.promoActive });
+                    return;
+                }
+                const granted = await chrome.permissions.contains({ origins: ['https://www.onetcenter.org/*'] });
+                if (!granted) {
+                    sendResponse({ status: 'permission_required' });
+                    return;
+                }
+                const meta = await updateSkillLexicon();
+                sendResponse({ status: 'success', meta });
+            } catch (error) {
+                console.error('Skill Lexicon Update Error:', error);
+                const stored = await chrome.storage.local.get(SKILL_LEXICON_META_KEY);
+                await chrome.storage.local.set({
+                    [SKILL_LEXICON_META_KEY]: { ...(stored[SKILL_LEXICON_META_KEY] || {}), lastError: error.message || String(error) }
+                });
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+
+        return true;
+    }
+
+    if (message.type === 'GET_SKILL_LEXICON_STATUS') {
+        (async () => {
+            try {
+                const [data, lexicon] = await Promise.all([
+                    chrome.storage.local.get(SKILL_LEXICON_META_KEY),
+                    getSkillLexicon()
+                ]);
+                sendResponse({
+                    status: 'success',
+                    meta: data[SKILL_LEXICON_META_KEY] || null,
+                    count: lexicon.count || (lexicon.terms || []).length,
+                    source: lexicon.source || '',
+                    version: lexicon.version || ''
+                });
+            } catch (error) {
                 sendResponse({ status: 'error', message: error.message });
             }
         })();

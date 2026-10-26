@@ -1,12 +1,14 @@
 {
   "manifest_version": 3,
   "name": "PocketResume",
-  "version": "9.0.1",
+  "version": "9.1.0",
   "description": "Generate tailored resumes from job descriptions using AI for free*.",
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "alarms",
+    "downloads"
   ],
   "host_permissions": [
     "https://api.openai.com/*",

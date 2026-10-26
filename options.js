@@ -66,6 +66,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   const customQaQuestionInput = document.getElementById('customQaQuestionInput');
   const customQaAnswerInput = document.getElementById('customQaAnswerInput');
   const customQaAddBtn = document.getElementById('customQaAddBtn');
+  const offlineFallbackSelect = document.getElementById('offlineFallbackSelect');
+  const offlineModePill = document.getElementById('offlineModePill');
+  const uclGreeting = document.getElementById('uclGreeting');
+  const uclSignOff = document.getElementById('uclSignOff');
+  const uclBody = document.getElementById('uclBody');
+  const uclStatus = document.getElementById('uclStatus');
+  const coverLetterFallbackPill = document.getElementById('coverLetterFallbackPill');
+  const skillLexiconUpdateBtn = document.getElementById('skillLexiconUpdateBtn');
+  const skillLexiconAutoToggle = document.getElementById('skillLexiconAutoToggle');
+  const skillLexiconStatus = document.getElementById('skillLexiconStatus');
+  const skillLexiconPill = document.getElementById('skillLexiconPill');
+  const offlineSeePlansBtn = document.getElementById('offlineSeePlansBtn');
 
   let apiKeys = {
     google: '',
@@ -90,6 +102,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   let editorMode = 'resume';
   let appProfileCustomQa = [];
   let appProfileAutofilling = false;
+  let offlineProAllowed = false;
+  let universalCoverLetter = null;
+  let skillLexiconMeta = null;
 
   function generateId() {
     return 'r_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
@@ -383,6 +398,214 @@ document.addEventListener('DOMContentLoaded', async () => {
     appProfileStatePill.className = complete ? 'cloud-status-pill synced' : 'cloud-status-pill';
   }
 
+  // --- Offline mode, cover letter fallback, skill directory (Pro) ---
+  function setOfflineControlsEnabled(enabled) {
+    [offlineFallbackSelect, uclGreeting, uclSignOff, uclBody, skillLexiconUpdateBtn, skillLexiconAutoToggle].forEach((el) => {
+      if (el) el.disabled = !enabled;
+    });
+    if (offlineModePill) {
+      offlineModePill.textContent = enabled ? 'Pro active' : 'Pro';
+      offlineModePill.className = enabled ? 'cloud-status-pill synced' : 'cloud-status-pill';
+    }
+    if (offlineSeePlansBtn) offlineSeePlansBtn.style.display = enabled ? 'none' : 'inline-block';
+  }
+
+  function updateCoverLetterFallbackPill() {
+    if (!coverLetterFallbackPill) return;
+    const hasBody = !!(uclBody && uclBody.value.trim());
+    coverLetterFallbackPill.textContent = hasBody ? 'Ready' : 'Not set';
+    coverLetterFallbackPill.className = hasBody ? 'cloud-status-pill synced' : 'cloud-status-pill';
+  }
+
+  function readUniversalCoverLetter() {
+    const body = uclBody ? uclBody.value.trim() : '';
+    if (!body) return null;
+    return {
+      greeting: uclGreeting ? uclGreeting.value.trim() : '',
+      signOff: uclSignOff ? uclSignOff.value.trim() : '',
+      body,
+      updatedAt: Date.now()
+    };
+  }
+
+  function readOfflineFallback() {
+    const value = offlineFallbackSelect ? offlineFallbackSelect.value : 'ask';
+    return ['ask', 'auto', 'off'].includes(value) ? value : 'ask';
+  }
+
+  function formatLexiconTimestamp(ms) {
+    if (!ms) return 'never';
+    try {
+      return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  function renderSkillLexiconStatus(meta, fallback) {
+    if (!skillLexiconStatus) return;
+    if (meta && meta.count) {
+      skillLexiconStatus.textContent = `${meta.count.toLocaleString()} skills · ${meta.version || 'O*NET'} · updated ${formatLexiconTimestamp(meta.fetchedAt)}`;
+      if (skillLexiconPill) {
+        skillLexiconPill.textContent = 'Updated';
+        skillLexiconPill.className = 'cloud-status-pill synced';
+      }
+      if (meta.lastError) skillLexiconStatus.textContent += ` · last error: ${meta.lastError}`;
+      return;
+    }
+    if (fallback) {
+      skillLexiconStatus.textContent = fallback;
+      return;
+    }
+    skillLexiconStatus.textContent = 'Bundled vocabulary in use.';
+  }
+
+  async function refreshSkillLexiconStatus() {
+    const response = await sendRuntimeMessage({ type: 'GET_SKILL_LEXICON_STATUS' });
+    if (response && response.status === 'success') {
+      skillLexiconMeta = response.meta || null;
+      if (skillLexiconStatus && (!response.meta || !response.meta.count)) {
+        skillLexiconStatus.textContent = `${response.count ? response.count.toLocaleString() + ' ' : ''}bundled skills in use.`;
+      }
+      renderSkillLexiconStatus(response.meta, null);
+    }
+  }
+
+  async function refreshOfflineAccess() {
+    const cloudSync = window.CloudSync;
+    if (!cloudSync || typeof cloudSync.getAccessState !== 'function') {
+      offlineProAllowed = true;
+      setOfflineControlsEnabled(true);
+      return;
+    }
+    if (typeof cloudSync.isConfigured === 'function' && !cloudSync.isConfigured()) {
+      offlineProAllowed = true;
+      setOfflineControlsEnabled(true);
+      return;
+    }
+    try {
+      const access = await cloudSync.getAccessState();
+      offlineProAllowed = !!(access && access.proAccess);
+    } catch {
+      offlineProAllowed = false;
+    }
+    setOfflineControlsEnabled(offlineProAllowed);
+    if (!offlineProAllowed && offlineModePill) {
+      offlineModePill.textContent = 'Pro';
+      offlineModePill.className = 'cloud-status-pill';
+    }
+  }
+
+  function fillOfflineSettings(data) {
+    if (offlineFallbackSelect) offlineFallbackSelect.value = ['ask', 'auto', 'off'].includes(data.offlineFallback) ? data.offlineFallback : 'ask';
+    universalCoverLetter = data.universalCoverLetter || null;
+    if (uclGreeting) uclGreeting.value = universalCoverLetter?.greeting || '';
+    if (uclSignOff) uclSignOff.value = universalCoverLetter?.signOff || '';
+    if (uclBody) uclBody.value = universalCoverLetter?.body || '';
+    if (uclStatus) uclStatus.textContent = universalCoverLetter?.updatedAt
+      ? `Saved ${formatLexiconTimestamp(universalCoverLetter.updatedAt)}.`
+      : '';
+    updateCoverLetterFallbackPill();
+    if (skillLexiconAutoToggle) skillLexiconAutoToggle.checked = data.skillLexiconAutoUpdate !== false;
+    refreshOfflineAccess();
+    refreshSkillLexiconStatus();
+  }
+
+  if (offlineFallbackSelect) {
+    offlineFallbackSelect.addEventListener('change', () => {
+      chrome.storage.local.set({ offlineFallback: readOfflineFallback() });
+    });
+  }
+
+  if (offlineSeePlansBtn) {
+    offlineSeePlansBtn.addEventListener('click', () => showCloudPricingPanel());
+  }
+
+  let coverLetterSaveTimer = null;
+
+  function persistUniversalCoverLetter() {
+    const letter = readUniversalCoverLetter();
+    universalCoverLetter = letter;
+    chrome.storage.local.set({ universalCoverLetter: letter }, () => {
+      updateCoverLetterFallbackPill();
+      if (uclStatus) {
+        uclStatus.textContent = letter?.body
+          ? `Saved automatically · ${letter.body.length} characters`
+          : '';
+      }
+    });
+  }
+
+  function scheduleCoverLetterSave() {
+    updateCoverLetterFallbackPill();
+    if (coverLetterSaveTimer) clearTimeout(coverLetterSaveTimer);
+    coverLetterSaveTimer = setTimeout(() => {
+      coverLetterSaveTimer = null;
+      persistUniversalCoverLetter();
+    }, 700);
+  }
+
+  if (uclBody) uclBody.addEventListener('input', scheduleCoverLetterSave);
+  if (uclGreeting) uclGreeting.addEventListener('input', scheduleCoverLetterSave);
+  if (uclSignOff) uclSignOff.addEventListener('input', scheduleCoverLetterSave);
+  if (uclBody) uclBody.addEventListener('blur', () => {
+    if (coverLetterSaveTimer) {
+      clearTimeout(coverLetterSaveTimer);
+      coverLetterSaveTimer = null;
+      persistUniversalCoverLetter();
+    }
+  });
+
+  if (uclBody) {
+    uclBody.addEventListener('input', updateCoverLetterFallbackPill);
+  }
+
+  if (skillLexiconAutoToggle) {
+    skillLexiconAutoToggle.addEventListener('change', () => {
+      chrome.storage.local.set({ skillLexiconAutoUpdate: skillLexiconAutoToggle.checked });
+    });
+  }
+
+  if (skillLexiconUpdateBtn) {
+    skillLexiconUpdateBtn.addEventListener('click', async () => {
+      if (!offlineProAllowed) {
+        showStatus('Offline mode is a Pro feature. See plans to unlock the skill directory.', 'info', 5000);
+        showCloudPricingPanel();
+        return;
+      }
+      const granted = await chrome.permissions.request({ origins: ['https://www.onetcenter.org/*'] }).catch(() => false);
+      if (!granted) {
+        showStatus('Permission to reach onetcenter.org is required to update the skill directory.', 'info', 5000);
+        return;
+      }
+      skillLexiconUpdateBtn.disabled = true;
+      const original = skillLexiconUpdateBtn.textContent;
+      skillLexiconUpdateBtn.textContent = 'Updating…';
+      try {
+        const response = await sendRuntimeMessage({ type: 'UPDATE_SKILL_LEXICON' });
+        if (response && response.status === 'success') {
+          skillLexiconMeta = response.meta || null;
+          renderSkillLexiconStatus(skillLexiconMeta, null);
+          showStatus(`Skill directory updated: ${(response.meta?.count || 0).toLocaleString()} skills.`, 'success', 4000);
+        } else if (response && response.status === 'permission_required') {
+          showStatus('Permission to reach onetcenter.org is required to update the skill directory.', 'info', 5000);
+        } else if (response && response.status === 'upgrade_required') {
+          showStatus('Offline mode is a Pro feature. See plans to unlock the skill directory.', 'info', 5000);
+          showCloudPricingPanel();
+        } else {
+          throw new Error(response?.message || 'Unknown update error');
+        }
+      } catch (error) {
+        showStatus(`Skill directory update failed: ${error.message}`, 'error', 6000);
+      } finally {
+        if (skillLexiconUpdateBtn) {
+          skillLexiconUpdateBtn.disabled = false;
+          skillLexiconUpdateBtn.textContent = original;
+        }
+      }
+    });
+  }
+
   function renderCustomQa() {
     if (!customQaList) return;
     customQaList.innerHTML = '';
@@ -452,8 +675,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const payload = {
       apiProvider: activeProvider,
       applicationProfile: readAppProfileFromForm(),
+      offlineFallback: readOfflineFallback(),
       resumes: getPersistedResumes()
     };
+    payload.universalCoverLetter = readUniversalCoverLetter();
     for (const [provider, storageKey] of Object.entries(PROVIDER_KEY_STORAGE_MAP)) {
       payload[storageKey] = provider === currentlyViewedProvider
         ? (apiKeys[provider] || '')
@@ -1065,7 +1290,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderEndpointsList();
   });
 
-  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'googleModel', 'openaiModel', 'anthropicModel', 'openrouterModel', 'customEndpoints', 'activeCustomEndpointId', 'apiProvider', 'userProfile', 'resumes', 'trackerCaptureEnabled', 'applicationProfile']);
+  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'googleModel', 'openaiModel', 'anthropicModel', 'openrouterModel', 'customEndpoints', 'activeCustomEndpointId', 'apiProvider', 'userProfile', 'resumes', 'trackerCaptureEnabled', 'applicationProfile', 'offlineFallback', 'universalCoverLetter', 'skillLexiconAutoUpdate', 'pendingExtract', 'openCoverLetterSection']);
   const trackerCaptureToggle = document.getElementById('trackerCaptureToggle');
   if (trackerCaptureToggle) {
     trackerCaptureToggle.checked = data.trackerCaptureEnabled !== false;
@@ -1164,6 +1389,31 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- Form Filler setup (Application Questions) ---
   fillAppProfileForm(data.applicationProfile || null);
+  fillOfflineSettings(data);
+
+  if (data.pendingExtract) {
+    chrome.storage.local.remove('pendingExtract');
+    setTimeout(() => {
+      const resume = getActiveResume();
+      if (!resume?.content?.trim()) {
+        showStatus('Add resume content first, then run Extract JSON.', 'info', 5000);
+        return;
+      }
+      handleExtractJson();
+    }, 500);
+  }
+
+  if (data.openCoverLetterSection) {
+    chrome.storage.local.remove('openCoverLetterSection');
+    setTimeout(() => {
+      const details = document.getElementById('coverLetterFallbackDetails');
+      if (details) {
+        details.open = true;
+        details.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      if (uclBody) uclBody.focus();
+    }, 400);
+  }
 
   if (apEeoToggle) {
     apEeoToggle.addEventListener('change', () => {
@@ -2334,6 +2584,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       await commitViewedProviderCredentials();
       const storedCredentials = await getStoredProviderCredentials();
       await setLocalStorage(getSettingsPayload(storedCredentials));
+      universalCoverLetter = readUniversalCoverLetter();
+      if (uclStatus) {
+        uclStatus.textContent = universalCoverLetter?.body
+          ? `Saved ${formatLexiconTimestamp(universalCoverLetter.updatedAt)}.`
+          : '';
+      }
+      updateCoverLetterFallbackPill();
       resumes.forEach((entry) => {
         entry._lastSavedContent = entry.content;
       });

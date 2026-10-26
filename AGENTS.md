@@ -55,6 +55,13 @@ npm install jspdf@latest
 cp node_modules/jspdf/dist/jspdf.umd.min.js libs/jspdf.umd.min.js
 ```
 
+### Rebuild the skill lexicon / run the aligner tests
+
+```sh
+npm run build:lexicon   # downloads O*NET 31.0 CSVs -> libs/skills-lexicon.js
+npm run test:align      # determinism + no-invented-numbers checks (no network)
+```
+
 ### Update vendored LDRS loader
 
 `tracker.html` loads the Newton's Cradle loader from `libs/ldrs-newtons-cradle.js` (vendored esbuild bundle of the `ldrs` web component, used as the plan-check loader in the Job Tracker header). If you bump `ldrs`, rebuild the bundle:
@@ -102,7 +109,7 @@ None configured. No test runner or linter. Validate by hand: load unpacked, gene
 
 Chrome Web Store upload = a zip with `manifest.json` at the root and **only runtime files**. Include:
 
-`manifest.json`, `background.js`, `content.js`, `form-filler.js`, `form-profile.js`, `popup.html`, `popup.js`, `options.html`, `options.js`, `tracker.html`, `tracker.js`, `resume-renderers.js`, `feature-video.js`, `feature-video.css`, `cloud-sync.js`, `cloud-sync-core.js`, `icon.png`, `libs/` (jsPDF, ldrs loader, animations), `assets/tour/`.
+`manifest.json`, `background.js`, `content.js`, `form-filler.js`, `form-profile.js`, `popup.html`, `popup.js`, `options.html`, `options.js`, `tracker.html`, `tracker.js`, `resume-renderers.js`, `resume-align.js`, `skill-lexicon.js`, `feature-video.js`, `feature-video.css`, `cloud-sync.js`, `cloud-sync-core.js`, `icon.png`, `libs/` (jsPDF, ldrs loader, animations, skills lexicon), `assets/tour/`.
 
 Exclude: `node_modules/`, `dist/`, `.git`, `.github/`, `convex/`, `scripts/`, `src/`, `store-assets/`, `redesign/`, `models/`, `*.md`, `package*.json`, `.env*`. Output to `dist/pocketresume-vX.Y.zip`.
 
@@ -175,6 +182,26 @@ A "follow the cursor" walkthrough built on **real app screenshots**: `scripts/ca
 - Scoring rules live in `buildAtsScoringRules()` (`background.js`), shared verbatim by `generateAtsCheck` and the refine prompt, so scores are comparable across the two flows.
 - The score is **parser-readiness only**. A second, advisory `bulletIssues` list sits beside `criticalIssues` in the same response (normalized by the same `normalizeAtsIssues`, rendered by `renderBulletIssuesCard` in `options.js`) and never moves the number. It flags exactly two things: bullets that do not open with a strong action verb, and bullets that state no result/scale. Rows are namespaced with a `data-bullet-issue-*` prefix (vs `data-ats-issue-*`) so `wireAtsFixToggles()` resolves each "Fix" reveal to its own card.
 - Refine results embed the same block as `ats: { before, after, criticalIssues, bulletIssues }` inside the refine response (`before` = source resume, `after` = proposed refinedText; `userMustFix` items listed even when `after` = 100). A failing or missing ats block never blocks the refine — the hero is simply hidden.
+
+### Offline mode flow (v9.1 — deterministic, no AI)
+
+1. **Switch**: popup header `AI | Offline` pill (`#modeAiBtn` / `#modeOfflineBtn`), persisted as `popupMode`. Offline is a Pro feature (promo applies); switching without access shows `#fillProCard` with offline copy. `body[data-mode="offline"]` hides the setup card, Quick Download, Tracker, and Fill Form rows, and shows `#offlineNotice` ("No AI… wording never rewritten").
+2. **Generate**: `OFFLINE_ALIGN` message (not `START_GENERATION`) → background gates `getFormFillAccess()` → reads the selected resume → requires `jsonContent` (unless `allowRawText`) → `parseJobPosting(...)` over the cached page capture → `alignResumeJson(...)` → returns `{ data, coverLetterData, report, jobMeta }` with the exact same resume schema the renderers consume, so `generatePDF` / `resume-renderers.js` are unchanged.
+3. **Alignment rules** (`resume-align.js`, pure): JD fields replace profile fields (`subtitle`, `position`, `location`, `company`, `recruiter*`); skills keep the profile set, surface JD skills already evidenced in the profile, and sort by JD weight; per entry the strongest 2–3 bullets survive (metric + JD hits + strong-verb opener + length), banned openers are rewritten via a fixed table, long bullets are trimmed at clause boundaries without dropping numbers; projects get 2–3. Bullets are never regenerated. `parseQuality: 'low'` marks the raw-text fallback.
+4. **Verifier**: any number in the output that is absent from the source profile reverts that field, and any skill not evidenced in the profile is dropped; unresolved items land in `report.warnings`.
+5. **Report**: popup `#offlineReport` shows `JD match N% · missing: … · low confidence`.
+6. **Failure fallback**: AI failures (3 attempts, unparseable JSON, PDF/renderer throw) call `handleGenerationFailure()`, which opens the error modal with `#offlineOffer` + `#offlineRememberToggle`. `offlineFallback` (`ask` / `auto` / `off`) is editable in Settings; `auto` runs offline without asking, `off` hides the offer.
+7. **No `jsonContent`**: `#noJsonCard` offers **Extract JSON** (sets `pendingExtract`, opens options, which runs `EXTRACT_RESUME_JSON` on load) or a smaller, warned **Try offline parse from raw text** (`parseResumeText` → same schema, `parseQuality: 'low'`).
+
+### Skill directory (v9.1)
+
+- `skill-lexicon.js` parses O*NET CSVs (public, CC BY 4.0): `software_skills.csv` (31k rows → tool names with Hot/In-Demand flags), `essential_skills.csv`, `transferable_skills.csv`, merged with `CURATED_ALIASES`. See `NOTICE`.
+- Baseline snapshot: `libs/skills-lexicon.js` (`npm run build:lexicon`, ~8k terms, committed). Runtime updates go to `chrome.storage.local` as compact rows (`skillLexicon`) + `skillLexiconMeta`.
+- Updates: `chrome.alarms` (`skillLexiconWeekly`, 7 days) plus `onStartup`/`onInstalled`; runs only when Pro, `skillLexiconAutoUpdate !== false`, data older than 7 days, and the optional `https://www.onetcenter.org/*` permission is granted. Settings → Skill directory has **Update now**, which requests that permission first. Failures keep the last good copy and record `lastError`.
+
+### Universal cover letter (v9.1)
+
+Settings → Cover letter fallback stores `universalCoverLetter: { greeting, body, signOff, updatedAt }` with `{{company}}`, `{{role}}`, `{{recipient}}` placeholders. `BUILD_COVER_LETTER` (background, Pro-gated) renders it through `buildCoverLetterFromTemplate(...)` into the shape `generateCoverLetterPDF` expects. Used when the AI letter fails, or in offline mode with the cover-letter toggle on. A generated resume is never discarded because the letter failed.
 
 ### Form filler setup (Application Questions, v8.0)
 
@@ -250,6 +277,13 @@ Important keys:
 - `featureVideoDeclined`: boolean — user declined the one-time feature-tour video offer; prompt never reappears (header button still opens it)
 - `quickDownloadNewBadgeDismissed`: boolean — the Quick Download "New" badge is removed after the user's first hover/focus and never returns
 - `trackerPlanCache`: `{ proAccess, isPro, promoActive, signedIn, checkedAt }` — last Job Tracker access resolution, used for first paint / offline (ignored when `checkedAt` is older than 60 min)
+- `popupMode`: `"ai" | "offline"` — popup header mode switch
+- `offlineFallback`: `"ask" | "auto" | "off"` — what to do after 3 failed AI attempts (auto = run offline without asking)
+- `universalCoverLetter`: `{ greeting, body, signOff, updatedAt }` — fallback letter rendered when the AI letter fails or in offline mode
+- `skillLexicon`: compact O*NET-derived vocabulary (`{ schema, source, version, fetchedAt, count, terms: [[name, category, hot, inDemand, aliases]] }`) — overrides the bundled baseline
+- `skillLexiconMeta`: `{ source, version, fetchedAt, count, lastError }` — status shown in Settings → Skill directory
+- `skillLexiconAutoUpdate`: boolean (default true) — weekly refresh while Pro
+- `pendingExtract`: boolean — set by the popup "Extract JSON" prompt, consumed by the options page on load
 - `proAccessCache`: same shape as `trackerPlanCache` plus `source` and `resolved`/`healthy` — the **page-published access snapshot**. Written by `getAccessState()` in every page realm (options / popup / tracker) for *both* signed-in and signed-out resolutions; the service worker never writes it (it has no session to report) and never deletes it. Background `getFormFillAccess()` uses its own live answer when `healthy && signedIn`, otherwise this snapshot while it is younger than 60 min, otherwise denies. A Clerk `addListener` in the pages rewrites it the moment a session starts or ends, so a session expiry cannot leave a stale "Pro" behind.
 - `trackerLockDismissed`: boolean — user dismissed the Job Tracker lock banner
 
@@ -273,9 +307,9 @@ Custom endpoints require a runtime host permission for the endpoint's origin. `m
 
 ## PocketResume Pro (optional feature)
 
-Plans: **Free** (`free_user`, auto-assigned to every signed-in user) includes resume **cloud sync**. **Pro** (`pocketresume_pro`, paid) adds the full **Job Tracker** and **Form Filler**; legacy `cloud_sync`/`pro`/`premium` subscriptions and metadata still count as Pro. Sign-in, the embedded pricing table, and sync run through [Clerk](https://clerk.com) + [Convex](https://convex.dev). Plans live in Clerk instance config under `billing.plans`, editable via `clerk config patch` / Dashboard.
+Plans: **Free** (`free_user`, auto-assigned to every signed-in user) includes resume **cloud sync**. **Pro** (`pocketresume_pro`, paid) adds the full **Job Tracker**, **Form Filler**, **Offline mode** (deterministic JD alignment, automatic fallback, universal cover letter, weekly skill-directory updates); legacy `cloud_sync`/`pro`/`premium` subscriptions and metadata still count as Pro. Sign-in, the embedded pricing table, and sync run through [Clerk](https://clerk.com) + [Convex](https://convex.dev). Plans live in Clerk instance config under `billing.plans`, editable via `clerk config patch` / Dashboard.
 
-**Launch promo trial (`PROMO_TRIAL` in `src/cloud-sync.js`)**: a fixed window (Sep 27 → Oct 31, local time) during which any **free-plan subscriber** gets Pro access (Job Tracker + Form Filler + cloud sync). Non-subscribers are locked out of every Pro feature and prompted to create a free account; `promoActive && !signedIn` drives the "Start free" copy in the tracker lock banner. After the window closes, gating reverts to the steady state (free = cloud sync only; Pro = everything). This replaced the old per-user 30-day tracker trial — do not reintroduce `trackerTrialStartedAt`/`trackerUnlocked`.
+**Launch promo trial (`PROMO_TRIAL` in `src/cloud-sync.js`)**: a fixed window (Sep 27 → Oct 31, local time) during which any **free-plan subscriber** gets Pro access (Job Tracker + Form Filler + Offline mode + cloud sync). Non-subscribers are locked out of every Pro feature and prompted to create a free account; `promoActive && !signedIn` drives the "Start free" copy in the tracker lock banner. After the window closes, gating reverts to the steady state (free = cloud sync only; Pro = everything). This replaced the old per-user 30-day tracker trial — do not reintroduce `trackerTrialStartedAt`/`trackerUnlocked`.
 
 Access resolution lives in `src/cloud-sync.js`:
 - `getAccessState()` → `{ signedIn, isFreeSubscriber, isPro, promoActive, cloudSyncAccess, proAccess, resolved, healthy }`
@@ -313,6 +347,8 @@ PocketResume/
 ├── scripts/capture-tour.mjs # Generates assets/tour/*.webp + frames.js (npm run build:tour)
 ├── options.html / options.js# Settings: API keys, resumes, toggles
 ├── resume-renderers.js      # Jake / Deedy / Academic CV PDF layouts
+├── resume-align.js          # Deterministic JD alignment + raw-text resume parser (pure, no network)
+├── skill-lexicon.js         # O*NET CSV parsing, alias map, lexicon merge/compact (pure)
 ├── src/cloud-sync.js        # Pro auth/plan/pricing/sync source (bundled → cloud-sync.js + cloud-sync-core.js)
 ├── cloud-sync.js            # [generated, gitignored] esbuild bundle, Clerk UI (options.html)
 ├── cloud-sync-core.js       # [generated, gitignored] esbuild bundle, no UI (popup / tracker / worker)
@@ -341,6 +377,9 @@ PocketResume/
 - **Change what we extract from a page**: `content.js` (`extractPageText`) and the truncation logic in `background.js`.
 - **Change form detection / filling / safety rules**: `form-filler.js` (`detect` / `fill` / `toast`) and the `FILL_APPLICATION_FORM` handler + `generateFormAnswers` prompt in `background.js`.
 - **Change Pro/form-fill gating**: `src/cloud-sync.js` (`getAccessState`/`hasProAccess`/`PROMO_TRIAL`), `background.js` (`CHECK_PRO_ACCESS` + `getFormFillAccess`), popup gating in `popup.js` (`showFillProCard`/`#fillProCard`).
+- **Change offline mode / JD alignment**: `resume-align.js` (`parseJobPosting`, `alignResumeJson`, `parseResumeText`, verifier), `background.js` (`OFFLINE_ALIGN`, `BUILD_COVER_LETTER`), `popup.js` (`runOfflineGeneration`, `handleGenerationFailure`, `switchMode`) / `popup.html` (mode pill, `#offlineOffer`, `#noJsonCard`).
+- **Change the skill vocabulary or update source**: `skill-lexicon.js` (parsers, `CURATED_ALIASES`, source URLs) + `scripts/build-lexicon.mjs` (bundled baseline) + `background.js` (`updateSkillLexicon`, alarms). Keep the O*NET attribution in `NOTICE` and in Settings.
+- **Change the universal cover letter**: `options.html`/`options.js` (Cover letter fallback section) + `buildCoverLetterFromTemplate` in `resume-align.js`.
 - **Change saved-answer resolution / canonical matchers**: `form-profile.js` (`CANONICAL_MATCHERS`, `resolveFormAnswers`) — imported by `background.js`.
 - **Change Form Filler onboarding / application profile**: `options.html` + `options.js` (`#appProfileDetails` section, `APP_PROFILE_FIELDS`, `PROFILE_TOUR_STEPS`), `background.js` (`PROFILE_AUTOFILL` handler + `generateApplicationProfileFromResume`), popup gating in `popup.js` (`isFormFillerProfileComplete` / `#fillProfileCard`).
 - **Change PocketResume PDF layout**: `popup.js` (`generatePDF` / `generateCoverLetterPDF`).
@@ -372,6 +411,11 @@ Buttons use semantic accent tokens so paired actions both read as intentional (n
 
 ## Common pitfalls
 
+- **PDFs save through `chrome.downloads`, not `doc.save()`.** jsPDF's `doc.save()` is a synthetic anchor click: only the first download in a popup session inherits the user gesture, and later ones (cover letter, second file) get treated as automatic downloads and silently dropped. Use `savePdfDocument(doc, filename)` in `popup.js` (`window.PocketResumeSavePdf`, used by `resume-renderers.js` too). Keep the anchor fallback for contexts without the `downloads` permission.
+- **Offline mode never rewrites wording.** `resume-align.js` only selects, reorders, trims, and fixes banned openers; if you add a transformation that authors new text you lose the "no invented facts" guarantee and the verifier's number check. `npm run test:align` must stay green.
+- **`OFFLINE_ALIGN` needs `jsonContent`.** Raw-text parsing (`parseResumeText`) is a warned, low-confidence fallback — do not silently promote it to the default path.
+- **Weekly lexicon updates need the optional `https://www.onetcenter.org/*` permission.** A service worker cannot prompt; the options page must request it first. Without it the alarm update exits quietly and keeps the bundled/cached copy.
+- **Skill lexicon storage is ~1 MB.** `chrome.storage.local` defaults to 10 MB; keep the compact row format (`compactLexicon`) rather than storing expanded objects per term.
 - **JSON-only AI output** is a hard requirement. The popup parser will fail if the model returns markdown fences. If you change a prompt, validate with a real API call.
 - **Manifest `key` field is intentionally absent.** Chrome assigns a fresh extension ID on first load. Do not re-add it (it would lock all contributors to one ID).
 - **`host_permissions`** in `manifest.json` includes the Clerk + Convex domains contributors will need to override. Update both the manifest and this file if you add a new provider.

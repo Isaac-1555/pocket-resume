@@ -17,6 +17,8 @@ const RUNTIME_FILES = [
   'tracker.html',
   'tracker.js',
   'resume-renderers.js',
+  'resume-align.js',
+  'skill-lexicon.js',
   'feature-video.js',
   'feature-video.css',
   'cloud-sync.js',

@@ -194,6 +194,14 @@
       : [];
   }
 
+  function saveDocument(doc, filename) {
+    if (typeof window.PocketResumeSavePdf === 'function') {
+      window.PocketResumeSavePdf(doc, filename);
+      return;
+    }
+    doc.save(filename);
+  }
+
   function normalizeResumeData(raw) {
     const data = raw && typeof raw === 'object' ? raw : {};
     const skillGroups = normalizeSkillGroups(data);
@@ -526,7 +534,7 @@
       }
     });
 
-    (outputDoc || fallbackDoc).save(fileNameFor(data, 'Resume'));
+    saveDocument(outputDoc || fallbackDoc, fileNameFor(data, 'Resume'));
   }
 
   function renderAcademicCvLayout(rawData) {
@@ -716,7 +724,7 @@
       data.certifications.forEach((certification) => addBullet(certification, 12, 10));
     }
 
-    doc.save(fileNameFor(data, 'CV'));
+    saveDocument(doc, fileNameFor(data, 'CV'));
   }
 
   function generateResumePDF(rawData, _type, layout) {
