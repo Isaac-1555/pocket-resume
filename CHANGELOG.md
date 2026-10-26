@@ -11,6 +11,37 @@ Notes on history:
 
 ---
 
+## [9.1] — 2026-10-26
+
+### Added
+
+- **Offline mode — a JD-aligned resume with zero tokens.** New **AI / Offline** switch under the popup header. Offline runs entirely on-device: the job posting is parsed deterministically (JSON-LD `JobPosting` first, then heading/zone heuristics), required and preferred requirements are weighted, and your saved JSON profile is aligned to them — JD title/company/location filled in, skills ranked by JD relevance, the strongest 2–3 bullets per entry kept and ordered first, banned openers fixed, long bullets trimmed at clause boundaries. Bullet wording is never rewritten, and a verifier reverts any field that would introduce a number not present in your profile. The popup reports the JD match score and the requirements it could not find. Pro feature (launch promo applies).
+- **Automatic offline fallback after three failed AI attempts.** When generation, JSON parsing, or PDF rendering fails, the error card offers "Generate offline" with a "Always use offline when AI fails" checkbox. The choice persists as `offlineFallback` (`ask` / `auto` / `off`, editable in Settings). `auto` runs offline immediately on the next failure; `off` never offers it.
+- **Universal cover letter fallback.** Settings → Cover letter fallback stores one letter with `{{company}}`, `{{role}}`, and `{{recipient}}` placeholders. If the AI cover letter fails (or offline mode has the cover-letter toggle on), this letter is rendered instead of failing the whole run. Pro feature.
+- **Skill directory with weekly updates.** Offline mode reads a skill vocabulary built from the public O*NET 31.0 database (Software Skills + Essential + Transferable Skills, CC BY 4.0, U.S. Department of Labor), plus a curated alias map (`k8s` → Kubernetes, `react.js` → React, `postgres` → PostgreSQL…). A bundled subset (~8k terms) ships with the extension; a `chrome.alarms` job refreshes the full list weekly when Pro and the `onetcenter.org` permission is granted, and Settings → Skill directory has **Update now**. Failures keep the last good copy and report the error.
+- **Structured page capture.** `content.js` now returns JSON-LD `JobPosting` fields, `og:title`, and page headings alongside the page text, cached with the posting for 15 minutes. Both the AI prompt path and offline alignment use the same capture.
+- **Offline parsing for resumes without extracted JSON.** If the selected resume has no `jsonContent`, offline mode offers one-click **Extract JSON** in Settings, or a clearly-warned "Try offline parse from raw text" fallback that maps headings, contact details, dates, and bullets heuristically (`parseQuality: 'low'` in the report).
+
+### Changed
+
+- **Edge glow replaces the horizon line.** The purple hairline across the popup is now two vertical hairlines at the left and right edges with matching bloom; status colours (generating / success / failure / filling) and the pulse still drive both.
+- **Popup generation progress and labels follow the active mode** — the button reads `Generate Resume PDF (offline)` in offline mode and returns to the same label after success or failure.
+- **Cover-letter failures no longer fail the run.** A generated resume is kept and the universal letter (or a Settings prompt) takes over.
+
+### Fixed
+
+- **PDF downloads go through the downloads API.** Resume and cover-letter PDFs were written with jsPDF's `doc.save()`, i.e. a synthetic anchor click. Only the first download inherits the click's user gesture; the cover letter fires after a `sendMessage` round-trip, so Chrome treated it as an automatic download and silently blocked it (opening DevTools made it go through). Both PDFs — and the Double Sided / Academic CV renderers — now save through `chrome.downloads.download` with a blob URL, falling back to the anchor click only if that API is unavailable. `downloads` is now a declared permission.
+- **Offline cover letter reports its outcome.** Offline runs now return `coverLetterStatus`, the popup staggers the letter download behind the resume, and a skipped letter shows *"Cover letter skipped — add a universal cover letter"* with a link straight to that Settings section instead of failing silently. The popup also passes the cover-letter toggle state with the request, so a just-toggled switch cannot be lost to a storage race.
+- **`document.body.innerText` whitespace collapse no longer destroys section boundaries.** Page text keeps line breaks (only horizontal whitespace and blank-line runs are collapsed), which the deterministic zone parser needs and which also gives the AI prompt cleaner structure.
+- **Cover letter can no longer lose the resume.** Previously a cover-letter parse error replaced a successfully generated resume with a red error state.
+
+### Notes
+
+- Offline mode is intentionally a selection/reordering pass, not a writer: it cannot rephrase a bullet to insert a keyword, and synonym-free gaps ("payment rails" vs "fintech") show up as missing requirements in the report rather than being guessed.
+- O*NET data attribution (CC BY 4.0) appears in Settings → Skill directory and in `NOTICE`.
+
+---
+
 ## [9.0.1] — 2026-10-17
 
 ### Fixed

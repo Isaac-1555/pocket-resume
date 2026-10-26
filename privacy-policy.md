@@ -1,6 +1,6 @@
 # Privacy Policy for Pocket Resume
 
-**Last updated:** August 2026
+**Last updated:** October 2026
 
 Pocket Resume is a Chrome extension designed to help users create, store, and view resumes and cover letters directly within their browser, with AI-powered generation capabilities.
 
@@ -52,6 +52,14 @@ Data sent to your chosen AI provider is subject to their respective privacy poli
 - [Anthropic Privacy Policy](https://www.anthropic.com/legal/privacy)
 - [OpenRouter Privacy Policy](https://openrouter.ai/privacy)
 
+## Offline Mode
+
+Offline mode performs no network requests for generation: your saved profile and the job posting stay in the browser and are aligned on-device with deterministic rules.
+
+## Skill Directory Download
+
+To recognise skills in job descriptions, the extension can download a public skill vocabulary from the O*NET Resource Center (`onetcenter.org`) — the U.S. Department of Labor occupational database, licensed CC BY 4.0. This is a plain GET for a public data file. **No personal data, resume content, job text, or identifiers are sent.** The file is parsed locally and the result is stored in your browser. Updates are weekly (Pro) and can be turned off in Settings → Skill directory; the extension also ships a bundled snapshot so it works with no download at all.
+
 ## Local Data Storage
 
 Pocket Resume stores the following data locally on your device using Chrome's built-in storage APIs:
@@ -78,6 +86,8 @@ Pocket Resume requests only the permissions necessary for core functionality:
 * **Active Tab / Tab Capture**: To capture screenshots and extract text from job posting pages
 * **Storage**: To save your profile, API key, preferences, and generated documents locally
 * **Scripting**: To extract text content from web pages
+* **Alarms**: To schedule the weekly skill-directory refresh (Pro); no browsing data is read
+* **Downloads**: To save generated resume and cover-letter PDFs reliably
 * **Host Permissions**: To bypass CORS restrictions specifically for communicating with the supported AI provider APIs (`api.openai.com`, `api.anthropic.com`, `openrouter.ai`, and `generativelanguage.googleapis.com`)
 * **Optional Host Permissions**: If you add a custom or local endpoint (e.g. Ollama, LM Studio, NVIDIA NIM), Chrome will ask for your explicit consent before the extension is granted access to that endpoint's domain. You can revoke this at any time in Chrome's extension permission settings.
 

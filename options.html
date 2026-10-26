@@ -2476,6 +2476,63 @@
 
       <div class="divider"></div>
 
+      <label>Offline Mode <span class="cloud-status-pill" id="offlineModePill" style="margin-left: 6px;">Pro</span></label>
+      <small class="resume-help">Zero tokens. Builds a resume from your saved profile and aligns sections to the job description with on-device rules — wording is never rewritten.</small>
+      <label for="offlineFallbackSelect">When AI generation fails</label>
+      <select id="offlineFallbackSelect">
+        <option value="ask">Ask me each time</option>
+        <option value="auto">Always use offline automatically</option>
+        <option value="off">Never offer offline</option>
+      </select>
+      <small class="resume-help">The popup header switch (AI / Offline) uses the same mode.</small>
+      <div class="app-profile-actions">
+        <button type="button" id="offlineSeePlansBtn" class="accent-btn" style="display: none;">See Pro plans</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <details class="cloud-sync-details" id="coverLetterFallbackDetails">
+        <summary>Cover letter fallback <span id="coverLetterFallbackPill" class="cloud-status-pill">Not set</span></summary>
+        <div class="app-profile-body">
+          <small class="resume-help">If the AI cover letter fails, this letter is rendered instead. Placeholders: {{company}}, {{role}}, {{recipient}}. Pro feature.</small>
+          <div class="app-profile-grid">
+            <div class="app-profile-field">
+              <label for="uclGreeting">Greeting</label>
+              <input type="text" id="uclGreeting" maxlength="80" placeholder="Dear Hiring Manager," autocomplete="off">
+            </div>
+            <div class="app-profile-field">
+              <label for="uclSignOff">Sign-off</label>
+              <input type="text" id="uclSignOff" maxlength="80" placeholder="Sincerely," autocomplete="off">
+            </div>
+          </div>
+          <label for="uclBody">Letter body</label>
+          <textarea id="uclBody" rows="8" placeholder="I'm applying for the {{role}} role at {{company}}.&#10;&#10;Add a second paragraph here.&#10;&#10;Thank you for your time."></textarea>
+          <small id="uclStatus" class="resume-help"></small>
+        </div>
+      </details>
+
+      <details class="cloud-sync-details" id="skillDirectoryDetails">
+        <summary>Skill directory <span id="skillLexiconPill" class="cloud-status-pill">Bundled</span></summary>
+        <div class="app-profile-body">
+          <small class="resume-help">Vocabulary offline mode uses to read job descriptions. Updated from the public O*NET database (CC BY 4.0, U.S. Department of Labor). Pro feature.</small>
+          <div class="tracker-toggle-row">
+            <div class="tracker-toggle-text">
+              <p>Weekly auto-update</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="skillLexiconAutoToggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="app-profile-actions">
+            <button type="button" id="skillLexiconUpdateBtn" class="accent-btn">Update now</button>
+          </div>
+          <small id="skillLexiconStatus" class="resume-help">Bundled vocabulary in use.</small>
+        </div>
+      </details>
+
+      <div class="divider"></div>
+
       <label>Job Tracker</label>
       <div class="tracker-toggle-row">
         <div class="tracker-toggle-text">

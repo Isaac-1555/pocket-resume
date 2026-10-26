@@ -1,0 +1,23 @@
+# Third-party notices
+
+## O*NET database
+
+PocketResume's skill directory is derived from the O*NET 31.0 Database
+(Software Skills, Essential Skills, and Transferable Skills files), published by
+the U.S. Department of Labor, Employment and Training Administration.
+
+- Source: https://www.onetcenter.org/database.html
+- License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+- License text: https://www.onetcenter.org/license_db.html
+
+The bundled snapshot lives in `libs/skills-lexicon.js` and is regenerated with
+`npm run build:lexicon`. Updates downloaded by the extension are stored locally
+and are not redistributed.
+
+## jsPDF
+
+Vendored at `libs/jspdf.umd.min.js`. MIT License.
+
+## ldrs
+
+Vendored at `libs/ldrs-newtons-cradle.js`. MIT License.

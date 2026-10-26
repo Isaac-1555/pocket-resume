@@ -32,6 +32,112 @@ document.addEventListener('DOMContentLoaded', () => {
   const featureVideoBtn = document.getElementById('featureVideoBtn');
   const setupResumeBtn = document.getElementById('setupResumeBtn');
   const accountBtn = document.getElementById('accountBtn');
+  const modeAiBtn = document.getElementById('modeAiBtn');
+  const modeOfflineBtn = document.getElementById('modeOfflineBtn');
+  const modeLockHint = document.getElementById('modeLockHint');
+  const offlineNotice = document.getElementById('offlineNotice');
+  const offlineReport = document.getElementById('offlineReport');
+  const offlineLetterNote = document.getElementById('offlineLetterNote');
+  const offlineLetterNoteText = document.getElementById('offlineLetterNoteText');
+  const offlineLetterSettingsBtn = document.getElementById('offlineLetterSettingsBtn');
+  const noJsonCard = document.getElementById('noJsonCard');
+  const noJsonExtractBtn = document.getElementById('noJsonExtractBtn');
+  const noJsonRawBtn = document.getElementById('noJsonRawBtn');
+  const noJsonSkipBtn = document.getElementById('noJsonSkipBtn');
+  const offlineOffer = document.getElementById('offlineOffer');
+  const offlineOfferText = document.getElementById('offlineOfferText');
+  const offlineOfferNote = document.getElementById('offlineOfferNote');
+  const errorOfflineBtn = document.getElementById('errorOfflineBtn');
+  const offlineRememberToggle = document.getElementById('offlineRememberToggle');
+
+  let popupMode = 'ai';  let offlineFallback = 'ask';
+  let universalCoverLetter = null;
+  let lastJobMeta = null;
+  let offlineRunActive = false;
+  let offlineProCardShown = false;
+
+  function savePdfDocument(doc, filename) {
+    const anchorFallback = () => {
+      try {
+        doc.save(filename);
+        console.log('[PDF] saved via anchor download', filename);
+      } catch (error) {
+        console.error('[PDF] save failed', filename, error);
+      }
+    };
+
+    if (!chrome.downloads || typeof chrome.downloads.download !== 'function') {
+      anchorFallback();
+      return;
+    }
+
+    try {
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      chrome.downloads.download({ url, filename, saveAs: false }, (downloadId) => {
+        if (chrome.runtime.lastError || downloadId === undefined) {
+          console.warn('[PDF] downloads API failed, using anchor download:', chrome.runtime.lastError?.message);
+          URL.revokeObjectURL(url);
+          anchorFallback();
+          return;
+        }
+        console.log('[PDF] saved', filename, downloadId);
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      });
+    } catch (error) {
+      console.warn('[PDF] blob export failed, using anchor download:', error);
+      anchorFallback();
+    }
+  }
+
+  window.PocketResumeSavePdf = savePdfDocument;
+
+  function applyMode(mode) {
+    popupMode = mode === 'offline' ? 'offline' : 'ai';
+    document.body.dataset.mode = popupMode;
+    if (modeAiBtn) modeAiBtn.setAttribute('aria-pressed', popupMode === 'ai' ? 'true' : 'false');
+    if (modeOfflineBtn) modeOfflineBtn.setAttribute('aria-pressed', popupMode === 'offline' ? 'true' : 'false');
+    if (generateLabel) {
+      generateLabel.textContent = popupMode === 'offline' ? 'Generate Resume PDF (offline)' : 'Generate PDF Resume';
+    }
+    if (offlineReport && popupMode !== 'offline') offlineReport.classList.remove('show');
+  }
+
+  function setOfflineReport(report, hasCoverLetter = false) {
+    if (!offlineReport) return;
+    if (!report) {
+      offlineReport.textContent = '';
+      offlineReport.classList.remove('show');
+      return;
+    }
+    const confidence = report.parseQuality === 'low' ? ' · low confidence' : '';
+    const missing = report.missingRequired && report.missingRequired.length
+      ? ` · missing: ${report.missingRequired.slice(0, 3).join(', ')}`
+      : '';
+    const letter = hasCoverLetter ? ' · cover letter' : '';
+    offlineReport.textContent = `JD match ${report.score}%${confidence}${missing}${letter}`;
+    offlineReport.classList.add('show');
+  }
+
+  function hasUniversalLetter() {
+    return !!(universalCoverLetter && String(universalCoverLetter.body || '').trim());
+  }
+
+  function setOfflineLetterNote(visible, reason = 'Cover letter skipped —') {
+    if (!offlineLetterNote) return;
+    offlineLetterNote.style.display = visible ? 'block' : 'none';
+    if (visible && offlineLetterNoteText) offlineLetterNoteText.textContent = reason;
+  }
+
+  function openUniversalLetterSettings() {
+    chrome.storage.local.set({ openCoverLetterSection: true }, () => {
+      chrome.runtime.openOptionsPage();
+    });
+  }
+
+  if (offlineLetterSettingsBtn) {
+    offlineLetterSettingsBtn.addEventListener('click', openUniversalLetterSettings);
+  }
 
   // --- Cover Letter Toggle ---
   let trackerCaptureEnabled = true;
@@ -41,6 +147,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   coverLetterToggle.addEventListener('change', () => {
     chrome.storage.local.set({ coverLetterEnabled: coverLetterToggle.checked });
+    chrome.storage.local.get('universalCoverLetter', (data) => {
+      universalCoverLetter = data.universalCoverLetter || null;
+      setOfflineLetterNote(coverLetterToggle.checked && popupMode === 'offline' && !hasUniversalLetter());
+    });
   });
 
   // --- Resume selector state ---
@@ -127,7 +237,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   // Check if settings are configured + load resumes
-  chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'apiProvider', 'customEndpoints', 'activeCustomEndpointId', 'resumes', 'userProfile', 'resumeType', 'resumeLayout', 'selectedResumeId', 'onboarding', 'onboardingCompleted'], (data) => {
+  chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'apiProvider', 'customEndpoints', 'activeCustomEndpointId', 'resumes', 'userProfile', 'resumeType', 'resumeLayout', 'selectedResumeId', 'onboarding', 'onboardingCompleted', 'popupMode', 'offlineFallback', 'universalCoverLetter', 'coverLetterEnabled'], (data) => {
+    applyMode(data.popupMode === 'offline' ? 'offline' : 'ai');
+    offlineFallback = ['auto', 'off', 'ask'].includes(data.offlineFallback) ? data.offlineFallback : 'ask';
+    universalCoverLetter = data.universalCoverLetter || null;
+    if (typeof data.coverLetterEnabled === 'boolean') coverLetterToggle.checked = data.coverLetterEnabled;
+    setOfflineLetterNote(popupMode === 'offline' && coverLetterToggle.checked && !hasUniversalLetter());
     // Migrate legacy profile
     if (data.userProfile && (!data.resumes || data.resumes.length === 0)) {
       loadedResumes = [{ id: 'migrated_1', label: 'Resume 1', content: data.userProfile }];
@@ -406,30 +521,45 @@ document.addEventListener('DOMContentLoaded', () => {
       .join('');
   }
 
-  function showFillProCard(access) {
+  function showProCard(kind, access) {
     if (!fillProCard) return;
     const promo = !!(access && access.promoActive && !access.signedIn);
     const title = document.getElementById('fillProTitle');
     const features = document.getElementById('fillProFeatures');
     const footnote = document.getElementById('fillProFootnote');
-    if (title) title.textContent = promo ? 'Every Pro feature free until Oct 31' : 'Unlock Form Filler with Pro';
-    renderFeatureList(features, promo
+    const isOffline = kind === 'offline';
+    if (title) {
+      title.textContent = promo
+        ? 'Every Pro feature free until Oct 31'
+        : (isOffline ? 'Offline mode is a Pro feature' : 'Unlock Form Filler with Pro');
+    }
+    renderFeatureList(features, isOffline
       ? [
+          ['Offline mode', '0 tokens, works without an API key'],
+          ['Job Tracker', 'pipeline board + analytics'],
           ['Form Filler', 'one-click job applications'],
-          ['Job Tracker', 'pipeline board + analytics'],
-          ['Cloud sync', 'resumes on every device'],
         ]
-      : [
-          ['Form Filler', 'auto-fill job applications'],
-          ['Job Tracker', 'pipeline board + analytics'],
-          ['Cloud sync', 'resumes on every device'],
-        ]);
+      : promo
+        ? [
+            ['Form Filler', 'one-click job applications'],
+            ['Job Tracker', 'pipeline board + analytics'],
+            ['Cloud sync', 'resumes on every device'],
+          ]
+        : [
+            ['Form Filler', 'auto-fill job applications'],
+            ['Job Tracker', 'pipeline board + analytics'],
+            ['Cloud sync', 'resumes on every device'],
+          ]);
     if (footnote) footnote.style.display = promo ? 'block' : 'none';
     if (fillProActionBtn) {
       fillProActionBtn.textContent = promo ? 'Create free account' : 'See Pro plans';
       fillProActionBtn.dataset.target = promo ? 'options' : 'pricing';
     }
     fillProCard.style.display = 'block';
+  }
+
+  function showFillProCard(access) {
+    showProCard('fill', access);
   }
 
   function withTimeout(promise, ms) {
@@ -492,6 +622,7 @@ document.addEventListener('DOMContentLoaded', () => {
       error: !!access.error,
     });
     if (access.allowed) {
+      if (modeLockHint) modeLockHint.style.display = 'none';
       if (access.signedIn) {
         accountBtn.style.display = 'inline-block';
         accountBtn.classList.add('pro');
@@ -503,6 +634,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     const promo = access.promoActive && !access.signedIn;
+    if (modeLockHint) modeLockHint.style.display = 'inline-flex';
+    if (popupMode === 'offline') {
+      applyMode('ai');
+      chrome.storage.local.set({ popupMode: 'ai' });
+    }
     accountBtn.style.display = 'inline-block';
     accountBtn.classList.remove('pro');
     if (promo) {
@@ -523,6 +659,268 @@ document.addEventListener('DOMContentLoaded', () => {
       chrome.tabs.create({ url: chrome.runtime.getURL(target) });
     });
     updateAccountButton();
+  }
+
+  // --- Offline mode (deterministic JD alignment, Pro) ---
+  async function switchMode(mode) {
+    if (mode === popupMode) return;
+    if (mode === 'offline') {
+      const access = await checkProAccess();
+      if (!access.allowed) {
+        showProCard('offline', access);
+        return;
+      }
+      if (fillProCard) fillProCard.style.display = 'none';
+    }
+    applyMode(mode);
+    setOfflineReport(null);
+    setOfflineLetterNote(false);
+    if (mode === 'offline') {
+      chrome.storage.local.get('universalCoverLetter', (data) => {
+        universalCoverLetter = data.universalCoverLetter || null;
+        if (coverLetterToggle && coverLetterToggle.checked && !hasUniversalLetter()) {
+          setOfflineLetterNote(true);
+        }
+      });
+    }
+    chrome.storage.local.set({ popupMode });
+  }
+
+  if (modeAiBtn) modeAiBtn.addEventListener('click', () => switchMode('ai'));
+  if (modeOfflineBtn) modeOfflineBtn.addEventListener('click', () => switchMode('offline'));
+
+  function renderResumePdf(resumeData, selectedStyle, styleConfig) {
+    if (styleConfig.layout === 'pocketresume') {
+      generatePDF(resumeData, selectedStyle);
+      return;
+    }
+    if (window.ResumeRenderers && typeof window.ResumeRenderers.generateResumePDF === 'function') {
+      window.ResumeRenderers.generateResumePDF(resumeData, selectedStyle, styleConfig.layout);
+      return;
+    }
+    throw new Error('Resume renderer module failed to load.');
+  }
+
+  function showNoJsonCard() {
+    if (!noJsonCard) return;
+    noJsonCard.style.display = 'block';
+    setStatus('idle');
+    generateBtn.disabled = false;
+  }
+
+  function hideNoJsonCard() {
+    if (noJsonCard) noJsonCard.style.display = 'none';
+  }
+
+  if (noJsonSkipBtn) noJsonSkipBtn.addEventListener('click', hideNoJsonCard);
+  if (noJsonExtractBtn) {
+    noJsonExtractBtn.addEventListener('click', () => {
+      chrome.storage.local.set({ pendingExtract: true }, () => {
+        chrome.runtime.openOptionsPage();
+      });
+    });
+  }
+  if (noJsonRawBtn) {
+    noJsonRawBtn.addEventListener('click', () => {
+      hideNoJsonCard();
+      runOfflineGeneration({ allowRawText: true });
+    });
+  }
+
+  function runOfflineGeneration({ allowRawText = false } = {}) {
+    if (offlineRunActive) return;
+    const selectedStyle = normalizeResumeStyle(resumeType.value || 'professional');
+    const styleConfig = getResumeStyleConfig(selectedStyle);
+
+    return chrome.tabs.query({ active: true, currentWindow: true }).then(async ([tab]) => {
+      if (!tab || !tab.id) {
+        setError('No active tab found. Open the job posting and try again.');
+        return;
+      }
+      const access = await checkProAccess();
+      if (!access.allowed) {
+        setStatus('idle');
+        showProCard('offline', access);
+        return;
+      }
+      if (fillProCard) fillProCard.style.display = 'none';
+
+      offlineRunActive = true;
+      if (offlineOffer) offlineOffer.dataset.armed = '0';
+      generateBtn.disabled = true;
+      lastError = '';
+      lastErrorRaw = '';
+      if (errorInfoBtn) errorInfoBtn.style.display = 'none';
+      closeErrorModal();
+      hideNoJsonCard();
+      setStatus('generating');
+      if (generateLabel) generateLabel.textContent = 'Matching job description\u2026';
+
+      chrome.runtime.sendMessage({
+        type: 'OFFLINE_ALIGN',
+        payload: {
+          tabId: tab.id,
+          resumeStyle: selectedStyle,
+          resumeId: selectedResumeId,
+          allowRawText,
+          coverLetterEnabled: !!(coverLetterToggle && coverLetterToggle.checked)
+        }
+      }, (response) => {
+        offlineRunActive = false;
+        generateBtn.disabled = false;
+
+        if (chrome.runtime.lastError) {
+          setError(chrome.runtime.lastError.message || 'Could not reach the background service. Please try again.');
+          return;
+        }
+        if (response && response.status === 'needs_json') {
+          showNoJsonCard();
+          return;
+        }
+        if (response && response.status === 'upgrade_required') {
+          setStatus('idle');
+          showProCard('offline', response);
+          return;
+        }
+        if (!response || response.status !== 'success') {
+          setError(response?.message || 'Offline generation failed. Please try again.');
+          return;
+        }
+
+        try {
+          const resumeData = JSON.parse(sanitizeJsonControlChars(String(response.data || '')));
+          lastJobMeta = response.jobMeta || null;
+          if (trackerCaptureEnabled && tab) {
+            saveApplicationToTracker(resumeData, tab, selectedResumeId, selectedStyle);
+          }
+          renderResumePdf(resumeData, selectedStyle, styleConfig);
+
+          if (response.coverLetterData) {
+            try {
+              const coverLetterParsed = JSON.parse(sanitizeJsonControlChars(String(response.coverLetterData)));
+              generateCoverLetterPDF(coverLetterParsed);
+              setOfflineLetterNote(false);
+            } catch (letterError) {
+              console.error('Cover letter parse error:', letterError);
+              setOfflineLetterNote(true, 'Cover letter failed to render —');
+            }
+          } else if (response.coverLetterStatus === 'no_template' || (coverLetterToggle && coverLetterToggle.checked)) {
+            setOfflineLetterNote(true, response.coverLetterStatus === 'empty'
+              ? 'Cover letter is empty —'
+              : 'Cover letter skipped (no letter saved) —');
+          } else {
+            setOfflineLetterNote(false);
+          }
+          setOfflineReport(response.report || null, !!response.coverLetterData);
+          setStatus('success');
+        } catch (error) {
+          console.error('Offline resume parse error:', error);
+          setError(error.message || 'Could not read the offline resume. Please try again.');
+        }
+      });
+    });
+  }
+
+  function requestUniversalLetter(resumeData) {
+    return new Promise((resolve) => {
+      chrome.storage.local.get('universalCoverLetter', (data) => {
+        const template = data.universalCoverLetter;
+        universalCoverLetter = template || null;
+        if (!template || !String(template.body || '').trim()) {
+          resolve(null);
+          return;
+        }
+        chrome.runtime.sendMessage({
+          type: 'BUILD_COVER_LETTER',
+          payload: {
+            applicantName: resumeData?.name || '',
+            applicantContact: resumeData?.contact || '',
+            company: lastJobMeta?.company || resumeData?.company || '',
+            role: lastJobMeta?.title || resumeData?.position || '',
+            recipientName: lastJobMeta?.recruiterName || ''
+          }
+        }, (response) => {
+          if (chrome.runtime.lastError || !response || response.status !== 'success' || !response.data) {
+            resolve(null);
+            return;
+          }
+          try {
+            resolve(JSON.parse(sanitizeJsonControlChars(String(response.data))));
+          } catch {
+            resolve(null);
+          }
+        });
+      });
+    });
+  }
+
+  async function handleGenerationFailure(message) {
+    setError(message);
+    if (!offlineOffer) {
+      openErrorModal();
+      return;
+    }
+
+    const access = await checkProAccess();
+    const allowed = !!access.allowed;
+    const rememberLabel = offlineRememberToggle ? offlineRememberToggle.closest('label') : null;
+    openErrorModal();
+
+    if (!allowed) {
+      offlineOffer.dataset.armed = '1';
+      offlineOffer.style.display = 'block';
+      if (offlineOfferText) offlineOfferText.textContent = 'Offline fallback is a Pro feature: it aligns your saved profile to this posting with zero tokens.';
+      if (errorOfflineBtn) {
+        errorOfflineBtn.textContent = 'See Pro plans';
+        errorOfflineBtn.dataset.target = 'pricing';
+      }
+      if (offlineRememberToggle) offlineRememberToggle.checked = false;
+      if (rememberLabel) rememberLabel.style.display = 'none';
+      if (offlineOfferNote) offlineOfferNote.style.display = 'none';
+      return;
+    }
+
+    if (offlineFallback === 'off') {
+      offlineOffer.style.display = 'none';
+      return;
+    }
+
+    offlineOffer.dataset.armed = '1';
+    offlineOffer.style.display = 'block';
+    if (offlineOfferText) offlineOfferText.textContent = "AI couldn't finish. Generate an offline, job-aligned resume instead?";
+    if (errorOfflineBtn) {
+      errorOfflineBtn.textContent = 'Generate offline';
+      errorOfflineBtn.dataset.target = 'offline';
+    }
+    if (rememberLabel) rememberLabel.style.display = 'flex';
+    if (offlineRememberToggle) offlineRememberToggle.checked = offlineFallback === 'auto';
+
+    const missingLetter = coverLetterToggle && coverLetterToggle.checked && !(universalCoverLetter && String(universalCoverLetter.body || '').trim());
+    if (offlineOfferNote) {
+      offlineOfferNote.style.display = missingLetter ? 'block' : 'none';
+      offlineOfferNote.textContent = missingLetter ? 'Add a universal cover letter in Settings to include one in offline mode.' : '';
+    }
+
+    if (offlineFallback === 'auto') {
+      closeErrorModal();
+      runOfflineGeneration({ allowRawText: false });
+    }
+  }
+
+  if (errorOfflineBtn) {
+    errorOfflineBtn.addEventListener('click', () => {
+      if (errorOfflineBtn.dataset.target === 'pricing') {
+        closeErrorModal();
+        chrome.tabs.create({ url: chrome.runtime.getURL('options.html#cloud-pricing') });
+        return;
+      }
+      if (offlineRememberToggle && offlineRememberToggle.checked) {
+        offlineFallback = 'auto';
+        chrome.storage.local.set({ offlineFallback: 'auto' });
+      }
+      closeErrorModal();
+      runOfflineGeneration({ allowRawText: false });
+    });
   }
 
   if (fillProfileSetupBtn) {
@@ -670,8 +1068,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '9.0.1';
-  const ANNOUNCEMENT_SEEN_VALUE = '9.0.1';
+  const ANNOUNCEMENT_VERSION = '9.1';
+  const ANNOUNCEMENT_SEEN_VALUE = '9.1';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
@@ -764,6 +1162,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   generateBtn.addEventListener('click', async () => {
+    if (popupMode === 'offline') {
+      runOfflineGeneration({ allowRawText: false });
+      return;
+    }
+
     // UI Reset
     generateBtn.disabled = true;
     lastError = '';
@@ -788,16 +1191,19 @@ document.addEventListener('DOMContentLoaded', () => {
         resumeStyle: selectedStyle,
         resumeId: selectedResumeId
       }
-    }, (response) => {
+    }, async (response) => {
       
       if (chrome.runtime.lastError) {
-        setError(chrome.runtime.lastError.message || 'Could not reach the background service. Please try again.');
+        handleGenerationFailure(chrome.runtime.lastError.message || 'Could not reach the background service. Please try again.');
         generateBtn.disabled = false;
         return;
       }
 
       if (response && response.status === 'success') {
         try {
+          if (typeof response.data !== 'string' || !response.data.trim()) {
+            throw new Error('The AI returned an empty resume. Please try again.');
+          }
           // Clean the resume response (Strip Markdown code blocks if present)
           let rawData = response.data.trim();
           if (rawData.startsWith('```json')) {
@@ -807,18 +1213,13 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           const resumeData = JSON.parse(sanitizeJsonControlChars(rawData));
+          lastJobMeta = response.jobMeta || null;
 
           if (trackerCaptureEnabled && tab) {
             saveApplicationToTracker(resumeData, tab, selectedResumeId, selectedStyle);
           }
 
-          if (styleConfig.layout === 'pocketresume') {
-            generatePDF(resumeData, selectedStyle);
-          } else if (window.ResumeRenderers && typeof window.ResumeRenderers.generateResumePDF === 'function') {
-            window.ResumeRenderers.generateResumePDF(resumeData, selectedStyle, styleConfig.layout);
-          } else {
-            throw new Error('Resume renderer module failed to load.');
-          }
+          renderResumePdf(resumeData, selectedStyle, styleConfig);
 
           // Handle cover letter if present
           if (response.coverLetterData) {
@@ -835,19 +1236,28 @@ document.addEventListener('DOMContentLoaded', () => {
               setStatus('success');
             } catch (clError) {
               console.error("Cover Letter JSON Parse Error:", clError);
-              console.log("Raw CL Data:", response.coverLetterData);
-              setError(clError.message || 'Cover letter generation failed. Please try again.');
+              const fallbackLetter = await requestUniversalLetter(resumeData);
+              if (fallbackLetter) {
+                generateCoverLetterPDF(fallbackLetter);
+                setStatus('success');
+              } else {
+                setError('Cover letter failed. Add a universal cover letter in Settings and it will be used for every application.');
+              }
             }
+          } else if (coverLetterToggle.checked && universalCoverLetter && String(universalCoverLetter.body || '').trim()) {
+            const fallbackLetter = await requestUniversalLetter(resumeData);
+            if (fallbackLetter) generateCoverLetterPDF(fallbackLetter);
+            setStatus('success');
           } else {
             setStatus('success');
           }
         } catch (e) {
           console.error("JSON Parse Error:", e);
           console.log("Raw Data:", response.data);
-          setError(e.message || 'Could not read the generated resume. Please try again.');
+          handleGenerationFailure(e.message || 'Could not read the generated resume. Please try again.');
         }
       } else {
-        setError(response?.message || 'Something went wrong. Please try again.');
+        handleGenerationFailure(response?.message || 'Something went wrong. Please try again.');
       }
       generateBtn.disabled = false;
     });
@@ -924,7 +1334,7 @@ document.addEventListener('DOMContentLoaded', () => {
         generateLabel.textContent =
           uiState === 'success' ? 'Done \u2014 PDF ready'
             : uiState === 'failure' ? 'Failed \u2014 try again'
-              : 'Generate PDF Resume';
+              : (popupMode === 'offline' ? 'Generate Resume PDF (offline)' : 'Generate PDF Resume');
       }
     }
 
@@ -983,7 +1393,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (/no active tab/i.test(lower)) {
       return 'No active tab found. Open the page with the form and try again.';
     }
-    if (/quick download|extract json/i.test(lower)) {
+    if (/quick download|extract json|offline|universal cover letter/i.test(lower)) {
       return msg;
     }
     if (/parse|invalid json|unexpected token|json/i.test(lower)) {
@@ -1005,6 +1415,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function setError(message) {
     lastErrorRaw = message || '';
     lastError = mapErrorMessage(message);
+    if (offlineOffer) offlineOffer.dataset.armed = '0';
     if (errorInfoBtn) errorInfoBtn.style.display = 'flex';
     setStatus('error');
   }
@@ -1012,6 +1423,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function openErrorModal() {
     if (!errorModal || !lastError) return;
     if (errorMessageText) errorMessageText.textContent = lastError;
+    if (offlineOffer) {
+      offlineOffer.style.display = offlineOffer.dataset.armed === '1' ? 'block' : 'none';
+    }
     const needsSettings = /settings|provider or model/i.test(lastError);
     if (errorOpenSettingsBtn) errorOpenSettingsBtn.style.display = needsSettings ? 'inline-block' : 'none';
     errorModal.style.display = 'flex';
@@ -1332,7 +1746,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
       renderResume(doc, cfg);
       if (doc.internal.getNumberOfPages() === 1) {
-        doc.save(`Resume_${(data.name || 'Generated').replace(/\s+/g, '_')}.pdf`);
+        savePdfDocument(doc, `Resume_${(data.name || 'Generated').replace(/\s+/g, '_')}.pdf`);
         return;
       }
     }
@@ -1340,7 +1754,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fallback: save tightest attempt even if >1 page
     const fallbackDoc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
     renderResume(fallbackDoc, configs[configs.length - 1]);
-    fallbackDoc.save(`Resume_${(data.name || 'Generated').replace(/\s+/g, '_')}.pdf`);
+    savePdfDocument(fallbackDoc, `Resume_${(data.name || 'Generated').replace(/\s+/g, '_')}.pdf`);
   }
 
   function generateCoverLetterPDF(data) {
@@ -1455,7 +1869,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Save
     const clFilename = `CoverLetter_${(data.applicant_name || 'Generated').replace(/\s+/g, '_')}.pdf`;
-    doc.save(clFilename);
+    savePdfDocument(doc, clFilename);
   }
 
   // --- Growth Prompts (Rating & Share) ---
@@ -1604,6 +2018,20 @@ document.addEventListener('DOMContentLoaded', () => {
   if (logoLink) {
     logoLink.addEventListener('click', openWebsite);
   }
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    if (changes.universalCoverLetter) {
+      universalCoverLetter = changes.universalCoverLetter.newValue || null;
+      setOfflineLetterNote(popupMode === 'offline' && coverLetterToggle.checked && !hasUniversalLetter());
+    }
+    if (changes.offlineFallback) {
+      offlineFallback = ['auto', 'off', 'ask'].includes(changes.offlineFallback.newValue) ? changes.offlineFallback.newValue : 'ask';
+    }
+    if (changes.coverLetterEnabled) {
+      coverLetterToggle.checked = !!changes.coverLetterEnabled.newValue;
+    }
+  });
 
   setTimeout(maybeShowPrompts, 400);
 });
