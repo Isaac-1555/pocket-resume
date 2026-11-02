@@ -1,20 +1,57 @@
 // content.js
 console.log("PocketResume Content Script Ready");
 
-function extractPageText() {
-    const bodyText = document.body ? document.body.innerText : '';
-    return bodyText
+function normalizeText(text) {
+    return String(text || '')
         .replace(/[ \t\u00a0]+/g, ' ')
         .replace(/\n\s*\n+/g, '\n')
-        .trim()
-        .substring(0, 100000);
+        .trim();
+}
+
+function largestBlockText() {
+    let best = '';
+    const selectors = ['main', '[role="main"]', 'article', '#content', '#main', '.job-description', '[class*="jobDescription" i]', '[class*="job-details" i]'];
+    for (const selector of selectors) {
+        let nodes = [];
+        try {
+            nodes = document.querySelectorAll(selector);
+        } catch {
+            continue;
+        }
+        nodes.forEach((node) => {
+            if (!node || typeof node.innerText !== 'string') return;
+            const text = normalizeText(node.innerText);
+            if (text.length > best.length) best = text;
+        });
+    }
+    return best;
+}
+
+function extractPageText() {
+    const bodyText = normalizeText(document.body ? document.body.innerText : '');
+    const mainText = largestBlockText();
+    const text = mainText.length > 400 ? `${mainText}\n${bodyText}` : bodyText;
+    return normalizeText(text).substring(0, 100000);
 }
 
 function htmlToText(html) {
     if (!html) return '';
     const holder = document.createElement('div');
     holder.innerHTML = String(html);
-    return (holder.innerText || holder.textContent || '').replace(/\s+/g, ' ').trim();
+    holder.querySelectorAll('script,style,noscript').forEach((node) => node.remove());
+    holder.querySelectorAll('br').forEach((node) => node.replaceWith('\n'));
+    const blocks = 'p,div,li,ul,ol,section,article,header,footer,h1,h2,h3,h4,h5,h6,tr,table,blockquote';
+    holder.querySelectorAll(blocks).forEach((node) => {
+        node.prepend('\n');
+        node.append('\n');
+    });
+    return String(holder.textContent || '')
+        .replace(/\r/g, '')
+        .replace(/[ \t\u00a0]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/ *\n */g, '\n')
+        .trim()
+        .substring(0, 20000);
 }
 
 function flattenJobPostings(node, out) {
@@ -44,10 +81,10 @@ function extractStructuredData() {
     const address = posting && posting.jobLocation
         ? [].concat(posting.jobLocation)[0]?.address || null
         : null;
-    const locality = address ? (address.addressLocality || '') : '';
-    const region = address ? (address.addressRegion || '') : '';
+    const locality = address ? String(address.addressLocality || '').split(',')[0].trim() : '';
+    const region = address ? String(address.addressRegion || '').split(',')[0].trim() : '';
     const location = address
-        ? [locality, region].filter(Boolean).join(', ') || (address.addressCountry || '')
+        ? [locality, region].filter(Boolean).join(', ') || (address.addressCountry?.name || address.addressCountry || '')
         : '';
 
     const ogTitle = document.querySelector('meta[property="og:title"]');
@@ -65,20 +102,46 @@ function extractStructuredData() {
     };
 }
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.type === 'GET_PAGE_CONTENT') {
-        let structured = {};
+function pageLooksUnready(text) {
+    if (!text || text.length < 1500) return true;
+    return /(?:^|\n)\s*(?:loading|we didn'?t find any|no results|searching)/i.test(text.slice(0, 500));
+}
+
+async function collectPageContent() {
+    const readStructured = () => {
         try {
-            structured = extractStructuredData();
+            return extractStructuredData();
         } catch (error) {
             console.warn('PocketResume structured extraction failed:', error);
+            return {};
         }
-        sendResponse({
-            text: extractPageText(),
-            title: document.title,
-            url: window.location.href,
-            structured
-        });
+    };
+
+    let structured = readStructured();
+    let text = extractPageText();
+    const hasDescription = !!String(structured.description || '').trim();
+
+    if (!hasDescription && pageLooksUnready(text)) {
+        const deadline = Date.now() + 4000;
+        while (Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            text = extractPageText();
+            structured = readStructured();
+            if (String(structured.description || '').trim() || !pageLooksUnready(text)) break;
+        }
+    }
+
+    return { text, structured, title: document.title, url: window.location.href };
+}
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === 'GET_PAGE_CONTENT') {
+        collectPageContent()
+            .then(sendResponse)
+            .catch((error) => {
+                console.warn('PocketResume page extraction failed:', error);
+                sendResponse({ text: '', title: document.title, url: window.location.href, structured: {} });
+            });
     }
     return true;
 });

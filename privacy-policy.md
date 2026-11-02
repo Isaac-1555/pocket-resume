@@ -1,8 +1,8 @@
 # Privacy Policy for Pocket Resume
 
-**Last updated:** October 2026
+**Last updated:** November 2026
 
-Pocket Resume is a Chrome extension designed to help users create, store, and view resumes and cover letters directly within their browser, with AI-powered generation capabilities.
+Pocket Resume is a Chrome extension designed to help users create, store, and view resumes and cover letters directly within their browser, using an on-device resume engine. Pocket Resume makes no third-party AI requests.
 
 Your privacy is important. This policy explains what data Pocket Resume collects, how it is used, and how it is transmitted.
 
@@ -20,41 +20,22 @@ Pocket Resume collects and processes the following user data to provide its core
 
 This data is used solely to generate tailored resumes and cover letters based on your profile and the job description you are viewing. No data is collected for advertising purposes.
 
-## Data Transmission to Third-Party Services
+## Data Transmission
 
-To provide AI-powered resume and cover letter generation, Pocket Resume transmits data to whichever AI Provider you have selected in your settings (**Google Gemini, OpenAI, Anthropic, or OpenRouter**). Specifically:
+**Generation is local.** Resume and cover letter generation run inside the extension: your saved resume and the job posting text stay in the browser, and the resume is aligned to the posting with deterministic rules. No resume content, job text, or identifiers are sent to any AI provider. The extension does not ask for or store API keys.
 
-### What is Sent
+### Accounts and Cloud Sync (optional)
 
-When you initiate resume generation, the extension sends the following to your chosen AI provider via HTTPS POST requests:
+Signing in is optional for editing and required for generation. If you create an account:
 
-1. **Prompt Data (text)**: A text prompt containing:
-   - Your user profile information (as entered in settings)
-   - The extracted text content from the current job posting page
-   - Instructions for resume formatting
-   - If cover letter generation is enabled, a separate request is made with instructions for cover letter formatting
+- Authentication and plan checks run through [Clerk](https://clerk.com).
+- Resumes you choose to sync are stored in the developer's [Convex](https://convex.dev) deployment, keyed to your account, so they can be restored on another device.
+- No job-posting text, page content, or browsing history is sent to Clerk or Convex.
+- Signing out stops sync; deleting a resume records a local tombstone that is also removed from the cloud.
 
-2. **Inline Data (image)**: If supported and enabled by the current provider, a JPEG screenshot of the current browser tab viewport (the job posting page) to provide additional visual context for the AI.
+## Skill Directory Download
 
-### Purpose of Transmission
-
-This data is transmitted solely to generate a tailored resume (and optionally a cover letter) using the selected AI model. The API processes the data and returns structured content in JSON format.
-
-### API Keys
-
-The extension requires you to provide your own API key for your chosen provider. These keys are stored locally in your browser and are used to authenticate requests to the respective API. Your API keys are never shared with anyone other than the specific API service they belong to.
-
-### Provider Privacy Practices
-
-Data sent to your chosen AI provider is subject to their respective privacy policies and terms of service. Please refer to:
-- [Google Cloud Privacy Notice](https://cloud.google.com/terms/cloud-privacy-notice)
-- [OpenAI Privacy Policy](https://openai.com/policies/privacy-policy/)
-- [Anthropic Privacy Policy](https://www.anthropic.com/legal/privacy)
-- [OpenRouter Privacy Policy](https://openrouter.ai/privacy)
-
-## Offline Mode
-
-Offline mode performs no network requests for generation: your saved profile and the job posting stay in the browser and are aligned on-device with deterministic rules.
+To recognise skills in job descriptions, the extension can download a public skill vocabulary from the O*NET Resource Center (`onetcenter.org`) — the U.S. Department of Labor occupational database, licensed CC BY 4.0. This is a plain GET for a public data file. **No personal data, resume content, job text, or identifiers are sent.** The file is parsed locally and the result is stored in your browser. Updates are weekly and can be turned off in Settings → Skill directory; the extension also ships a bundled snapshot so it works with no download at all.
 
 ## Skill Directory Download
 
@@ -64,10 +45,10 @@ To recognise skills in job descriptions, the extension can download a public ski
 
 Pocket Resume stores the following data locally on your device using Chrome's built-in storage APIs:
 
-* Your user profile information
-* Your API keys
-* Your preferences (cover letter toggle, selected resume style, active AI provider)
-* Generated resumes and cover letters
+* Your resume profiles (structured JSON form data)
+* Your universal cover letter template
+* Your preferences (selected resume style, tracker capture toggle)
+* Generated resumes, cover letters, and captured job applications
 
 This locally stored data:
 * Remains entirely under your control
@@ -75,35 +56,36 @@ This locally stored data:
 
 ## Data Security
 
-* All data transmitted to AI APIs is sent over secure HTTPS connections
-* Your API keys and profile data are stored locally in Chrome's secure extension storage
-* Your resume content, job descriptions, and API keys are never stored on external servers controlled by the extension developer
+* Account and sync traffic uses HTTPS
+* Resume data is stored locally in Chrome's extension storage; cloud copies exist only when you are signed in and sync is enabled
+* Job-posting text is never uploaded or stored on external servers
 
 ## Permissions
 
 Pocket Resume requests only the permissions necessary for core functionality:
 
-* **Active Tab / Tab Capture**: To capture screenshots and extract text from job posting pages
-* **Storage**: To save your profile, API key, preferences, and generated documents locally
-* **Scripting**: To extract text content from web pages
-* **Alarms**: To schedule the weekly skill-directory refresh (Pro); no browsing data is read
+* **Active Tab**: To read the job posting in the tab you are generating for
+* **Storage**: To save your resume profiles, preferences, tracker cards, and generated documents locally
+* **Scripting**: To extract text content from the job posting page when the content script is not already present
+* **Alarms**: To schedule the weekly skill-directory refresh; no browsing data is read
 * **Downloads**: To save generated resume and cover-letter PDFs reliably
-* **Host Permissions**: To bypass CORS restrictions specifically for communicating with the supported AI provider APIs (`api.openai.com`, `api.anthropic.com`, `openrouter.ai`, and `generativelanguage.googleapis.com`)
-* **Optional Host Permissions**: If you add a custom or local endpoint (e.g. Ollama, LM Studio, NVIDIA NIM), Chrome will ask for your explicit consent before the extension is granted access to that endpoint's domain. You can revoke this at any time in Chrome's extension permission settings.
+* **Host Permissions**: To reach Clerk (sign-in) and Convex (optional resume sync)
+* **Optional Host Permissions**: Only for the public `onetcenter.org` skill vocabulary. Chrome asks for your explicit consent before granting it; you can revoke it at any time in Chrome's extension settings.
 
 These permissions are used exclusively to enable the resume and cover letter generation features and are not used to collect data for other purposes.
 
 ## Data Retention
 
 * **Local Data**: Stored until you clear the extension's data or uninstall the extension
-* **Data Sent to Providers**: Retention is governed by the respective AI provider's data policies. The extension developer does not have access to or control over data processed by these APIs.
+* **Synced Data**: Cloud resume copies remain until you delete the resume while signed in or delete your account
 
 ## User Control
 
 You can:
 * View and edit your stored profile at any time through the extension settings
 * Delete all locally stored data by clearing extension data or uninstalling the extension
-* Choose when to initiate resume generation (data is only sent when you click the generate button)
+* Sign out at any time to stop cloud sync
+* Choose when to initiate generation; job text is only read when you click generate
 
 ## Changes to This Policy
 

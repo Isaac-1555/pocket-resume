@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const quickDownloadBtn = document.getElementById('quickDownloadBtn');
   const resumeType = document.getElementById('resumeType');
   const resumeSelectorDiv = document.getElementById('resumeSelector');
-  const coverLetterToggle = document.getElementById('coverLetterToggle');
+  const coverLetterBtn = document.getElementById('coverLetterBtn');
   const generateLabel = document.getElementById('generateLabel');
   const errorInfoBtn = document.getElementById('errorInfoBtn');
   const errorModal = document.getElementById('errorModal');
@@ -32,29 +32,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const featureVideoBtn = document.getElementById('featureVideoBtn');
   const setupResumeBtn = document.getElementById('setupResumeBtn');
   const accountBtn = document.getElementById('accountBtn');
-  const modeAiBtn = document.getElementById('modeAiBtn');
-  const modeOfflineBtn = document.getElementById('modeOfflineBtn');
-  const modeLockHint = document.getElementById('modeLockHint');
+  const signinCard = document.getElementById('signinCard');
+  const reviewCard = document.getElementById('reviewCard');
+  const planLockCard = document.getElementById('planLockCard');
+  const accessReminder = document.getElementById('accessReminder');
+  const accessReminderText = document.getElementById('accessReminderText');
   const offlineNotice = document.getElementById('offlineNotice');
   const offlineReport = document.getElementById('offlineReport');
   const offlineLetterNote = document.getElementById('offlineLetterNote');
   const offlineLetterNoteText = document.getElementById('offlineLetterNoteText');
   const offlineLetterSettingsBtn = document.getElementById('offlineLetterSettingsBtn');
-  const noJsonCard = document.getElementById('noJsonCard');
-  const noJsonExtractBtn = document.getElementById('noJsonExtractBtn');
-  const noJsonRawBtn = document.getElementById('noJsonRawBtn');
-  const noJsonSkipBtn = document.getElementById('noJsonSkipBtn');
-  const offlineOffer = document.getElementById('offlineOffer');
-  const offlineOfferText = document.getElementById('offlineOfferText');
-  const offlineOfferNote = document.getElementById('offlineOfferNote');
-  const errorOfflineBtn = document.getElementById('errorOfflineBtn');
-  const offlineRememberToggle = document.getElementById('offlineRememberToggle');
 
-  let popupMode = 'ai';  let offlineFallback = 'ask';
   let universalCoverLetter = null;
   let lastJobMeta = null;
-  let offlineRunActive = false;
-  let offlineProCardShown = false;
+  let generationActive = false;
+  let gate = { state: 'signin' };
 
   function savePdfDocument(doc, filename) {
     const anchorFallback = () => {
@@ -92,18 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.PocketResumeSavePdf = savePdfDocument;
 
-  function applyMode(mode) {
-    popupMode = mode === 'offline' ? 'offline' : 'ai';
-    document.body.dataset.mode = popupMode;
-    if (modeAiBtn) modeAiBtn.setAttribute('aria-pressed', popupMode === 'ai' ? 'true' : 'false');
-    if (modeOfflineBtn) modeOfflineBtn.setAttribute('aria-pressed', popupMode === 'offline' ? 'true' : 'false');
-    if (generateLabel) {
-      generateLabel.textContent = popupMode === 'offline' ? 'Generate Resume PDF (offline)' : 'Generate PDF Resume';
-    }
-    if (offlineReport && popupMode !== 'offline') offlineReport.classList.remove('show');
-  }
-
-  function setOfflineReport(report, hasCoverLetter = false) {
+  function setMatchReport(report, hasCoverLetter = false) {
     if (!offlineReport) return;
     if (!report) {
       offlineReport.textContent = '';
@@ -111,11 +92,23 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     const confidence = report.parseQuality === 'low' ? ' · low confidence' : '';
+    const keywords = report.jdSkillCount ? ` · ${report.jdSkillCount} keywords` : '';
+    const skillsAdded = report.skillsAdded && report.skillsAdded.length ? ` · +${report.skillsAdded.length} skills` : '';
+    const unverified = report.skillsAddedUnverified && report.skillsAddedUnverified.length
+      ? ` · +${report.skillsAddedUnverified.length} from the posting (unverified)`
+      : '';
+    const noEvidence = (!report.skillsAdded || !report.skillsAdded.length) && report.skillsSkippedNoEvidence && report.skillsSkippedNoEvidence.length
+      ? ` · ${report.skillsSkippedNoEvidence.length} JD skills not in your resume`
+      : '';
+    const noMasterSkills = report.masterSkillCount === 0 ? ' · your resume has no skills — add them in Settings' : '';
     const missing = report.missingRequired && report.missingRequired.length
       ? ` · missing: ${report.missingRequired.slice(0, 3).join(', ')}`
       : '';
     const letter = hasCoverLetter ? ' · cover letter' : '';
-    offlineReport.textContent = `JD match ${report.score}%${confidence}${missing}${letter}`;
+    const noKeywords = report.jdWarnings && report.jdWarnings.length
+      ? ' · no JD keywords found — reload the posting and try again'
+      : '';
+    offlineReport.textContent = `JD match ${report.score}%${keywords}${skillsAdded}${unverified}${noEvidence}${noMasterSkills}${confidence}${missing}${noKeywords}${letter}`;
     offlineReport.classList.add('show');
   }
 
@@ -123,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return !!(universalCoverLetter && String(universalCoverLetter.body || '').trim());
   }
 
-  function setOfflineLetterNote(visible, reason = 'Cover letter skipped —') {
+  function setOfflineLetterNote(visible, reason = 'Cover letter not set up —') {
     if (!offlineLetterNote) return;
     offlineLetterNote.style.display = visible ? 'block' : 'none';
     if (visible && offlineLetterNoteText) offlineLetterNoteText.textContent = reason;
@@ -139,18 +132,9 @@ document.addEventListener('DOMContentLoaded', () => {
     offlineLetterSettingsBtn.addEventListener('click', openUniversalLetterSettings);
   }
 
-  // --- Cover Letter Toggle ---
   let trackerCaptureEnabled = true;
-  chrome.storage.local.get(['coverLetterEnabled', 'trackerCaptureEnabled'], (data) => {
-    coverLetterToggle.checked = !!data.coverLetterEnabled;
+  chrome.storage.local.get(['trackerCaptureEnabled'], (data) => {
     trackerCaptureEnabled = data.trackerCaptureEnabled !== false;
-  });
-  coverLetterToggle.addEventListener('change', () => {
-    chrome.storage.local.set({ coverLetterEnabled: coverLetterToggle.checked });
-    chrome.storage.local.get('universalCoverLetter', (data) => {
-      universalCoverLetter = data.universalCoverLetter || null;
-      setOfflineLetterNote(coverLetterToggle.checked && popupMode === 'offline' && !hasUniversalLetter());
-    });
   });
 
   // --- Resume selector state ---
@@ -236,13 +220,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
 
-  // Check if settings are configured + load resumes
-  chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'apiProvider', 'customEndpoints', 'activeCustomEndpointId', 'resumes', 'userProfile', 'resumeType', 'resumeLayout', 'selectedResumeId', 'onboarding', 'onboardingCompleted', 'popupMode', 'offlineFallback', 'universalCoverLetter', 'coverLetterEnabled'], (data) => {
-    applyMode(data.popupMode === 'offline' ? 'offline' : 'ai');
-    offlineFallback = ['auto', 'off', 'ask'].includes(data.offlineFallback) ? data.offlineFallback : 'ask';
+  // Load settings + resumes
+  chrome.storage.local.get(['resumes', 'userProfile', 'resumeType', 'resumeLayout', 'selectedResumeId', 'onboarding', 'onboardingCompleted', 'universalCoverLetter'], (data) => {
     universalCoverLetter = data.universalCoverLetter || null;
-    if (typeof data.coverLetterEnabled === 'boolean') coverLetterToggle.checked = data.coverLetterEnabled;
-    setOfflineLetterNote(popupMode === 'offline' && coverLetterToggle.checked && !hasUniversalLetter());
     // Migrate legacy profile
     if (data.userProfile && (!data.resumes || data.resumes.length === 0)) {
       loadedResumes = [{ id: 'migrated_1', label: 'Resume 1', content: data.userProfile }];
@@ -250,25 +230,8 @@ document.addEventListener('DOMContentLoaded', () => {
       loadedResumes = data.resumes;
     }
 
-    const hasResumes = loadedResumes.length > 0 && loadedResumes.some(r => r.content && r.content.trim());
-    const provider = data.apiProvider || 'google';
-    
-    let hasApiKey = false;
-    if (provider === 'google' && data.geminiApiKey) hasApiKey = true;
-    if (provider === 'openrouter' && data.openrouterApiKey) hasApiKey = true;
-    if (provider === 'openai' && data.openaiApiKey) hasApiKey = true;
-    if (provider === 'anthropic' && data.anthropicApiKey) hasApiKey = true;
-    if (provider === 'custom') {
-      const endpoints = Array.isArray(data.customEndpoints) ? data.customEndpoints : [];
-      const activeEndpoint = endpoints.find((e) => e.id === data.activeCustomEndpointId) || endpoints[0];
-      hasApiKey = !!(activeEndpoint && String(activeEndpoint.baseUrl || '').trim() && String(activeEndpoint.model || '').trim());
-    }
-
-    if (!hasApiKey || !hasResumes) {
-      generateBtn.disabled = true;
-      if (fillFormBtn) fillFormBtn.disabled = true;
-      renderSetupCard(hasApiKey, hasResumes, data.onboarding);
-    } else if (!data.onboardingCompleted) {
+    const hasResumes = loadedResumes.some((resume) => (resume.jsonContent || resume.content || '').trim());
+    if (hasResumes && !data.onboardingCompleted) {
       renderSetupCompleteCard();
     }
 
@@ -375,7 +338,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Quick Download: render the saved resume JSON as a professional PDF (no AI) ---
   if (quickDownloadBtn) {
-    quickDownloadBtn.addEventListener('click', () => {
+    quickDownloadBtn.addEventListener('click', async () => {
+      const checked = await refreshGate();
+      if (checked.state !== 'ready') return;
       chrome.storage.local.get(['resumes', 'selectedResumeId', 'userProfile'], (data) => {
         let resumes = Array.isArray(data.resumes) ? data.resumes.slice() : [];
         if (resumes.length === 0 && data.userProfile) {
@@ -390,7 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const selected = resumes.find((r) => r.id === data.selectedResumeId) || resumes[0];
         const rawJson = selected && selected.jsonContent ? String(selected.jsonContent).trim() : '';
         if (!rawJson) {
-          setError('Quick Download needs your resume JSON. Open Settings and click "Extract JSON" first.');
+          setError('Quick Download needs a built resume. Open Settings and add one.');
           return;
         }
 
@@ -405,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
           resumeData = JSON.parse(sanitizeJsonControlChars(clean));
         } catch (e) {
           console.error('Quick Download JSON Parse Error:', e);
-          setError('Could not read your saved resume JSON. Open Settings and re-run "Extract JSON".');
+          setError('Could not read your saved resume. Open Settings and check the form.');
           return;
         }
 
@@ -425,18 +390,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (row) row.classList.toggle('done', done);
   }
 
-  function renderSetupCard(hasApiKey, hasResumes, onboarding) {
+  function renderSetupCard() {
     if (!setupCard) return;
-    if (onboarding && onboarding.dismissed) {
-      setupCard.style.display = 'none';
-      if (setupCompact) setupCompact.style.display = 'block';
-      return;
-    }
-    if (setupCompact) setupCompact.style.display = 'none';
-    setSetupStepDone('setupStepProvider', hasApiKey);
-    setSetupStepDone('setupStepApiKey', hasApiKey);
-    setSetupStepDone('setupStepResume', hasResumes);
-    setSetupStepDone('setupStepSave', hasApiKey && hasResumes);
+    hideGateCards();
+    setSetupStepDone('setupStepAccount', !!gate.signedIn);
+    setSetupStepDone('setupStepResume', false);
+    setSetupStepDone('setupStepCover', hasUniversalLetter());
+    setSetupStepDone('setupStepSave', !!gate.signedIn);
     setupCard.style.display = 'block';
   }
 
@@ -451,15 +411,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (skipBtn) skipBtn.style.display = 'none';
     if (doneEl) doneEl.style.display = 'block';
     if (titleEl) titleEl.textContent = 'Setup complete';
-    if (setupVideoOffer) setupVideoOffer.style.display = 'grid';
-    if (setupDoneText) setupDoneText.innerHTML = "You're all set. Visit a job posting and click <strong>Generate PDF Resume</strong>. Want a quick tour of every feature first?";
+    if (setupDoneText) setupDoneText.innerHTML = "You're all set. Visit a job posting and click <strong>Generate Resume</strong>. Want a quick tour of every feature first?";
     setupCard.style.display = 'block';
     chrome.storage.local.set({ onboardingCompleted: true });
   }
 
-  function startFeatureVideo(source) {
-    if (setupCard) setupCard.style.display = 'none';
-    if (window.PocketResumeFeatureVideo) window.PocketResumeFeatureVideo.open(source);
+  function startFeatureVideo() {
+    // The tour frames are being re-captured for the new UI.
   }
 
   function startSetupTour(step) {
@@ -500,66 +458,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (setupResumeBtn) {
     setupResumeBtn.addEventListener('click', () => startSetupTour(1));
-  }
-
-  // --- Form Filler profile gating ---
-  const fillProfileCard = document.getElementById('fillProfileCard');
-  const fillProfileSetupBtn = document.getElementById('fillProfileSetupBtn');
-  const fillProCard = document.getElementById('fillProCard');
-  const fillProActionBtn = document.getElementById('fillProActionBtn');
-
-  function isFormFillerProfileComplete(profile) {
-    return !!(profile &&
-      typeof profile.firstName === 'string' && profile.firstName.trim() &&
-      typeof profile.lastName === 'string' && profile.lastName.trim());
-  }
-
-  function renderFeatureList(node, items) {
-    if (!node) return;
-    node.innerHTML = items
-      .map(([label, desc]) => `<li><span class="pfl-check" aria-hidden="true">&#10003;</span><span class="pfl-text"><strong>${label}</strong> — ${desc}</span></li>`)
-      .join('');
-  }
-
-  function showProCard(kind, access) {
-    if (!fillProCard) return;
-    const promo = !!(access && access.promoActive && !access.signedIn);
-    const title = document.getElementById('fillProTitle');
-    const features = document.getElementById('fillProFeatures');
-    const footnote = document.getElementById('fillProFootnote');
-    const isOffline = kind === 'offline';
-    if (title) {
-      title.textContent = promo
-        ? 'Every Pro feature free until Oct 31'
-        : (isOffline ? 'Offline mode is a Pro feature' : 'Unlock Form Filler with Pro');
-    }
-    renderFeatureList(features, isOffline
-      ? [
-          ['Offline mode', '0 tokens, works without an API key'],
-          ['Job Tracker', 'pipeline board + analytics'],
-          ['Form Filler', 'one-click job applications'],
-        ]
-      : promo
-        ? [
-            ['Form Filler', 'one-click job applications'],
-            ['Job Tracker', 'pipeline board + analytics'],
-            ['Cloud sync', 'resumes on every device'],
-          ]
-        : [
-            ['Form Filler', 'auto-fill job applications'],
-            ['Job Tracker', 'pipeline board + analytics'],
-            ['Cloud sync', 'resumes on every device'],
-          ]);
-    if (footnote) footnote.style.display = promo ? 'block' : 'none';
-    if (fillProActionBtn) {
-      fillProActionBtn.textContent = promo ? 'Create free account' : 'See Pro plans';
-      fillProActionBtn.dataset.target = promo ? 'options' : 'pricing';
-    }
-    fillProCard.style.display = 'block';
-  }
-
-  function showFillProCard(access) {
-    showProCard('fill', access);
   }
 
   function withTimeout(promise, ms) {
@@ -622,29 +520,15 @@ document.addEventListener('DOMContentLoaded', () => {
       error: !!access.error,
     });
     if (access.allowed) {
-      if (modeLockHint) modeLockHint.style.display = 'none';
-      if (access.signedIn) {
-        accountBtn.style.display = 'inline-block';
-        accountBtn.classList.add('pro');
-        accountBtn.textContent = (access.promoActive && !access.isPro) ? 'Pro trial' : 'Pro';
-        accountBtn.dataset.target = 'options';
-      } else {
-        accountBtn.style.display = 'none';
-      }
+      accountBtn.style.display = 'inline-block';
+      accountBtn.classList.add('pro');
+      accountBtn.textContent = access.isPro ? 'Pro' : 'Free until Dec 31';
+      accountBtn.dataset.target = 'options';
       return;
-    }
-    const promo = access.promoActive && !access.signedIn;
-    if (modeLockHint) modeLockHint.style.display = 'inline-flex';
-    if (popupMode === 'offline') {
-      applyMode('ai');
-      chrome.storage.local.set({ popupMode: 'ai' });
     }
     accountBtn.style.display = 'inline-block';
     accountBtn.classList.remove('pro');
-    if (promo) {
-      accountBtn.textContent = 'Start free';
-      accountBtn.dataset.target = 'options';
-    } else if (access.signedIn) {
+    if (access.signedIn) {
       accountBtn.textContent = 'Upgrade';
       accountBtn.dataset.target = 'pricing';
     } else {
@@ -661,34 +545,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateAccountButton();
   }
 
-  // --- Offline mode (deterministic JD alignment, Pro) ---
-  async function switchMode(mode) {
-    if (mode === popupMode) return;
-    if (mode === 'offline') {
-      const access = await checkProAccess();
-      if (!access.allowed) {
-        showProCard('offline', access);
-        return;
-      }
-      if (fillProCard) fillProCard.style.display = 'none';
-    }
-    applyMode(mode);
-    setOfflineReport(null);
-    setOfflineLetterNote(false);
-    if (mode === 'offline') {
-      chrome.storage.local.get('universalCoverLetter', (data) => {
-        universalCoverLetter = data.universalCoverLetter || null;
-        if (coverLetterToggle && coverLetterToggle.checked && !hasUniversalLetter()) {
-          setOfflineLetterNote(true);
-        }
-      });
-    }
-    chrome.storage.local.set({ popupMode });
-  }
-
-  if (modeAiBtn) modeAiBtn.addEventListener('click', () => switchMode('ai'));
-  if (modeOfflineBtn) modeOfflineBtn.addEventListener('click', () => switchMode('offline'));
-
   function renderResumePdf(resumeData, selectedStyle, styleConfig) {
     if (styleConfig.layout === 'pocketresume') {
       generatePDF(resumeData, selectedStyle);
@@ -701,242 +557,266 @@ document.addEventListener('DOMContentLoaded', () => {
     throw new Error('Resume renderer module failed to load.');
   }
 
-  function showNoJsonCard() {
-    if (!noJsonCard) return;
-    noJsonCard.style.display = 'block';
-    setStatus('idle');
-    generateBtn.disabled = false;
+  function setGenerateEnabled(enabled) {
+    if (generateBtn) generateBtn.disabled = !enabled;
+    if (coverLetterBtn) coverLetterBtn.disabled = !enabled;
   }
 
-  function hideNoJsonCard() {
-    if (noJsonCard) noJsonCard.style.display = 'none';
+  function hideGateCards() {
+    [signinCard, reviewCard, planLockCard, setupCard, setupCompact].forEach((card) => {
+      if (card) card.style.display = 'none';
+    });
   }
 
-  if (noJsonSkipBtn) noJsonSkipBtn.addEventListener('click', hideNoJsonCard);
-  if (noJsonExtractBtn) {
-    noJsonExtractBtn.addEventListener('click', () => {
-      chrome.storage.local.set({ pendingExtract: true }, () => {
-        chrome.runtime.openOptionsPage();
+  function activeResumeFromStore(data) {
+    const list = Array.isArray(data.resumes) ? data.resumes : [];
+    return { list, resume: list.find((item) => item.id === data.selectedResumeId) || list[0] || null };
+  }
+
+  async function refreshGate() {
+    const access = await checkProAccess();
+    const data = await chrome.storage.local.get(['resumes', 'userProfile', 'selectedResumeId', 'onboarding']);
+    let list = Array.isArray(data.resumes) ? data.resumes : [];
+    if (!list.length && data.userProfile) {
+      list = [{ id: 'migrated_1', label: 'Resume 1', content: data.userProfile }];
+    }
+    const resume = list.find((item) => item.id === data.selectedResumeId) || list[0] || null;
+    const hasResume = !!(resume && (resume.jsonContent || '').trim());
+    const signedIn = !!access.signedIn;
+    const reviewNeeded = !!(resume && resume.parseReview && !resume.parseConfirmedAt);
+
+    let state = 'ready';
+    if (!signedIn) state = 'signin';
+    else if (!hasResume) state = 'setup';
+    else if (reviewNeeded) state = 'review';
+    else if (!access.allowed) state = 'plan';
+
+    gate = { state, resume, list, signedIn, allowed: !!access.allowed, access };
+    applyGateUi();
+    return gate;
+  }
+
+  function applyGateUi() {
+    hideGateCards();
+    if (gate.state === 'signin') {
+      if (signinCard) signinCard.style.display = 'block';
+      setGenerateEnabled(false);
+      return;
+    }
+    if (gate.state === 'plan') {
+      if (planLockCard) planLockCard.style.display = 'block';
+      setGenerateEnabled(false);
+      return;
+    }
+    if (gate.state === 'review') {
+      if (reviewCard) reviewCard.style.display = 'block';
+      setGenerateEnabled(false);
+      return;
+    }
+    if (gate.state === 'setup') {
+      renderSetupCard();
+      setGenerateEnabled(false);
+      return;
+    }
+    setGenerateEnabled(!generationActive);
+  }
+
+  function openSettings(hash = '') {
+    if (hash) {
+      chrome.tabs.create({ url: chrome.runtime.getURL(`options.html${hash}`) });
+      return;
+    }
+    chrome.runtime.openOptionsPage();
+  }
+
+  function openPricing() {
+    chrome.tabs.create({ url: chrome.runtime.getURL('options.html#cloud-pricing') });
+  }
+
+  function maybeShowAccessReminder(access) {
+    if (!accessReminder) return;
+    if (!access || !access.withinWindow) {
+      accessReminder.style.display = 'none';
+      return;
+    }
+    const now = new Date();
+    const reminderStart = new Date(now.getFullYear(), 11, 24);
+    if (now < reminderStart) {
+      accessReminder.style.display = 'none';
+      return;
+    }
+    const today = now.toISOString().slice(0, 10);
+    const daysLeft = Math.max(0, Math.ceil((new Date(now.getFullYear(), 11, 31, 23, 59, 59) - now) / 86400000));
+    chrome.storage.local.get('accessReminderLastShown', (data) => {
+      if (data.accessReminderLastShown === today) return;
+      if (accessReminderText) accessReminderText.textContent = `Free until Dec 31 — ${daysLeft} day${daysLeft === 1 ? '' : 's'} left.`;
+      accessReminder.style.display = 'flex';
+    });
+  }
+
+  if (accessReminder) {
+    const dismiss = document.getElementById('reminderDismissBtn');
+    const plans = document.getElementById('reminderPlansBtn');
+    if (dismiss) {
+      dismiss.addEventListener('click', () => {
+        chrome.storage.local.set({ accessReminderLastShown: new Date().toISOString().slice(0, 10) });
+        accessReminder.style.display = 'none';
       });
-    });
-  }
-  if (noJsonRawBtn) {
-    noJsonRawBtn.addEventListener('click', () => {
-      hideNoJsonCard();
-      runOfflineGeneration({ allowRawText: true });
-    });
+    }
+    if (plans) plans.addEventListener('click', openPricing);
   }
 
-  function runOfflineGeneration({ allowRawText = false } = {}) {
-    if (offlineRunActive) return;
-    const selectedStyle = normalizeResumeStyle(resumeType.value || 'professional');
-    const styleConfig = getResumeStyleConfig(selectedStyle);
+  const popupSignInBtn = document.getElementById('popupSignInBtn');
+  const popupSignUpBtn = document.getElementById('popupSignUpBtn');
+  const reviewOpenSettingsBtn = document.getElementById('reviewOpenSettingsBtn');
+  const planUnlockBtn = document.getElementById('planUnlockBtn');
+  const planExportBtn = document.getElementById('planExportBtn');
+  const setupAccountBtn = document.getElementById('setupAccountBtn');
 
-    return chrome.tabs.query({ active: true, currentWindow: true }).then(async ([tab]) => {
-      if (!tab || !tab.id) {
-        setError('No active tab found. Open the job posting and try again.');
-        return;
+  if (popupSignInBtn) {
+    popupSignInBtn.addEventListener('click', async () => {
+      try {
+        if (!window.CloudSync) throw new Error('Account service failed to load.');
+        await window.CloudSync.signIn();
+        setTimeout(refreshGate, 800);
+      } catch (error) {
+        setError(error.message || 'Could not open sign-in.');
       }
-      const access = await checkProAccess();
-      if (!access.allowed) {
-        setStatus('idle');
-        showProCard('offline', access);
-        return;
-      }
-      if (fillProCard) fillProCard.style.display = 'none';
-
-      offlineRunActive = true;
-      if (offlineOffer) offlineOffer.dataset.armed = '0';
-      generateBtn.disabled = true;
-      lastError = '';
-      lastErrorRaw = '';
-      if (errorInfoBtn) errorInfoBtn.style.display = 'none';
-      closeErrorModal();
-      hideNoJsonCard();
-      setStatus('generating');
-      if (generateLabel) generateLabel.textContent = 'Matching job description\u2026';
-
-      chrome.runtime.sendMessage({
-        type: 'OFFLINE_ALIGN',
-        payload: {
-          tabId: tab.id,
-          resumeStyle: selectedStyle,
-          resumeId: selectedResumeId,
-          allowRawText,
-          coverLetterEnabled: !!(coverLetterToggle && coverLetterToggle.checked)
-        }
-      }, (response) => {
-        offlineRunActive = false;
-        generateBtn.disabled = false;
-
-        if (chrome.runtime.lastError) {
-          setError(chrome.runtime.lastError.message || 'Could not reach the background service. Please try again.');
-          return;
-        }
-        if (response && response.status === 'needs_json') {
-          showNoJsonCard();
-          return;
-        }
-        if (response && response.status === 'upgrade_required') {
-          setStatus('idle');
-          showProCard('offline', response);
-          return;
-        }
-        if (!response || response.status !== 'success') {
-          setError(response?.message || 'Offline generation failed. Please try again.');
-          return;
-        }
-
-        try {
-          const resumeData = JSON.parse(sanitizeJsonControlChars(String(response.data || '')));
-          lastJobMeta = response.jobMeta || null;
-          if (trackerCaptureEnabled && tab) {
-            saveApplicationToTracker(resumeData, tab, selectedResumeId, selectedStyle);
-          }
-          renderResumePdf(resumeData, selectedStyle, styleConfig);
-
-          if (response.coverLetterData) {
-            try {
-              const coverLetterParsed = JSON.parse(sanitizeJsonControlChars(String(response.coverLetterData)));
-              generateCoverLetterPDF(coverLetterParsed);
-              setOfflineLetterNote(false);
-            } catch (letterError) {
-              console.error('Cover letter parse error:', letterError);
-              setOfflineLetterNote(true, 'Cover letter failed to render —');
-            }
-          } else if (response.coverLetterStatus === 'no_template' || (coverLetterToggle && coverLetterToggle.checked)) {
-            setOfflineLetterNote(true, response.coverLetterStatus === 'empty'
-              ? 'Cover letter is empty —'
-              : 'Cover letter skipped (no letter saved) —');
-          } else {
-            setOfflineLetterNote(false);
-          }
-          setOfflineReport(response.report || null, !!response.coverLetterData);
-          setStatus('success');
-        } catch (error) {
-          console.error('Offline resume parse error:', error);
-          setError(error.message || 'Could not read the offline resume. Please try again.');
-        }
-      });
     });
   }
-
-  function requestUniversalLetter(resumeData) {
-    return new Promise((resolve) => {
-      chrome.storage.local.get('universalCoverLetter', (data) => {
-        const template = data.universalCoverLetter;
-        universalCoverLetter = template || null;
-        if (!template || !String(template.body || '').trim()) {
-          resolve(null);
+  if (popupSignUpBtn) {
+    popupSignUpBtn.addEventListener('click', async () => {
+      try {
+        if (!window.CloudSync) throw new Error('Account service failed to load.');
+        await window.CloudSync.signUp();
+        setTimeout(refreshGate, 800);
+      } catch (error) {
+        setError(error.message || 'Could not open sign-up.');
+      }
+    });
+  }
+  if (setupAccountBtn) setupAccountBtn.addEventListener('click', () => { if (popupSignUpBtn) popupSignUpBtn.click(); });
+  if (reviewOpenSettingsBtn) reviewOpenSettingsBtn.addEventListener('click', () => openSettings());
+  if (planUnlockBtn) planUnlockBtn.addEventListener('click', openPricing);
+  if (planExportBtn) {
+    planExportBtn.addEventListener('click', () => {
+      chrome.storage.local.get(['resumes', 'selectedResumeId'], (data) => {
+        const { resume } = activeResumeFromStore(data);
+        if (!resume || !resume.jsonContent) {
+          setError('No saved resume to export yet.');
           return;
         }
-        chrome.runtime.sendMessage({
-          type: 'BUILD_COVER_LETTER',
-          payload: {
-            applicantName: resumeData?.name || '',
-            applicantContact: resumeData?.contact || '',
-            company: lastJobMeta?.company || resumeData?.company || '',
-            role: lastJobMeta?.title || resumeData?.position || '',
-            recipientName: lastJobMeta?.recruiterName || ''
-          }
-        }, (response) => {
-          if (chrome.runtime.lastError || !response || response.status !== 'success' || !response.data) {
-            resolve(null);
-            return;
-          }
-          try {
-            resolve(JSON.parse(sanitizeJsonControlChars(String(response.data))));
-          } catch {
-            resolve(null);
-          }
+        const filename = `pocketresume-${(resume.label || 'resume').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json`;
+        const blob = new Blob([resume.jsonContent], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        chrome.downloads.download({ url, filename, saveAs: false }, () => {
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
         });
       });
     });
   }
 
-  async function handleGenerationFailure(message) {
-    setError(message);
-    if (!offlineOffer) {
-      openErrorModal();
+  async function runGeneration(output = 'resume') {
+    if (generationActive) return;
+    const checked = await refreshGate();
+    if (checked.state !== 'ready') return;
+
+    const selectedStyle = normalizeResumeStyle(resumeType.value || 'professional');
+    const styleConfig = getResumeStyleConfig(selectedStyle);
+
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id) {
+      setError('No active tab found. Open the job posting and try again.');
       return;
     }
 
-    const access = await checkProAccess();
-    const allowed = !!access.allowed;
-    const rememberLabel = offlineRememberToggle ? offlineRememberToggle.closest('label') : null;
-    openErrorModal();
+    generationActive = true;
+    setGenerateEnabled(false);
+    lastError = '';
+    lastErrorRaw = '';
+    if (errorInfoBtn) errorInfoBtn.style.display = 'none';
+    closeErrorModal();
+    setFillStatus(null);
+    setStatus('generating');
+    if (generateLabel) {
+      generateLabel.textContent = output === 'cover-letter' ? 'Building cover letter\u2026' : 'Matching job description\u2026';
+    }
 
-    if (!allowed) {
-      offlineOffer.dataset.armed = '1';
-      offlineOffer.style.display = 'block';
-      if (offlineOfferText) offlineOfferText.textContent = 'Offline fallback is a Pro feature: it aligns your saved profile to this posting with zero tokens.';
-      if (errorOfflineBtn) {
-        errorOfflineBtn.textContent = 'See Pro plans';
-        errorOfflineBtn.dataset.target = 'pricing';
+    chrome.runtime.sendMessage({
+      type: 'GENERATE',
+      payload: {
+        tabId: tab.id,
+        resumeStyle: selectedStyle,
+        resumeId: selectedResumeId,
+        output
       }
-      if (offlineRememberToggle) offlineRememberToggle.checked = false;
-      if (rememberLabel) rememberLabel.style.display = 'none';
-      if (offlineOfferNote) offlineOfferNote.style.display = 'none';
-      return;
-    }
+    }, async (response) => {
+      generationActive = false;
 
-    if (offlineFallback === 'off') {
-      offlineOffer.style.display = 'none';
-      return;
-    }
-
-    offlineOffer.dataset.armed = '1';
-    offlineOffer.style.display = 'block';
-    if (offlineOfferText) offlineOfferText.textContent = "AI couldn't finish. Generate an offline, job-aligned resume instead?";
-    if (errorOfflineBtn) {
-      errorOfflineBtn.textContent = 'Generate offline';
-      errorOfflineBtn.dataset.target = 'offline';
-    }
-    if (rememberLabel) rememberLabel.style.display = 'flex';
-    if (offlineRememberToggle) offlineRememberToggle.checked = offlineFallback === 'auto';
-
-    const missingLetter = coverLetterToggle && coverLetterToggle.checked && !(universalCoverLetter && String(universalCoverLetter.body || '').trim());
-    if (offlineOfferNote) {
-      offlineOfferNote.style.display = missingLetter ? 'block' : 'none';
-      offlineOfferNote.textContent = missingLetter ? 'Add a universal cover letter in Settings to include one in offline mode.' : '';
-    }
-
-    if (offlineFallback === 'auto') {
-      closeErrorModal();
-      runOfflineGeneration({ allowRawText: false });
-    }
-  }
-
-  if (errorOfflineBtn) {
-    errorOfflineBtn.addEventListener('click', () => {
-      if (errorOfflineBtn.dataset.target === 'pricing') {
-        closeErrorModal();
-        chrome.tabs.create({ url: chrome.runtime.getURL('options.html#cloud-pricing') });
+      if (chrome.runtime.lastError) {
+        setError(chrome.runtime.lastError.message || 'Could not reach the background service. Please try again.');
+        setGenerateEnabled(true);
         return;
       }
-      if (offlineRememberToggle && offlineRememberToggle.checked) {
-        offlineFallback = 'auto';
-        chrome.storage.local.set({ offlineFallback: 'auto' });
+
+      if (response && (response.status === 'signin_required' || response.status === 'plan_required' || response.status === 'review_required')) {
+        setStatus('idle');
+        await refreshGate();
+        return;
       }
-      closeErrorModal();
-      runOfflineGeneration({ allowRawText: false });
+      if (response && (response.status === 'needs_resume' || response.status === 'needs_json')) {
+        setStatus('idle');
+        await refreshGate();
+        setError(response.message || 'Build your resume in Settings first.');
+        return;
+      }
+      if (!response || response.status !== 'success') {
+        setError(response?.message || 'Generation failed. Please try again.');
+        setGenerateEnabled(true);
+        return;
+      }
+
+      try {
+        const resumeData = JSON.parse(sanitizeJsonControlChars(String(response.data || '')));
+        lastJobMeta = response.jobMeta || null;
+
+        if (trackerCaptureEnabled && tab) {
+          saveApplicationToTracker(resumeData, tab, selectedResumeId, selectedStyle);
+        }
+
+        if (output !== 'cover-letter') {
+          renderResumePdf(resumeData, selectedStyle, styleConfig);
+        }
+
+        if (output !== 'resume' || response.coverLetterData) {
+          if (response.coverLetterData) {
+            const coverParsed = JSON.parse(sanitizeJsonControlChars(String(response.coverLetterData)));
+            generateCoverLetterPDF(coverParsed);
+            setOfflineLetterNote(false);
+          } else if (output === 'cover-letter') {
+            const data = await chrome.storage.local.get('universalCoverLetter');
+            universalCoverLetter = data.universalCoverLetter || null;
+            setOfflineLetterNote(true, response.coverLetterStatus === 'empty'
+              ? 'Cover letter is empty —'
+              : 'No cover letter saved —');
+          }
+        }
+
+        setMatchReport(response.report || null, !!response.coverLetterData);
+        setStatus('success');
+      } catch (error) {
+        console.error('Generation parse error:', error);
+        setError(error.message || 'Could not read the generated resume. Please try again.');
+      } finally {
+        if (generateLabel) generateLabel.textContent = 'Generate Resume';
+        setGenerateEnabled(true);
+      }
     });
   }
 
-  if (fillProfileSetupBtn) {
-    fillProfileSetupBtn.addEventListener('click', () => {
-      if (fillProfileCard) fillProfileCard.style.display = 'none';
-      startProfileSetup();
-    });
+  if (coverLetterBtn) {
+    coverLetterBtn.addEventListener('click', () => runGeneration('cover-letter'));
   }
-
-  if (fillProActionBtn) {
-    fillProActionBtn.addEventListener('click', () => {
-      const target = fillProActionBtn.dataset.target === 'options' ? 'options.html' : 'options.html#cloud-pricing';
-      chrome.tabs.create({ url: chrome.runtime.getURL(target) });
-    });
-  }
-
 
   const trackerBtn = document.getElementById('trackerBtn');
   if (trackerBtn) {
@@ -945,71 +825,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- Fill Form (AI answers application questions on the active tab) ---
   if (fillFormBtn) {
-    fillFormBtn.addEventListener('click', async () => {
-      if (fillFormBtn.disabled) return;
-
-      const access = await checkProAccess();
-      if (access && access.allowed === false) {
-        if (fillProfileCard) fillProfileCard.style.display = 'none';
-        showFillProCard(access);
-        return;
-      }
-      if (fillProCard) fillProCard.style.display = 'none';
-
-      const profileData = await chrome.storage.local.get('applicationProfile');
-      if (!isFormFillerProfileComplete(profileData.applicationProfile)) {
-        if (fillProfileCard) fillProfileCard.style.display = 'block';
-        return;
-      }
-      if (fillProfileCard) fillProfileCard.style.display = 'none';
-
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab || !tab.id) {
-        setError('No active tab found. Open the page with the form and try again.');
-        return;
-      }
-
-      fillFormBtn.disabled = true;
-      lastError = '';
-      lastErrorRaw = '';
-      if (errorInfoBtn) errorInfoBtn.style.display = 'none';
-      closeErrorModal();
-      setFillStatus('filling');
-      if (fillFormLabel) fillFormLabel.textContent = 'Filling\u2026';
-
-      chrome.runtime.sendMessage({
-        type: 'FILL_APPLICATION_FORM',
-        payload: { tabId: tab.id, resumeId: selectedResumeId }
-      }, (response) => {
-        if (chrome.runtime.lastError) {
-          setError(chrome.runtime.lastError.message || 'Could not reach the background service. Please try again.');
-          setFillStatus('fill-failure');
-          if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
-          fillFormBtn.disabled = false;
-          return;
-        }
-
-        if (response && response.status === 'success') {
-          if (fillFormLabel) fillFormLabel.textContent = `Filled ${response.filled}/${response.total}`;
-          setFillStatus('fill-success');
-          setTimeout(() => {
-            if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
-            fillFormBtn.disabled = false;
-          }, 3500);
-        } else if (response && response.status === 'upgrade_required') {
-          setFillStatus(null);
-          if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
-          fillFormBtn.disabled = false;
-          showFillProCard(response);
-        } else {
-          setError(response?.message || 'Something went wrong. Please try again.');
-          setFillStatus('fill-failure');
-          if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
-          fillFormBtn.disabled = false;
-        }
-      });
+    fillFormBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      setError('Form Filler is being rebuilt. It will return in a later update.');
     });
   }
 
@@ -1068,8 +887,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '9.1';
-  const ANNOUNCEMENT_SEEN_VALUE = '9.1';
+  const ANNOUNCEMENT_VERSION = '10.1';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.1';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
@@ -1161,107 +980,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  generateBtn.addEventListener('click', async () => {
-    if (popupMode === 'offline') {
-      runOfflineGeneration({ allowRawText: false });
-      return;
-    }
-
-    // UI Reset
-    generateBtn.disabled = true;
-    lastError = '';
-    lastErrorRaw = '';
-    if (errorInfoBtn) errorInfoBtn.style.display = 'none';
-    closeErrorModal();
-    setFillStatus(null);
-    const selectedStyle = normalizeResumeStyle(resumeType.value || 'professional');
-    resumeType.value = selectedStyle;
-    const styleConfig = getResumeStyleConfig(selectedStyle);
-
-    setStatus('generating');
-
-    // Get current tab
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-    // Send message to Background to start the pipeline
-    chrome.runtime.sendMessage({
-      type: 'START_GENERATION',
-      payload: {
-        tabId: tab.id,
-        resumeStyle: selectedStyle,
-        resumeId: selectedResumeId
-      }
-    }, async (response) => {
-      
-      if (chrome.runtime.lastError) {
-        handleGenerationFailure(chrome.runtime.lastError.message || 'Could not reach the background service. Please try again.');
-        generateBtn.disabled = false;
-        return;
-      }
-
-      if (response && response.status === 'success') {
-        try {
-          if (typeof response.data !== 'string' || !response.data.trim()) {
-            throw new Error('The AI returned an empty resume. Please try again.');
-          }
-          // Clean the resume response (Strip Markdown code blocks if present)
-          let rawData = response.data.trim();
-          if (rawData.startsWith('```json')) {
-            rawData = rawData.replace(/^```json/, '').replace(/```$/, '');
-          } else if (rawData.startsWith('```')) {
-            rawData = rawData.replace(/^```/, '').replace(/```$/, '');
-          }
-
-          const resumeData = JSON.parse(sanitizeJsonControlChars(rawData));
-          lastJobMeta = response.jobMeta || null;
-
-          if (trackerCaptureEnabled && tab) {
-            saveApplicationToTracker(resumeData, tab, selectedResumeId, selectedStyle);
-          }
-
-          renderResumePdf(resumeData, selectedStyle, styleConfig);
-
-          // Handle cover letter if present
-          if (response.coverLetterData) {
-            try {
-              let rawCL = response.coverLetterData.trim();
-              if (rawCL.startsWith('```json')) {
-                rawCL = rawCL.replace(/^```json/, '').replace(/```$/, '');
-              } else if (rawCL.startsWith('```')) {
-                rawCL = rawCL.replace(/^```/, '').replace(/```$/, '');
-              }
-
-              const coverLetterParsed = JSON.parse(sanitizeJsonControlChars(rawCL));
-              generateCoverLetterPDF(coverLetterParsed);
-              setStatus('success');
-            } catch (clError) {
-              console.error("Cover Letter JSON Parse Error:", clError);
-              const fallbackLetter = await requestUniversalLetter(resumeData);
-              if (fallbackLetter) {
-                generateCoverLetterPDF(fallbackLetter);
-                setStatus('success');
-              } else {
-                setError('Cover letter failed. Add a universal cover letter in Settings and it will be used for every application.');
-              }
-            }
-          } else if (coverLetterToggle.checked && universalCoverLetter && String(universalCoverLetter.body || '').trim()) {
-            const fallbackLetter = await requestUniversalLetter(resumeData);
-            if (fallbackLetter) generateCoverLetterPDF(fallbackLetter);
-            setStatus('success');
-          } else {
-            setStatus('success');
-          }
-        } catch (e) {
-          console.error("JSON Parse Error:", e);
-          console.log("Raw Data:", response.data);
-          handleGenerationFailure(e.message || 'Could not read the generated resume. Please try again.');
-        }
-      } else {
-        handleGenerationFailure(response?.message || 'Something went wrong. Please try again.');
-      }
-      generateBtn.disabled = false;
-    });
-  });
+  generateBtn.addEventListener('click', () => runGeneration('resume'));
 
   const BUSY_LABELS = ['Reading job page…', 'Matching keywords…', 'Tailoring bullets…', 'Polishing layout…', 'Almost there…'];
   const SCRAMBLE_CHARS = 'ABCDEFGHKMNPRSTUVWXYZ23456789#/<>*+';
@@ -1334,7 +1053,7 @@ document.addEventListener('DOMContentLoaded', () => {
         generateLabel.textContent =
           uiState === 'success' ? 'Done \u2014 PDF ready'
             : uiState === 'failure' ? 'Failed \u2014 try again'
-              : (popupMode === 'offline' ? 'Generate Resume PDF (offline)' : 'Generate PDF Resume');
+              : 'Generate Resume';
       }
     }
 
@@ -1349,63 +1068,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 4000);
   }
 
-  chrome.runtime.onMessage.addListener((message) => {
-    if (message?.type !== 'GENERATION_PROGRESS') return;
-    if (document.body.dataset.status !== 'generating') return;
-    const attempt = Number(message.attempt) || 1;
-    const max = Number(message.maxAttempts) || 3;
-    stopScramble();
-    if (generateLabel) generateLabel.textContent = `Attempt ${attempt} of ${max}\u2026`;
-  });
-
   function mapErrorMessage(raw) {
     const msg = (raw || '').trim();
     if (!msg) return 'Something went wrong. Please try again.';
     const lower = msg.toLowerCase();
 
-    if (/failed after \d+ attempts|switching to a different provider or model/i.test(lower)) {
-      return 'Generation failed after 3 attempts. Open Settings and try a different provider or model.';
+    if (/sign in|signed out|session/i.test(lower)) {
+      return 'Sign in to keep generating. Open the account card to continue.';
     }
-    if (/api key|apikey|set your api|enter.*api/i.test(lower)) {
-      return 'No API key set. Open Settings to add one.';
+    if (/pro plan|free period|subscription|upgrade/i.test(lower)) {
+      return 'Your free period ended. See plans to keep generating.';
     }
-    if (/resume\/profile content|add your resume|userprofile|profile content/i.test(lower)) {
-      return 'No resume content found. Open Settings to add your resume.';
+    if (/confirm your|parsed resume/i.test(lower)) {
+      return 'Confirm your parsed resume in Settings first.';
     }
-    if (/invalid.*key|401|403|unauthorized|forbidden|not valid|authentication/i.test(lower)) {
-      return 'Invalid or unauthorized API key. Check your key in Settings.';
+    if (/build your resume|add your resume|no resume/i.test(lower)) {
+      return 'No resume saved yet. Open Settings and build one.';
     }
-    if (/not found for account|function .*not found/i.test(lower)) {
-      return 'This model is not available for your API account. Check the model ID in Settings \u2192 Custom Endpoints.';
-    }
-    if (/429|rate limit|quota|exhausted|too many requests/i.test(lower)) {
-      return 'Rate limit reached. Try again in a moment.';
-    }
-    if (/failed to fetch|network|cors|fetch failed|connection|timeout|unable to connect/i.test(lower)) {
+    if (/failed to fetch|network|connection|timeout|unable to connect/i.test(lower)) {
       return 'Network error. Check your connection and try again.';
     }
-    if (/no application form/i.test(lower)) {
-      return 'No application form found. Open the page with the form, then try again.';
-    }
-    if (/has no answers for this form|could not fill any fields/i.test(lower)) {
-      return 'Could not fill this form automatically. Fill the remaining fields manually.';
-    }
     if (/no active tab/i.test(lower)) {
-      return 'No active tab found. Open the page with the form and try again.';
+      return 'No active tab found. Open the job posting and try again.';
     }
-    if (/quick download|extract json|offline|universal cover letter/i.test(lower)) {
+    if (/quick download|export|settings|cover letter/i.test(lower)) {
       return msg;
     }
     if (/parse|invalid json|unexpected token|json/i.test(lower)) {
-      return 'Model returned invalid data. Please try again.';
+      return 'Could not read the saved resume. Open Settings and check the form.';
     }
-    if (/500|502|503|504|server error|overloaded|bad gateway|internal/i.test(lower)) {
-      return 'Provider is having issues. Try again later.';
-    }
-    if (/safety|blocked|finishreason/i.test(lower)) {
-      return 'Model refused the request due to content safety filters.';
-    }
-
     if (msg.length > 200) {
       return msg.slice(0, 200) + '\u2026';
     }
@@ -1415,7 +1106,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function setError(message) {
     lastErrorRaw = message || '';
     lastError = mapErrorMessage(message);
-    if (offlineOffer) offlineOffer.dataset.armed = '0';
     if (errorInfoBtn) errorInfoBtn.style.display = 'flex';
     setStatus('error');
   }
@@ -1423,10 +1113,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function openErrorModal() {
     if (!errorModal || !lastError) return;
     if (errorMessageText) errorMessageText.textContent = lastError;
-    if (offlineOffer) {
-      offlineOffer.style.display = offlineOffer.dataset.armed === '1' ? 'block' : 'none';
-    }
-    const needsSettings = /settings|provider or model/i.test(lastError);
+    const needsSettings = /settings/i.test(lastError);
     if (errorOpenSettingsBtn) errorOpenSettingsBtn.style.display = needsSettings ? 'inline-block' : 'none';
     errorModal.style.display = 'flex';
   }
@@ -2023,14 +1710,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (area !== 'local') return;
     if (changes.universalCoverLetter) {
       universalCoverLetter = changes.universalCoverLetter.newValue || null;
-      setOfflineLetterNote(popupMode === 'offline' && coverLetterToggle.checked && !hasUniversalLetter());
     }
-    if (changes.offlineFallback) {
-      offlineFallback = ['auto', 'off', 'ask'].includes(changes.offlineFallback.newValue) ? changes.offlineFallback.newValue : 'ask';
+    if (changes.resumes || changes.selectedResumeId || changes.proAccessCache) {
+      refreshGate();
     }
-    if (changes.coverLetterEnabled) {
-      coverLetterToggle.checked = !!changes.coverLetterEnabled.newValue;
-    }
+  });
+
+  refreshGate().then((state) => {
+    maybeShowAccessReminder(state.access);
+    updateAccountButton();
   });
 
   setTimeout(maybeShowPrompts, 400);

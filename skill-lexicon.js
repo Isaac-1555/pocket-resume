@@ -29,6 +29,15 @@ function buildOnetUrls(release = ONET_PINNED_RELEASE) {
 const CURATED_ALIASES = {
     'js': 'JavaScript',
     'javascript': 'JavaScript',
+    'java': 'Java',
+    'c/c++': 'C++',
+    'springboot': 'Spring Boot',
+    'microservices': 'Microservices',
+    'micro service': 'Microservices',
+    'symfony': 'Symfony',
+    'zend': 'Zend Framework',
+    'play framework': 'Play Framework',
+    'json': 'JSON',
     'ts': 'TypeScript',
     'typescript': 'TypeScript',
     'node.js': 'Node.js',
@@ -120,6 +129,7 @@ const CURATED_EXTRA_TERMS = [
     'LangChain', 'PyTorch', 'TensorFlow', 'scikit-learn', 'Pandas', 'NumPy', 'Spark', 'Kafka', 'Redis',
     'Elasticsearch', 'Supabase', 'Firebase', 'Vercel', 'Cloudflare', 'FastAPI', 'Django', 'Flask',
     'Spring Boot', 'Ruby on Rails', 'Laravel', 'Go', 'Rust', 'Kotlin', 'Swift', 'Scala', 'MATLAB', 'R',
+    '.NET', '.NET Core', 'C#', 'C++', 'SQL', 'NoSQL', 'PostgreSQL', 'MySQL', 'REST APIs', 'CI/CD',
 ];
 
 function normalizeSkillKey(value) {
@@ -227,10 +237,12 @@ function applyCuratedAliases(map) {
                 category: categoryOf(canonical),
                 hot: false,
                 inDemand: false,
+                curated: true,
                 aliases: [],
             };
             map.set(canonicalKey, term);
         }
+        term.curated = true;
         if (aliasKey !== canonicalKey && !term.aliases.some((value) => normalizeSkillKey(value) === aliasKey)) {
             term.aliases.push(alias);
         }
@@ -285,6 +297,7 @@ function buildLexiconFromOnet({ softwareCsv = '', essentialCsv = '', transferabl
         category: term.category,
         hot: term.hot,
         inDemand: term.inDemand,
+        curated: !!term.curated,
         aliases: term.aliases,
     }));
 
@@ -314,12 +327,14 @@ function mergeLexicons(base, update) {
                     category: term.category || 'general',
                     hot: !!term.hot,
                     inDemand: !!term.inDemand,
+                    curated: !!term.curated,
                     aliases: [...(term.aliases || [])],
                 });
                 continue;
             }
             existing.hot = existing.hot || !!term.hot;
             existing.inDemand = existing.inDemand || !!term.inDemand;
+            existing.curated = existing.curated || !!term.curated;
             if (existing.category === 'general' && term.category) existing.category = term.category;
             for (const alias of term.aliases || []) {
                 if (!existing.aliases.some((value) => normalizeSkillKey(value) === normalizeSkillKey(alias))) {
@@ -336,6 +351,7 @@ function mergeLexicons(base, update) {
         category: term.category,
         hot: term.hot,
         inDemand: term.inDemand,
+        curated: !!term.curated,
         aliases: term.aliases,
     }));
     return {

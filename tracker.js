@@ -108,7 +108,7 @@ function getFromStorage(keys) {
 
 async function checkAccess() {
   if (!window.CloudSync || typeof window.CloudSync.getAccessState !== 'function' || !window.CloudSync.isConfigured || !window.CloudSync.isConfigured()) {
-    return { proAccess: true, isPro: true, promoActive: false, signedIn: false, unconfigured: true };
+    return { proAccess: false, isPro: false, promoActive: false, withinWindow: false, signedIn: false, unconfigured: true };
   }
   try {
     await window.CloudSync.init();
@@ -130,19 +130,15 @@ function applyLockCopy() {
   const title = document.getElementById('lockTitle');
   const text = document.getElementById('lockText');
   const upgradeBtn = document.getElementById('upgradeBtn');
-  if (accessInfo.promoActive && !accessInfo.signedIn) {
-    if (title) title.textContent = 'Unlock your free Pro trial';
-    if (text) text.textContent = 'Create a free account to use the Job Tracker, Form Filler, and Cloud Sync until Oct 31. No card required.';
-    if (upgradeBtn) upgradeBtn.textContent = 'Start free';
-  } else if (!accessInfo.signedIn) {
-    if (title) title.textContent = 'Unlock the Job Tracker';
-    if (text) text.textContent = 'Create a free account to sync your resumes, or upgrade to Pro to use the Job Tracker and Form Filler.';
-    if (upgradeBtn) upgradeBtn.textContent = 'See plans';
-  } else {
-    if (title) title.textContent = 'Your Pro trial has ended';
-    if (text) text.textContent = 'Your job tracker is now read-only. Upgrade to Pro to keep editing applications, dragging cards, and adding new jobs.';
-    if (upgradeBtn) upgradeBtn.textContent = 'Upgrade';
+  if (!accessInfo.signedIn) {
+    if (title) title.textContent = 'Sign in to use the Job Tracker';
+    if (text) text.textContent = 'Create a free account to capture every job you apply to. Everything is free until Dec 31.';
+    if (upgradeBtn) upgradeBtn.textContent = 'Create free account';
+    return;
   }
+  if (title) title.textContent = 'Your free period ended';
+  if (text) text.textContent = 'The tracker is read-only now. Your saved applications stay here, and Export JSON still works. Upgrade to keep editing.';
+  if (upgradeBtn) upgradeBtn.textContent = 'See plans';
 }
 
 async function init() {
@@ -210,7 +206,7 @@ function updatePlanBadge() {
   document.getElementById('planLoader')?.remove();
   badge.hidden = false;
   if (accessInfo.proAccess && !accessInfo.isPro) {
-    badge.textContent = 'Pro trial';
+    badge.textContent = 'Free until Dec 31';
     badge.className = 'plan-badge trial';
   } else if (accessInfo.proAccess) {
     badge.textContent = 'Pro';

@@ -23,14 +23,18 @@
     legacyPlans: ['cloud_sync', 'pro', 'premium'],
   };
 
-  const PROMO_TRIAL = {
+  const ACCESS_WINDOW = {
     enabled: true,
-    start: new Date('2026-09-27T00:00:00').getTime(),
-    end: new Date('2026-10-31T23:59:59.999').getTime(),
+    start: new Date('2026-11-02T00:00:00').getTime(),
+    end: new Date('2026-12-31T23:59:59.999').getTime(),
   };
 
+  function isAccessWindowActive(now = Date.now()) {
+    return ACCESS_WINDOW.enabled && now >= ACCESS_WINDOW.start && now <= ACCESS_WINDOW.end;
+  }
+
   function isPromoTrialActive(now = Date.now()) {
-    return PROMO_TRIAL.enabled && now >= PROMO_TRIAL.start && now <= PROMO_TRIAL.end;
+    return isAccessWindowActive(now);
   }
 
   let convexClient = null;
@@ -122,7 +126,7 @@
     try {
       clerkClient.addListener(({ user }) => {
         if (!user) {
-          persistAccessCache({ signedIn: false, isFreeSubscriber: false, isPro: false, promoActive: isPromoTrialActive(), cloudSyncAccess: false, proAccess: false, resolved: true, healthy: clerkHealthy });
+          persistAccessCache({ signedIn: false, isFreeSubscriber: false, isPro: false, promoActive: isAccessWindowActive(), withinWindow: isAccessWindowActive(), canGenerate: false, cloudSyncAccess: false, proAccess: false, resolved: true, healthy: clerkHealthy });
         } else {
           getAccessState().catch(() => {});
         }
@@ -148,7 +152,8 @@
 
   async function getAccessState() {
     await ensureClerkUser();
-    const promoActive = isPromoTrialActive();
+    const withinWindow = isAccessWindowActive();
+    const promoActive = withinWindow;
     const healthy = clerkHealthy && !!clerkClient && !!clerkClient.client;
     if (!clerkClient || !clerkClient.user) {
       const signedOut = {
@@ -156,6 +161,8 @@
         isFreeSubscriber: false,
         isPro: false,
         promoActive,
+        withinWindow,
+        canGenerate: false,
         cloudSyncAccess: false,
         proAccess: false,
         resolved: healthy,
@@ -174,8 +181,10 @@
       isFreeSubscriber,
       isPro,
       promoActive,
+      withinWindow,
+      canGenerate: withinWindow || isPro,
       cloudSyncAccess: isFreeSubscriber,
-      proAccess: isPro || (promoActive && isFreeSubscriber),
+      proAccess: withinWindow || isPro,
       resolved: healthy,
       healthy,
     };
@@ -450,7 +459,7 @@
 
   async function signOut() {
     if (!IS_SERVICE_WORKER) {
-      persistAccessCache({ signedIn: false, isFreeSubscriber: false, isPro: false, promoActive: isPromoTrialActive(), cloudSyncAccess: false, proAccess: false, resolved: true, healthy: clerkHealthy });
+      persistAccessCache({ signedIn: false, isFreeSubscriber: false, isPro: false, promoActive: isAccessWindowActive(), withinWindow: isAccessWindowActive(), canGenerate: false, cloudSyncAccess: false, proAccess: false, resolved: true, healthy: clerkHealthy });
     }
     if (!clerkClient) return;
     await clerkClient.signOut({ redirectUrl: OPTIONS_URL });
@@ -754,6 +763,8 @@
     hasProAccess,
     getAccessState,
     isPromoTrialActive,
+    isAccessWindowActive,
+    ACCESS_WINDOW,
     signIn,
     signUp,
     signOut,

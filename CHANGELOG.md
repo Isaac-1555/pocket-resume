@@ -11,6 +11,64 @@ Notes on history:
 
 ---
 
+## [10.1.0] — 2026-11-02
+
+### Fixed
+
+- **Job-description skills now reach the generated resume.** `alignSkills` collects skill terms from every zone (title, requirements, a plain `Skills:` / `Tech Stack:` / `Core Competencies` section, responsibilities, preferred), ranks them by JD weight, and adds the ones your master resume already evidences — up to 10 additions, 30 skills total.
+- **New `skills` zone in the JD parser.** Generic skills headings used to fall through to whatever section preceded them (usually "About us", the lowest weight), so JD keywords scored near zero. They are now weighted like requirements and count toward the match score.
+- **Alias spellings no longer get dropped.** A master resume that says `k8s` while the JD says `Kubernetes` kept losing the skill during verification; skills are now accepted when the canonical name *or* any alias is evidenced, and display the canonical name (`k8s` → `Kubernetes`, `React.js` → `React`).
+- **Duplicate skills removed.** The merged list dedupes on the lexical identity: `React` / `React.js`, `javascript` / `JAVASCRIPT`, and `Apache Spark` / `Spark` collapse into one entry. `skillGroups` is rewritten to match, so the Double Sided and Academic CV layouts — which render the groups, not the flat list — show the same skills.
+- **No more phantom skills from substrings.** Skill evidence is matched on word boundaries instead of `String.includes`, so "Google Cloud" no longer counts as the skill `Go`.
+- **Bundled skill directory was missing 18 core terms.** The O*NET bundle filter discarded every curated term that had no alias (`SQL`, `Jira`, `Agile`, `Scrum`, `Kanban`, `Salesforce`, `SAP`, `QuickBooks`, `Sketch`, `Confluence`, `Ansible`, `Jenkins`, `Windows Server`, `GAAP`, `IFRS`, `HIPAA`, `GDPR`, `Six Sigma`) and everything starting with punctuation (`.NET`). Curated terms are now always kept, punctuation-leading names are allowed, and the reported count matches the real term count.
+- **`Java` was missing from the vocabulary.** O*NET only ships `Oracle Java` / `Enterprise JavaBeans`, so a plain "Java" in a posting matched nothing. Added curated aliases and terms for `Java`, `C/C++`, `Springboot`, `Microservices`, `Symfony`, `Zend`, `Play Framework`, and `JSON`.
+- **Page text now falls back to the posting's JSON-LD description.** When the visible page is mostly navigation chrome (or the description is injected late), the schema.org `JobPosting.description` is used instead of the chrome. `content.js` also prefers the largest main/article block over the raw body. The HTML→text conversion now preserves block-level line breaks (it used `innerText` on a detached node and collapsed the whole posting into one line, which killed heading detection), and `mergePageText` keeps those newlines. Social/nav chrome (`LinkedIn`, `Facebook`, `YouTube`…) is excluded from the JD skill set.
+- **Alignment diagnostics.** The worker logs `[Align] pageChars / descriptionChars / jdSkills / masterSkills / added / noEvidence / score` for every run, and the popup match line shows keyword count, skills added, how many JD skills were skipped for lack of evidence in your resume, and whether your resume has any skills at all.
+- **Single-page career sites get time to render.** `content.js` now holds the response for up to 4 s (polling every 250 ms) when the body is short or still shows an empty state ("We didn't find any …", "Loading"), and the worker retries twice, 1.5 s apart, with the page cache bypassed when a run still finds zero skill keywords.
+- **A stale page scrape retries itself.** The 15-minute page cache is bypassed and the page re-read once when a run finds no skill keywords, instead of shipping an unaligned resume.
+- **No more phantom location.** The old city/state heuristic could read "…we mostly use React, Node.js…" as location `React, Node`; locations are now only taken from a short line with a real state/province/country.
+- **Generic vocabulary no longer counts as a skill.** `Programming`, `Programming languages`, `Google`, `computer science`, `tools` and similar O*NET entries are excluded from the JD skill set and from the match score.
+
+### Notes
+
+- Additions default to requiring evidence in the master resume — the engine never invents a skill or a number. `npm run test:align` covers the new cases.
+- **Added `Settings → Skills on generated resumes → Add unverified JD keywords`** (off by default). When on, `alignResumeJson` also lists JD keywords the resume never mentions (cap still applies), the verifier leaves them alone, and they are reported separately as "unverified" — review them before sending.
+
+---
+
+## [10.0.0] — 2026-11-02
+
+### Changed
+
+- **The on-device resume engine is now the only generation path.** BYOK is gone: no provider picker, no API key fields, no model overrides, no custom endpoints, and no third-party AI calls. Paste your resume once, correct the parsed form, and every generation runs locally in milliseconds. `background.js` no longer contains a provider layer.
+- **Resume data model is JSON-canonical.** `resumes[].jsonContent` is the source of truth; `content` is kept only as a migration backup (`legacyContent`). Save Settings writes the JSON the form represents.
+- **Settings shows an editable resume form instead of raw text/JSON.** Header, summary, skills, experience, projects, education, and certifications are repeatable fields with add/remove controls. JSON export/import lives under Advanced for support and portability.
+- **New deterministic parser (`resume-parse.js`).** Rewritten from the old offline fallback: contact splitting (email/phone/location/links), `Title at Company` / `Title | Company` / `Title — Company` headers, multi-line bullets, date ranges, section aliases, skill groups (`Languages: …`), education with year/location. Output is validated and normalized into the renderer schema.
+- **Existing users are migrated on first Settings load.** Raw `content` is parsed, stored as `jsonContent`, and flagged `parseReview`. Generation stays blocked until the parsed form is confirmed once; the original text is preserved in `legacyContent`.
+- **Separate Generate Resume and Generate Cover Letter buttons.** The cover letter is always built from your saved universal letter with `{{company}}`, `{{role}}`, and `{{recipient}}` substituted from the detected posting. A missing template shows a direct link to Settings instead of failing the resume.
+- **Cover letter section is now guidance-first.** Settings includes writing steps, a sample letter, a one-click copyable prompt for any external assistant, and a live preview with sample substitutions.
+- **Job Tracker capture is always on and free.** Every successful generation writes a card with the job URL, company, and role (JD metadata first, page-title heuristic second). Dedupe is on URL.
+- **Accounts gate the engine.** Everything is free for signed-in accounts until **Dec 31, 2026**. After that, generation and tracker editing require a Pro plan; the resume form, JSON export, and account controls stay available. A daily reminder appears in the popup and tracker from Dec 24.
+
+### Removed
+
+- Provider settings (OpenAI, Anthropic, Gemini, OpenRouter, custom endpoints), API-key storage keys, model overrides, and the optional AI host permissions.
+- AI resume generation, AI cover letters, AI JSON extraction, AI refine, AI ATS checks, and Profile Autofill calls.
+- The popup AI/Offline mode switch, offline fallback settings, the cover-letter toggle, and the no-JSON/offline-offer cards.
+- The capture-and-render feature tour entry points until its screenshots are re-captured for the new UI.
+
+### Fixed
+
+- **Quick Download and Generate share one gate.** Both require a signed-in account, a built resume, and a confirmed parse; neither can produce a PDF the tracker did not capture.
+- **Two PDFs in one popup session still download.** Resume and cover letter continue to save through `chrome.downloads` rather than `doc.save()`.
+
+### Notes
+
+- Refine Resume, Check ATS, Profile Autofill, and Form Filler are visible but disabled with a **Soon** badge while they are rebuilt deterministically.
+- `npm run test:align` now also covers the new parser (contact splitting, multi-entry parsing, normalization).
+
+---
+
 ## [9.1] — 2026-10-26
 
 ### Added
