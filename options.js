@@ -1,34 +1,12 @@
+import { parseResumeText, normalizeResumeProfile, splitContactParts, buildContactString, resumeProfileWarnings } from './resume-parse.js';
+
 document.addEventListener('DOMContentLoaded', async () => {
-  const apiKeyInput = document.getElementById('apiKey');
-  const toggleApiKeyButton = document.getElementById('toggleApiKey');
   const saveButton = document.getElementById('save');
   const statusOverlay = document.getElementById('statusOverlay');
   const statusIcon = document.getElementById('statusIcon');
   const statusText = document.getElementById('statusText');
   const tabBar = document.getElementById('tabBar');
   const tabContentArea = document.getElementById('tabContentArea');
-
-  const apiKeyLabel = document.getElementById('apiKeyLabel');
-  const apiKeyWrapper = document.getElementById('apiKeyWrapper');
-  const providerHelperText = document.getElementById('providerHelperText');
-  const modelRow = document.getElementById('modelRow');
-  const modelInput = document.getElementById('modelInput');
-  const cloudModelDatalist = document.getElementById('cloudModelDatalist');
-  const loadModelsBtn = document.getElementById('loadModelsBtn');
-  const customEndpointsSection = document.getElementById('customEndpointsSection');
-  const endpointNameInput = document.getElementById('endpointNameInput');
-  const endpointBaseUrlInput = document.getElementById('endpointBaseUrlInput');
-  const endpointApiKeyInput = document.getElementById('endpointApiKeyInput');
-  const endpointModelInput = document.getElementById('endpointModelInput');
-  const endpointModelDatalist = document.getElementById('endpointModelDatalist');
-  const endpointExtraInput = document.getElementById('endpointExtraInput');
-  const testEndpointBtn = document.getElementById('testEndpointBtn');
-  const saveEndpointBtn = document.getElementById('saveEndpointBtn');
-  const cancelEndpointEditBtn = document.getElementById('cancelEndpointEditBtn');
-  const endpointStatusText = document.getElementById('endpointStatusText');
-  const endpointsList = document.getElementById('endpointsList');
-  const setActiveProviderBtn = document.getElementById('setActiveProviderBtn');
-  const providerIcons = document.querySelectorAll('.provider-icon-wrapper');
   const accountCard = document.getElementById('accountCard');
   const accountSignedOut = document.getElementById('accountSignedOut');
   const accountSignedIn = document.getElementById('accountSignedIn');
@@ -49,7 +27,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const cloudPricingTable = document.getElementById('cloudPricingTable');
   const cloudPricingFallback = document.getElementById('cloudPricingFallback');
   const cloudClosePricingBtn = document.getElementById('cloudClosePricingBtn');
-  const modeToggle = document.getElementById('modeToggle');
   const refineModal = document.getElementById('refineModal');
   const refineModalContent = document.getElementById('refineModalContent');
   const refineQuestionsModal = document.getElementById('refineQuestionsModal');
@@ -66,8 +43,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const customQaQuestionInput = document.getElementById('customQaQuestionInput');
   const customQaAnswerInput = document.getElementById('customQaAnswerInput');
   const customQaAddBtn = document.getElementById('customQaAddBtn');
-  const offlineFallbackSelect = document.getElementById('offlineFallbackSelect');
-  const offlineModePill = document.getElementById('offlineModePill');
   const uclGreeting = document.getElementById('uclGreeting');
   const uclSignOff = document.getElementById('uclSignOff');
   const uclBody = document.getElementById('uclBody');
@@ -77,52 +52,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   const skillLexiconAutoToggle = document.getElementById('skillLexiconAutoToggle');
   const skillLexiconStatus = document.getElementById('skillLexiconStatus');
   const skillLexiconPill = document.getElementById('skillLexiconPill');
-  const offlineSeePlansBtn = document.getElementById('offlineSeePlansBtn');
-
-  let apiKeys = {
-    google: '',
-    openrouter: '',
-    openai: '',
-    anthropic: ''
-  };
-  let activeProvider = 'google';
-  let currentlyViewedProvider = 'google';
-  let providerModels = { google: '', openai: '', anthropic: '', openrouter: '' };
-  let customEndpoints = [];
-  let activeCustomEndpointId = '';
-  let editingEndpointId = null;
+  const allowUnverifiedSkillsToggle = document.getElementById('allowUnverifiedSkillsToggle');
 
   let resumes = [];
   let activeTabIndex = 0;
   let refiningResumeId = null;
   let refineQuestionsState = null;
   let checkingAtsResumeId = null;
-  let extractingResumeId = null;
   let statusTimeoutId = null;
-  let editorMode = 'resume';
   let appProfileCustomQa = [];
   let appProfileAutofilling = false;
-  let offlineProAllowed = false;
   let universalCoverLetter = null;
   let skillLexiconMeta = null;
 
   function generateId() {
     return 'r_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
   }
-
-  const PROVIDER_NAMES = {
-    google: 'Google Gemini',
-    openrouter: 'OpenRouter',
-    openai: 'OpenAI',
-    anthropic: 'Anthropic',
-    custom: 'Custom / Local'
-  };
-
-  const ENDPOINT_PRESETS = {
-    ollama: { name: 'Ollama', baseUrl: 'http://localhost:11434/v1', model: '' },
-    lmstudio: { name: 'LM Studio', baseUrl: 'http://localhost:1234/v1', model: '' },
-    nvidia: { name: 'NVIDIA NIM', baseUrl: 'https://integrate.api.nvidia.com/v1', model: 'mistralai/mistral-small-3.1-24b-instruct-2503' }
-  };
 
   if (window.location.hash === '#cloud-pricing') {
     setTimeout(showCloudPricingPanel, 300);
@@ -160,12 +105,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  function createResumeEntry(label, content) {
+  function createResumeEntry(label, content, icon = '') {
     return {
       id: generateId(),
       label: label || 'Resume 1',
+      icon: icon || '',
       content: content || '',
       jsonContent: '',
+      legacyContent: '',
+      parseReview: null,
+      parseConfirmedAt: 0,
       lastRefineBackup: '',
       lastRefineAppliedAt: '',
       refineAnswers: [],
@@ -206,6 +155,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       label: typeof resume?.label === 'string' && resume.label.trim() ? resume.label : `Resume ${index + 1}`,
       content,
       jsonContent: typeof resume?.jsonContent === 'string' ? resume.jsonContent : '',
+      legacyContent: typeof resume?.legacyContent === 'string' ? resume.legacyContent : '',
+      parseReview: resume?.parseReview && Array.isArray(resume.parseReview.warnings)
+        ? { warnings: resume.parseReview.warnings.filter((item) => typeof item === 'string'), parsedAt: Number(resume.parseReview.parsedAt) || 0 }
+        : null,
+      parseConfirmedAt: Number(resume?.parseConfirmedAt) || 0,
       lastRefineBackup: typeof resume?.lastRefineBackup === 'string' ? resume.lastRefineBackup : '',
       lastRefineAppliedAt,
       refineAnswers: normalizeRefineAnswersList(resume?.refineAnswers),
@@ -219,8 +173,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     return {
       id: resume.id,
       label: resume.label,
+      icon: resume.icon || '',
       content: resume.content,
       jsonContent: resume.jsonContent || '',
+      legacyContent: resume.legacyContent || '',
+      parseReview: resume.parseReview || null,
+      parseConfirmedAt: Number(resume.parseConfirmedAt) || 0,
       lastRefineBackup: resume.lastRefineBackup || '',
       lastRefineAppliedAt: resume.lastRefineAppliedAt || '',
       refineAnswers: normalizeRefineAnswersList(resume.refineAnswers),
@@ -230,6 +188,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function getPersistedResumes() {
     return resumes.map(serializeResumeEntry);
+  }
+
+  const RESUME_ICONS = {
+    doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+    briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>',
+    code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+    pen: '<path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/>',
+    data: '<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>',
+    zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+    globe: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+    star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+    target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+    layers: '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>'
+  };
+
+  function resumeIconSvg(iconId) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${RESUME_ICONS[iconId] || RESUME_ICONS.doc}</svg>`;
   }
 
   function getActiveResume() {
@@ -398,18 +373,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     appProfileStatePill.className = complete ? 'cloud-status-pill synced' : 'cloud-status-pill';
   }
 
-  // --- Offline mode, cover letter fallback, skill directory (Pro) ---
-  function setOfflineControlsEnabled(enabled) {
-    [offlineFallbackSelect, uclGreeting, uclSignOff, uclBody, skillLexiconUpdateBtn, skillLexiconAutoToggle].forEach((el) => {
-      if (el) el.disabled = !enabled;
-    });
-    if (offlineModePill) {
-      offlineModePill.textContent = enabled ? 'Pro active' : 'Pro';
-      offlineModePill.className = enabled ? 'cloud-status-pill synced' : 'cloud-status-pill';
-    }
-    if (offlineSeePlansBtn) offlineSeePlansBtn.style.display = enabled ? 'none' : 'inline-block';
-  }
-
   function updateCoverLetterFallbackPill() {
     if (!coverLetterFallbackPill) return;
     const hasBody = !!(uclBody && uclBody.value.trim());
@@ -426,11 +389,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       body,
       updatedAt: Date.now()
     };
-  }
-
-  function readOfflineFallback() {
-    const value = offlineFallbackSelect ? offlineFallbackSelect.value : 'ask';
-    return ['ask', 'auto', 'off'].includes(value) ? value : 'ask';
   }
 
   function formatLexiconTimestamp(ms) {
@@ -471,33 +429,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  async function refreshOfflineAccess() {
-    const cloudSync = window.CloudSync;
-    if (!cloudSync || typeof cloudSync.getAccessState !== 'function') {
-      offlineProAllowed = true;
-      setOfflineControlsEnabled(true);
-      return;
-    }
-    if (typeof cloudSync.isConfigured === 'function' && !cloudSync.isConfigured()) {
-      offlineProAllowed = true;
-      setOfflineControlsEnabled(true);
-      return;
-    }
-    try {
-      const access = await cloudSync.getAccessState();
-      offlineProAllowed = !!(access && access.proAccess);
-    } catch {
-      offlineProAllowed = false;
-    }
-    setOfflineControlsEnabled(offlineProAllowed);
-    if (!offlineProAllowed && offlineModePill) {
-      offlineModePill.textContent = 'Pro';
-      offlineModePill.className = 'cloud-status-pill';
-    }
-  }
-
-  function fillOfflineSettings(data) {
-    if (offlineFallbackSelect) offlineFallbackSelect.value = ['ask', 'auto', 'off'].includes(data.offlineFallback) ? data.offlineFallback : 'ask';
+  function fillSettings(data) {
     universalCoverLetter = data.universalCoverLetter || null;
     if (uclGreeting) uclGreeting.value = universalCoverLetter?.greeting || '';
     if (uclSignOff) uclSignOff.value = universalCoverLetter?.signOff || '';
@@ -506,19 +438,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       ? `Saved ${formatLexiconTimestamp(universalCoverLetter.updatedAt)}.`
       : '';
     updateCoverLetterFallbackPill();
+    renderCoverLetterPreview();
     if (skillLexiconAutoToggle) skillLexiconAutoToggle.checked = data.skillLexiconAutoUpdate !== false;
-    refreshOfflineAccess();
+    if (allowUnverifiedSkillsToggle) allowUnverifiedSkillsToggle.checked = data.allowUnverifiedSkills !== false;
     refreshSkillLexiconStatus();
-  }
-
-  if (offlineFallbackSelect) {
-    offlineFallbackSelect.addEventListener('change', () => {
-      chrome.storage.local.set({ offlineFallback: readOfflineFallback() });
-    });
-  }
-
-  if (offlineSeePlansBtn) {
-    offlineSeePlansBtn.addEventListener('click', () => showCloudPricingPanel());
   }
 
   let coverLetterSaveTimer = null;
@@ -560,19 +483,92 @@ document.addEventListener('DOMContentLoaded', async () => {
     uclBody.addEventListener('input', updateCoverLetterFallbackPill);
   }
 
+  const COVER_LETTER_PROMPT = `Write me a universal cover letter I can reuse for every job application.
+
+Rules:
+- 250-350 words, first person, specific and concrete.
+- Keep these placeholders exactly as written: {{company}}, {{role}}, {{recipient}}.
+- Do not invent employers, metrics, certifications, or credentials. Only use the facts I give you below.
+- Opening paragraph: name the {{role}} role and one concrete reason this kind of company interests me.
+- Two body paragraphs: one proof paragraph with my strongest result, one fit paragraph mapping my skills to the kind of work in a typical posting for this role.
+- Close with a short paragraph and a sign-off.
+- Plain text only. No markdown, no headings, no placeholders other than the three above.
+
+My background:
+[Paste your master resume text here.]`;
+
+  function coverLetterPreviewMarkup() {
+    const greeting = (uclGreeting?.value.trim()) || 'Dear {{recipient}},';
+    const body = (uclBody?.value.trim()) || '';
+    const signOff = (uclSignOff?.value.trim()) || 'Sincerely,';
+    if (!body) return '';
+    const fill = (value) => value
+      .replace(/\{\{\s*company\s*\}\}/gi, 'Acme Corp')
+      .replace(/\{\{\s*role\s*\}\}/gi, 'Senior Engineer')
+      .replace(/\{\{\s*recipient\s*\}\}/gi, 'Hiring Manager');
+    const paragraphs = body.replace(/\r/g, '').split(/\n\s*\n/).map((part) => fill(part).trim()).filter(Boolean);
+    return [fill(greeting), ...paragraphs, fill(signOff)]
+      .map((part) => `<p>${escapeHtml(part).replace(/\n/g, '<br>')}</p>`)
+      .join('');
+  }
+
+  function renderCoverLetterPreview() {
+    const preview = document.getElementById('coverLetterPreview');
+    if (!preview) return;
+    preview.innerHTML = coverLetterPreviewMarkup();
+  }
+
+  const copyPromptBtn = document.getElementById('copyCoverLetterPromptBtn');
+  if (copyPromptBtn) {
+    copyPromptBtn.addEventListener('click', async () => {
+      const status = document.getElementById('coverLetterCopyStatus');
+      try {
+        await navigator.clipboard.writeText(COVER_LETTER_PROMPT);
+        if (status) status.textContent = 'Prompt copied. Paste it into your assistant with your resume below it.';
+      } catch {
+        if (status) status.textContent = 'Copy failed — select the sample prompt manually.';
+      }
+    });
+  }
+
+  const sampleToggleBtn = document.getElementById('toggleCoverLetterSampleBtn');
+  if (sampleToggleBtn) {
+    sampleToggleBtn.addEventListener('click', () => {
+      const sample = document.getElementById('coverLetterSample');
+      if (!sample) return;
+      const visible = sample.style.display !== 'none';
+      sample.style.display = visible ? 'none' : 'block';
+      sampleToggleBtn.textContent = visible ? 'Show sample' : 'Hide sample';
+    });
+  }
+
+  if (uclGreeting) uclGreeting.addEventListener('input', renderCoverLetterPreview);
+  if (uclSignOff) uclSignOff.addEventListener('input', renderCoverLetterPreview);
+  if (uclBody) uclBody.addEventListener('input', renderCoverLetterPreview);
+
+  document.addEventListener('click', (event) => {
+    const pop = document.getElementById('resumeIconPop');
+    if (!pop || pop.style.display === 'none') return;
+    if (pop.contains(event.target)) return;
+    const btn = document.getElementById('resumeIconBtn');
+    if (event.target === btn) return;
+    pop.style.display = 'none';
+  });
+
   if (skillLexiconAutoToggle) {
     skillLexiconAutoToggle.addEventListener('change', () => {
       chrome.storage.local.set({ skillLexiconAutoUpdate: skillLexiconAutoToggle.checked });
     });
   }
 
+  if (allowUnverifiedSkillsToggle) {
+    allowUnverifiedSkillsToggle.addEventListener('change', () => {
+      chrome.storage.local.set({ allowUnverifiedSkills: allowUnverifiedSkillsToggle.checked });
+    });
+  }
+
   if (skillLexiconUpdateBtn) {
     skillLexiconUpdateBtn.addEventListener('click', async () => {
-      if (!offlineProAllowed) {
-        showStatus('Offline mode is a Pro feature. See plans to unlock the skill directory.', 'info', 5000);
-        showCloudPricingPanel();
-        return;
-      }
       const granted = await chrome.permissions.request({ origins: ['https://www.onetcenter.org/*'] }).catch(() => false);
       if (!granted) {
         showStatus('Permission to reach onetcenter.org is required to update the skill directory.', 'info', 5000);
@@ -589,9 +585,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           showStatus(`Skill directory updated: ${(response.meta?.count || 0).toLocaleString()} skills.`, 'success', 4000);
         } else if (response && response.status === 'permission_required') {
           showStatus('Permission to reach onetcenter.org is required to update the skill directory.', 'info', 5000);
-        } else if (response && response.status === 'upgrade_required') {
-          showStatus('Offline mode is a Pro feature. See plans to unlock the skill directory.', 'info', 5000);
-          showCloudPricingPanel();
         } else {
           throw new Error(response?.message || 'Unknown update error');
         }
@@ -633,70 +626,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  const PROVIDER_KEY_STORAGE_MAP = {
-    google: 'geminiApiKey',
-    openrouter: 'openrouterApiKey',
-    openai: 'openaiApiKey',
-    anthropic: 'anthropicApiKey'
-  };
-  const PROVIDER_MODEL_STORAGE_MAP = {
-    google: 'googleModel',
-    openrouter: 'openrouterModel',
-    openai: 'openaiModel',
-    anthropic: 'anthropicModel'
-  };
-
-  async function commitViewedProviderCredentials() {
-    if (!currentlyViewedProvider || currentlyViewedProvider === 'custom') return;
-    const keyStorageKey = PROVIDER_KEY_STORAGE_MAP[currentlyViewedProvider];
-    const modelStorageKey = PROVIDER_MODEL_STORAGE_MAP[currentlyViewedProvider];
-    if (!keyStorageKey) return;
-    const payload = {
-      [keyStorageKey]: apiKeys[currentlyViewedProvider] || ''
-    };
-    if (modelStorageKey) payload[modelStorageKey] = providerModels[currentlyViewedProvider] || '';
-    await setLocalStorage(payload);
-  }
-
-  function refreshCredentialsFromStorage(changes) {
-    for (const [provider, storageKey] of Object.entries(PROVIDER_KEY_STORAGE_MAP)) {
-      if (changes[storageKey] && provider !== currentlyViewedProvider) {
-        apiKeys[provider] = changes[storageKey].newValue || '';
-      }
-    }
-    for (const [provider, storageKey] of Object.entries(PROVIDER_MODEL_STORAGE_MAP)) {
-      if (changes[storageKey] && provider !== currentlyViewedProvider) {
-        providerModels[provider] = changes[storageKey].newValue || '';
-      }
-    }
-  }
-
-  function getSettingsPayload(storedProviderCredentials) {
-    const payload = {
-      apiProvider: activeProvider,
+  function getSettingsPayload() {
+    return {
       applicationProfile: readAppProfileFromForm(),
-      offlineFallback: readOfflineFallback(),
-      resumes: getPersistedResumes()
+      resumes: getPersistedResumes(),
+      universalCoverLetter: readUniversalCoverLetter()
     };
-    payload.universalCoverLetter = readUniversalCoverLetter();
-    for (const [provider, storageKey] of Object.entries(PROVIDER_KEY_STORAGE_MAP)) {
-      payload[storageKey] = provider === currentlyViewedProvider
-        ? (apiKeys[provider] || '')
-        : (storedProviderCredentials?.[storageKey] ?? apiKeys[provider] ?? '');
-    }
-    for (const [provider, storageKey] of Object.entries(PROVIDER_MODEL_STORAGE_MAP)) {
-      payload[storageKey] = provider === currentlyViewedProvider
-        ? (providerModels[provider] || '')
-        : (storedProviderCredentials?.[storageKey] ?? providerModels[provider] ?? '');
-    }
-    payload.customEndpoints = customEndpoints;
-    payload.activeCustomEndpointId = activeCustomEndpointId;
-    return payload;
-  }
-
-  async function getStoredProviderCredentials() {
-    const keys = [...Object.values(PROVIDER_KEY_STORAGE_MAP), ...Object.values(PROVIDER_MODEL_STORAGE_MAP)];
-    return chrome.storage.local.get(keys);
   }
 
   function setCloudAvatar(profile) {
@@ -717,24 +652,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderAccountOffer(promo) {
     if (accountOfferBadge) accountOfferBadge.style.display = promo ? 'inline-block' : 'none';
     if (accountOfferTitle) {
-      accountOfferTitle.textContent = promo ? 'Every Pro feature free until Oct 31' : 'Sync your resumes for free';
+      accountOfferTitle.textContent = promo ? 'Everything free until Dec 31' : 'Keep your resumes in sync';
     }
     if (accountOfferSub) {
       accountOfferSub.textContent = promo
-        ? 'Create a free account — no card required. The Job Tracker, Form Filler, and Cloud Sync are all unlocked during the launch trial.'
-        : 'Create a free account to sync across devices, or upgrade any time for the Job Tracker and Form Filler.';
+        ? 'Create a free account — no card required. The resume engine, cover letters, and Job Tracker are all unlocked during the free period.'
+        : 'Create a free account to sync across devices, or upgrade any time to keep generating after Dec 31.';
     }
     if (accountFeatureList) {
       const items = promo
         ? [
-            ['Cloud sync', 'resumes on every device'],
+            ['Resume engine', 'tailored PDFs, no API key'],
+            ['Cover letters', 'one template, every job'],
             ['Job Tracker', 'pipeline board + analytics'],
-            ['Form Filler', 'one-click applications'],
           ]
         : [
-            ['Free · Cloud sync', 'resumes on every device'],
-            ['Pro · Job Tracker', 'pipeline board + analytics'],
-            ['Pro · Form Filler', 'one-click applications'],
+            ['Cloud sync', 'resumes on every device'],
+            ['Job Tracker', 'pipeline board + analytics'],
+            ['Resume engine', 'tailored PDFs, no API key'],
           ];
       accountFeatureList.innerHTML = items
         .map(([label, desc]) => `<li><span class="pfl-check" aria-hidden="true">&#10003;</span><span class="pfl-text"><strong>${label}</strong> — ${desc}</span></li>`)
@@ -766,8 +701,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (canSync && access.isPro) {
           cloudAuthStatus.textContent = 'Pro active';
           cloudAuthStatus.className = 'cloud-status-pill synced';
-        } else if (canSync && access.proAccess) {
-          cloudAuthStatus.textContent = 'Pro trial · ends Oct 31';
+        } else if (access.withinWindow || access.proAccess) {
+          cloudAuthStatus.textContent = 'Free until Dec 31';
           cloudAuthStatus.className = 'cloud-status-pill synced';
         } else if (canSync) {
           cloudAuthStatus.textContent = 'Free plan';
@@ -776,7 +711,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           cloudAuthStatus.textContent = 'Free account required';
           cloudAuthStatus.className = 'cloud-status-pill error';
         }
-        if (cloudManagePlanBtn) cloudManagePlanBtn.textContent = access.proAccess ? 'Upgrade · Manage plan' : 'Upgrade to Pro';
+        if (cloudManagePlanBtn) cloudManagePlanBtn.textContent = access.isPro ? 'Manage plan' : 'Upgrade to Pro';
         if (canSync) runAutoSync();
       } else {
         if (accountSignedIn) accountSignedIn.style.display = 'none';
@@ -859,17 +794,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     return out;
   }
 
-  function formatExtractedJson(rawText) {
-    try {
-      let rawData = (rawText || '').trim();
-      if (rawData.startsWith('```json')) rawData = rawData.replace(/^```json/, '').replace(/```$/, '');
-      else if (rawData.startsWith('```')) rawData = rawData.replace(/^```/, '').replace(/```$/, '');
-      return JSON.stringify(JSON.parse(sanitizeJsonControlChars(rawData)), null, 2);
-    } catch (e) {
-      return rawText;
-    }
-  }
-
   function mergeRefineAnswers(resume, draftAnswers) {
     const existing = normalizeRefineAnswersList(resume.refineAnswers);
     const incoming = (Array.isArray(draftAnswers) ? draftAnswers : [])
@@ -910,413 +834,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     return { applied: true, stale: false };
   }
 
-  async function extractJsonForResume(resume) {
-    if (!resume?.content?.trim()) {
-      throw new Error('Add some resume content before extracting JSON.');
-    }
-    extractingResumeId = resume.id;
-    renderTabContent();
-    showStatus('Extracting profile to JSON...', 'loading', 0);
-
-    try {
-      const response = await sendRuntimeMessage({
-        type: 'EXTRACT_RESUME_JSON',
-        payload: {
-          resumeId: resume.id,
-          sourceText: resume.content
-        }
-      });
-      if (!response || response.status !== 'success' || !response.data) {
-        throw new Error(response?.message || 'Unknown extraction error');
-      }
-      resume.jsonContent = formatExtractedJson(response.data);
-      resume.updatedAt = Date.now();
-      await setLocalStorage({ resumes: getPersistedResumes() });
-      resume._lastSavedContent = resume.content;
-      return resume.jsonContent;
-    } finally {
-      extractingResumeId = null;
-      renderTabContent();
-    }
+  function parseProfileText(text) {
+    return normalizeResumeProfile(parseResumeText(text));
   }
 
-  toggleApiKeyButton.addEventListener('click', () => {
-    if (apiKeyInput.type === 'password') {
-      apiKeyInput.type = 'text';
-      toggleApiKeyButton.textContent = 'Hide';
-    } else {
-      apiKeyInput.type = 'password';
-      toggleApiKeyButton.textContent = 'Show';
-    }
-  });
-
-  const updateViewedProvider = (provider) => {
-    if (currentlyViewedProvider && currentlyViewedProvider !== provider) {
-      apiKeys[currentlyViewedProvider] = apiKeyInput.value.trim();
-      if (providerModels.hasOwnProperty(currentlyViewedProvider)) {
-        providerModels[currentlyViewedProvider] = modelInput.value.trim();
+  function resumeDraft(resume) {
+    if (!resume) return normalizeResumeProfile({});
+    if (resume._draft) return resume._draft;
+    let raw = null;
+    if (resume.jsonContent) {
+      try {
+        raw = JSON.parse(resume.jsonContent);
+      } catch {
+        raw = null;
       }
     }
-    currentlyViewedProvider = provider;
-    const isCustom = provider === 'custom';
-
-    providerIcons.forEach(icon => {
-      icon.classList.toggle('active-view', icon.dataset.provider === provider);
-    });
-
-    apiKeyWrapper.style.display = isCustom ? 'none' : 'flex';
-    modelRow.style.display = isCustom ? 'none' : 'flex';
-    customEndpointsSection.style.display = isCustom ? 'flex' : 'none';
-
-    if (!isCustom) {
-      apiKeyInput.value = apiKeys[provider] || '';
-      modelInput.value = providerModels[provider] || '';
-      cloudModelDatalist.innerHTML = '';
-      modelHelperText.textContent = "Leave empty to use this provider's default model.";
-    } else {
-      resetEndpointForm();
-      renderEndpointsList();
+    if (!raw && resume.content && resume.content.trim()) {
+      raw = parseResumeText(resume.content);
+      if (!resume.legacyContent) resume.legacyContent = resume.content;
     }
+    resume._draft = normalizeResumeProfile(raw || {});
+    return resume._draft;
+  }
 
-    apiKeyLabel.textContent = `${PROVIDER_NAMES[provider]} API Key:`;
-    const helperTexts = {
-      google: 'Get your Google key from <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>',
-      openrouter: 'Get your OpenRouter key from <a href="https://openrouter.ai/keys" target="_blank">OpenRouter</a>',
-      openai: 'Get your OpenAI key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>',
-      anthropic: 'Get your Anthropic key from <a href="https://console.anthropic.com/settings/keys" target="_blank">Anthropic Console</a>',
-      custom: 'Connect any OpenAI-compatible API: Ollama, LM Studio, NVIDIA NIM, Groq, DeepSeek and more.'
+  function serializeProfile(profile) {
+    const normalized = normalizeResumeProfile(profile);
+    const contactParts = splitContactParts(normalized);
+    normalized.contact = buildContactString(contactParts);
+    return JSON.stringify(normalized, null, 2);
+  }
+
+  function applyParsedText(resume, text) {
+    const parsed = parseProfileText(text);
+    resume._draft = parsed;
+    resume.legacyContent = text;
+    resume.content = text;
+    resume.parseReview = {
+      warnings: Array.isArray(parsed.parseWarnings) ? parsed.parseWarnings.slice(0, 6) : [],
+      parsedAt: Date.now()
     };
-    providerHelperText.innerHTML = helperTexts[provider];
-    setActiveProviderBtn.style.display = provider === activeProvider ? 'none' : 'inline-block';
-  };
-
-  const updateActiveProvider = (provider, persist = false) => {
-    activeProvider = provider;
-    providerIcons.forEach(icon => {
-      icon.classList.toggle('active-provider', icon.dataset.provider === provider);
-    });
-    setActiveProviderBtn.style.display = 'none';
-  };
-
-  providerIcons.forEach(icon => {
-    icon.addEventListener('click', () => {
-      updateViewedProvider(icon.dataset.provider);
-    });
-  });
-
-  setActiveProviderBtn.addEventListener('click', async () => {
-    updateActiveProvider(currentlyViewedProvider, false);
-    try {
-      await commitViewedProviderCredentials();
-      await setLocalStorage({ apiProvider: currentlyViewedProvider });
-      showStatus(`${PROVIDER_NAMES[currentlyViewedProvider]} is now your default provider.`, 'success', 2500);
-    } catch (error) {
-      showStatus(`Error: ${error.message}`, 'error', 4500);
-    }
-  });
-
-  apiKeyInput.addEventListener('input', () => {
-    apiKeys[currentlyViewedProvider] = apiKeyInput.value.trim();
-  });
-
-  modelInput.addEventListener('input', () => {
-    if (providerModels.hasOwnProperty(currentlyViewedProvider)) {
-      providerModels[currentlyViewedProvider] = modelInput.value.trim();
-    }
-  });
-
-  async function fetchCloudProviderModels(provider) {
-    if (provider === 'google') {
-      const key = apiKeys.google;
-      if (!key) throw new Error('Enter your Google API key first.');
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
-      return (data.models || []).map((m) => (m.name || '').replace(/^models\//, '')).filter(Boolean);
-    }
-    if (provider === 'openai') {
-      const key = apiKeys.openai;
-      if (!key) throw new Error('Enter your OpenAI API key first.');
-      const res = await fetch('https://api.openai.com/v1/models', { headers: { 'Authorization': `Bearer ${key}` } });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
-      return (data.data || []).map((m) => m.id).filter(Boolean);
-    }
-    if (provider === 'anthropic') {
-      const key = apiKeys.anthropic;
-      if (!key) throw new Error('Enter your Anthropic API key first.');
-      const res = await fetch('https://api.anthropic.com/v1/models', { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' } });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
-      return (data.data || []).map((m) => m.id).filter(Boolean);
-    }
-    if (provider === 'openrouter') {
-      const res = await fetch('https://openrouter.ai/api/v1/models');
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
-      return (data.data || []).map((m) => m.id).filter(Boolean);
-    }
-    throw new Error('Select a cloud provider first.');
+    resume.updatedAt = Date.now();
+    return parsed;
   }
 
-  loadModelsBtn.addEventListener('click', async () => {
-    const provider = currentlyViewedProvider;
-    if (!providerModels.hasOwnProperty(provider)) return;
-    loadModelsBtn.disabled = true;
-    try {
-      const models = (await fetchCloudProviderModels(provider)).sort();
-      cloudModelDatalist.innerHTML = models.map((m) => `<option value="${escapeAttr(m)}"></option>`).join('');
-      modelHelperText.textContent = models.length
-        ? `${models.length} models loaded. Click the model field to pick one.`
-        : 'No models found for this key.';
-    } catch (error) {
-      modelHelperText.textContent = `Could not load models: ${error.message}`;
-    } finally {
-      loadModelsBtn.disabled = false;
-    }
-  });
-
-  function getEndpointOrigin(baseUrl) {
-    try {
-      const url = new URL(baseUrl);
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-      return url.origin + '/*';
-    } catch (error) {
-      return null;
-    }
-  }
-
-  async function ensureEndpointPermission(baseUrl) {
-    const origin = getEndpointOrigin(baseUrl);
-    if (!origin) throw new Error('Enter a valid http(s) Base URL.');
-    const alreadyGranted = await chrome.permissions.contains({ origins: [origin] });
-    if (alreadyGranted) return;
-    const granted = await chrome.permissions.request({ origins: [origin] });
-    if (!granted) throw new Error(`Permission denied for ${origin}`);
-  }
-
-  function normalizeEndpointBase(baseUrl) {
-    return (baseUrl || '').trim().replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
-  }
-
-  async function fetchCustomEndpointModels(baseUrl, apiKey) {
-    const normalized = normalizeEndpointBase(baseUrl);
-    if (!normalized) throw new Error('Enter a Base URL first.');
-    const headers = {};
-    if ((apiKey || '').trim()) headers['Authorization'] = `Bearer ${apiKey.trim()}`;
-    const res = await fetch(`${normalized}/models`, { headers });
-    let data;
-    try {
-      data = await res.json();
-    } catch (error) {
-      throw new Error(`HTTP ${res.status} with a non-JSON response.`);
-    }
-    if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
-    return (Array.isArray(data.data) ? data.data : []).map((m) => m?.id).filter(Boolean);
-  }
-
-  function resetEndpointForm() {
-    editingEndpointId = null;
-    endpointNameInput.value = '';
-    endpointBaseUrlInput.value = '';
-    endpointApiKeyInput.value = '';
-    endpointModelInput.value = '';
-    endpointExtraInput.value = '';
-    endpointModelDatalist.innerHTML = '';
-    endpointStatusText.textContent = '';
-    cancelEndpointEditBtn.style.display = 'none';
-    saveEndpointBtn.textContent = 'Save Endpoint';
-  }
-
-  function renderEndpointsList() {
-    endpointsList.innerHTML = '';
-    if (!customEndpoints.length) {
-      endpointsList.innerHTML = '<small>No saved endpoints yet.</small>';
-      return;
-    }
-    customEndpoints.forEach((endpoint) => {
-      const isActive = endpoint.id === activeCustomEndpointId;
-      const item = document.createElement('div');
-      item.className = 'endpoint-item' + (isActive ? ' active-endpoint' : '');
-      item.innerHTML = `
-        <div class="endpoint-item-info">
-          <div class="endpoint-item-name">${escapeHtml(endpoint.name)}${isActive ? '<span class="endpoint-active-badge">Active</span>' : ''}</div>
-          <div class="endpoint-item-url">${escapeHtml(endpoint.baseUrl)} · ${escapeHtml(endpoint.model)}</div>
-        </div>
-        <div class="endpoint-item-actions">
-          ${isActive ? '' : '<button type="button" data-action="activate">Set Active</button>'}
-          <button type="button" data-action="edit">Edit</button>
-          <button type="button" data-action="delete">Delete</button>
-        </div>
-      `;
-      item.querySelectorAll('button[data-action]').forEach((btn) => {
-        btn.addEventListener('click', () => handleEndpointAction(btn.dataset.action, endpoint.id));
-      });
-      endpointsList.appendChild(item);
-    });
-  }
-
-  async function handleEndpointAction(action, endpointId) {
-    const endpoint = customEndpoints.find((e) => e.id === endpointId);
-    if (!endpoint) return;
-
-    if (action === 'edit') {
-      editingEndpointId = endpointId;
-      endpointNameInput.value = endpoint.name || '';
-      endpointBaseUrlInput.value = endpoint.baseUrl || '';
-      endpointApiKeyInput.value = endpoint.apiKey || '';
-      endpointModelInput.value = endpoint.model || '';
-      endpointExtraInput.value = endpoint.extraBody || '';
-      endpointModelDatalist.innerHTML = '';
-      endpointStatusText.textContent = '';
-      cancelEndpointEditBtn.style.display = 'inline-block';
-      saveEndpointBtn.textContent = 'Update Endpoint';
-      return;
-    }
-
-    if (action === 'activate') {
-      activeCustomEndpointId = endpointId;
-      try {
-        await setLocalStorage({ customEndpoints, activeCustomEndpointId });
-      } catch (error) {
-        showStatus(`Error: ${error.message}`, 'error', 4500);
-        return;
-      }
-      renderEndpointsList();
-      return;
-    }
-
-    if (action === 'delete') {
-      if (!confirm(`Delete endpoint "${endpoint.name}"?`)) return;
-      customEndpoints = customEndpoints.filter((e) => e.id !== endpointId);
-      if (activeCustomEndpointId === endpointId) {
-        activeCustomEndpointId = customEndpoints.length ? customEndpoints[0].id : '';
-      }
-      try {
-        await setLocalStorage({ customEndpoints, activeCustomEndpointId });
-      } catch (error) {
-        showStatus(`Error: ${error.message}`, 'error', 4500);
-        return;
-      }
-      if (editingEndpointId === endpointId) resetEndpointForm();
-      renderEndpointsList();
-    }
-  }
-
-  document.querySelectorAll('.endpoint-preset-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const preset = ENDPOINT_PRESETS[btn.dataset.preset];
-      if (!preset) return;
-      resetEndpointForm();
-      endpointNameInput.value = preset.name;
-      endpointBaseUrlInput.value = preset.baseUrl;
-      endpointModelInput.focus();
-    });
-  });
-
-  testEndpointBtn.addEventListener('click', async () => {
-    const baseUrl = endpointBaseUrlInput.value.trim();
-    endpointStatusText.textContent = '';
-    try {
-      await ensureEndpointPermission(baseUrl);
-      endpointStatusText.textContent = 'Testing connection...';
-      const models = await fetchCustomEndpointModels(baseUrl, endpointApiKeyInput.value);
-      endpointModelDatalist.innerHTML = models.map((m) => `<option value="${escapeAttr(m)}"></option>`).join('');
-      endpointStatusText.textContent = models.length
-        ? `Success — ${models.length} models available. Click the model field to pick one.`
-        : 'Success — endpoint reachable, but no models listed.';
-    } catch (error) {
-      endpointStatusText.textContent = `Failed: ${error.message}`;
-    }
-  });
-
-  cancelEndpointEditBtn.addEventListener('click', resetEndpointForm);
-
-  saveEndpointBtn.addEventListener('click', async () => {
-    const name = endpointNameInput.value.trim() || 'My Endpoint';
-    const baseUrl = endpointBaseUrlInput.value.trim();
-    const apiKey = endpointApiKeyInput.value.trim();
-    const model = endpointModelInput.value.trim();
-    let extraBody = endpointExtraInput.value.trim();
-    if (extraBody) {
-      try {
-        const parsed = JSON.parse(extraBody);
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          throw new Error('Extra body params must be a JSON object.');
-        }
-      } catch (error) {
-        endpointStatusText.textContent = error.message.includes('JSON object') ? error.message : 'Extra body params are not valid JSON.';
-        return;
-      }
-    } else {
-      extraBody = '';
-    }
-
-    if (!getEndpointOrigin(baseUrl)) {
-      endpointStatusText.textContent = 'Enter a valid http(s) Base URL.';
-      return;
-    }
-    if (!model) {
-      endpointStatusText.textContent = 'Enter the model ID to use (Test Connection lists options).';
-      return;
-    }
-
-    try {
-      await ensureEndpointPermission(baseUrl);
-    } catch (error) {
-      endpointStatusText.textContent = error.message;
-      return;
-    }
-
-    if (editingEndpointId) {
-      const entry = customEndpoints.find((e) => e.id === editingEndpointId);
-      if (entry) Object.assign(entry, { name, baseUrl, apiKey, model, extraBody });
-      if (activeCustomEndpointId === entry.id) activeCustomEndpointId = entry.id;
-    } else {
-      const entry = { id: generateId(), name, baseUrl, apiKey, model, extraBody };
-      customEndpoints.push(entry);
-      if (!activeCustomEndpointId) activeCustomEndpointId = entry.id;
-    }
-
-    try {
-      await setLocalStorage({ customEndpoints, activeCustomEndpointId });
-    } catch (error) {
-      endpointStatusText.textContent = `Error: ${error.message}`;
-      return;
-    }
-
-    resetEndpointForm();
-    endpointStatusText.textContent = `Endpoint "${name}" saved.`;
-    renderEndpointsList();
-  });
-
-  const data = await chrome.storage.local.get(['geminiApiKey', 'openrouterApiKey', 'openaiApiKey', 'anthropicApiKey', 'googleModel', 'openaiModel', 'anthropicModel', 'openrouterModel', 'customEndpoints', 'activeCustomEndpointId', 'apiProvider', 'userProfile', 'resumes', 'trackerCaptureEnabled', 'applicationProfile', 'offlineFallback', 'universalCoverLetter', 'skillLexiconAutoUpdate', 'pendingExtract', 'openCoverLetterSection']);
-  const trackerCaptureToggle = document.getElementById('trackerCaptureToggle');
-  if (trackerCaptureToggle) {
-    trackerCaptureToggle.checked = data.trackerCaptureEnabled !== false;
-    trackerCaptureToggle.addEventListener('change', () => {
-      chrome.storage.local.set({ trackerCaptureEnabled: trackerCaptureToggle.checked });
-    });
-  }
-
-  if (data.apiProvider) activeProvider = data.apiProvider;
-  if (data.geminiApiKey) apiKeys.google = data.geminiApiKey;
-  if (data.openrouterApiKey) apiKeys.openrouter = data.openrouterApiKey;
-  if (data.openaiApiKey) apiKeys.openai = data.openaiApiKey;
-  if (data.anthropicApiKey) apiKeys.anthropic = data.anthropicApiKey;
-  if (data.googleModel) providerModels.google = data.googleModel;
-  if (data.openaiModel) providerModels.openai = data.openaiModel;
-  if (data.anthropicModel) providerModels.anthropic = data.anthropicModel;
-  if (data.openrouterModel) providerModels.openrouter = data.openrouterModel;
-  if (Array.isArray(data.customEndpoints)) {
-    customEndpoints = data.customEndpoints.filter((e) => e && typeof e.baseUrl === 'string' && e.baseUrl.trim());
-  }
-  activeCustomEndpointId = customEndpoints.some((e) => e.id === data.activeCustomEndpointId)
-    ? data.activeCustomEndpointId
-    : (customEndpoints.length ? customEndpoints[0].id : '');
-
-  updateActiveProvider(activeProvider);
-  updateViewedProvider(activeProvider);
   updateCloudStatus();
 
   async function startAuth(mode) {
@@ -1365,15 +925,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  const data = await chrome.storage.local.get([
+    'resumes', 'userProfile', 'resumeType', 'resumeLayout', 'selectedResumeId', 'onboarding',
+    'onboardingCompleted', 'universalCoverLetter', 'applicationProfile', 'skillLexiconAutoUpdate',
+    'pendingExtract', 'openCoverLetterSection', 'allowUnverifiedSkills'
+  ]);
+  universalCoverLetter = data.universalCoverLetter || null;
+
   if (data.resumes && data.resumes.length > 0) {
     resumes = data.resumes.map((resume, index) => normalizeResumeEntry(resume, index));
   } else if (data.userProfile) {
     resumes = [createResumeEntry('Resume 1', data.userProfile)];
-    await chrome.storage.local.set({ resumes: getPersistedResumes() });
     await chrome.storage.local.remove('userProfile');
   } else {
     resumes = [createResumeEntry('Resume 1', '')];
   }
+
+  let migrated = false;
+  resumes.forEach((resume) => {
+    if ((!resume.jsonContent || !resume.jsonContent.trim()) && resume.content && resume.content.trim()) {
+      const parsed = parseProfileText(resume.content);
+      resume._draft = parsed;
+      resume.legacyContent = resume.content;
+      resume.jsonContent = serializeProfile(parsed);
+      resume.parseReview = { warnings: Array.isArray(parsed.parseWarnings) ? parsed.parseWarnings : [], parsedAt: Date.now() };
+      resume.parseConfirmedAt = 0;
+      resume.updatedAt = Date.now();
+      migrated = true;
+    }
+  });
+  if (migrated) await setLocalStorage({ resumes: getPersistedResumes() });
+
+  const hasResumes = resumes.some((resume) => (resume.jsonContent || resume.content || '').trim());
+  if (hasResumes && !data.onboardingCompleted) renderSetupCompleteCard();
 
   if (!resumes.length) {
     resumes = [createResumeEntry('Resume 1', '')];
@@ -1389,24 +973,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- Form Filler setup (Application Questions) ---
   fillAppProfileForm(data.applicationProfile || null);
-  fillOfflineSettings(data);
+  fillSettings(data);
 
   if (data.pendingExtract) {
     chrome.storage.local.remove('pendingExtract');
     setTimeout(() => {
-      const resume = getActiveResume();
-      if (!resume?.content?.trim()) {
-        showStatus('Add resume content first, then run Extract JSON.', 'info', 5000);
-        return;
+      const paste = document.getElementById('rfPasteInput');
+      if (paste) {
+        paste.focus();
+        paste.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-      handleExtractJson();
+      showStatus('Paste your resume text above, then click Parse resume.', 'info', 6000);
     }, 500);
   }
 
   if (data.openCoverLetterSection) {
     chrome.storage.local.remove('openCoverLetterSection');
     setTimeout(() => {
-      const details = document.getElementById('coverLetterFallbackDetails');
+      const details = document.getElementById('coverLetterDetails');
       if (details) {
         details.open = true;
         details.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1490,47 +1074,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  if (profileAutofillBtn) profileAutofillBtn.addEventListener('click', handleProfileAutofill);
 
   function saveCurrentTabToState() {
-    const resume = getActiveResume();
-    if (!resume) return;
-    let dirty = false;
-    const labelInput = document.getElementById('resumeLabelInput');
-    if (labelInput) {
-      const nextLabel = labelInput.value.trim() || `Resume ${activeTabIndex + 1}`;
-      if (nextLabel !== resume.label) {
-        resume.label = nextLabel;
-        dirty = true;
+    resumes.forEach((resume, index) => {
+      const labelInput = document.getElementById('resumeLabelInput');
+      if (labelInput && index === activeTabIndex) {
+        resume.label = labelInput.value.trim() || `Resume ${index + 1}`;
       }
-    }
-    const contentTextarea = document.getElementById('resumeContentTextarea');
-    if (contentTextarea && contentTextarea.value !== resume.content) {
-      resume.content = contentTextarea.value;
-      dirty = true;
-    }
-    const jsonTextarea = document.getElementById('resumeJsonTextarea');
-    if (jsonTextarea && jsonTextarea.value !== resume.jsonContent) {
-      resume.jsonContent = jsonTextarea.value;
-      dirty = true;
-    }
-    if (dirty) resume.updatedAt = Date.now();
+      if (resume._draft) {
+        const nextJson = serializeProfile(resume._draft);
+        if (nextJson !== resume.jsonContent) {
+          resume.jsonContent = nextJson;
+          resume.updatedAt = Date.now();
+        }
+      }
+    });
   }
-
-  function setEditorMode(mode) {
-    saveCurrentTabToState();
-    editorMode = mode;
-    document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
-    renderTabContent();
-  }
-
-  modeToggle.addEventListener('click', (e) => {
-    const btn = e.target.closest('.mode-btn');
-    if (!btn) return;
-    const mode = btn.dataset.mode;
-    if (mode === editorMode) return;
-    setEditorMode(mode);
-  });
 
   function showRefineModal(resume) {
     if (!resume?.pendingRefine) return;
@@ -1641,7 +1200,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'tab-btn' + (index === activeTabIndex ? ' active' : '');
-      btn.textContent = resume.label || `Resume ${index + 1}`;
+      btn.innerHTML = `${resumeIconSvg(resume.icon)}<span>${escapeHtml(resume.label || `Resume ${index + 1}`)}</span>`;
       btn.addEventListener('click', () => {
         saveCurrentTabToState();
         activeTabIndex = index;
@@ -1670,62 +1229,234 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  const ENTRY_GROUPS = {
+    experience: {
+      label: 'Experience',
+      addLabel: 'experience',
+      fields: [['title', 'Role'], ['company', 'Company'], ['location', 'Location'], ['period', 'Dates (Jan 2020 – Present)']]
+    },
+    projects: {
+      label: 'Projects',
+      addLabel: 'project',
+      fields: [['title', 'Project'], ['platform', 'Stack / link'], ['period', 'Dates']]
+    },
+    education: {
+      label: 'Education',
+      addLabel: 'education entry',
+      fields: [['degree', 'Degree'], ['school', 'School'], ['year', 'Year'], ['location', 'Location']]
+    }
+  };
+
+  function blankEntry(group) {
+    if (group === 'education') return { degree: '', school: '', year: '', location: '', details: [] };
+    if (group === 'projects') return { title: '', company: '', platform: '', period: '', points: [], description: '', url: '', stars: '', venue: '' };
+    return { title: '', company: '', location: '', period: '', points: [] };
+  }
+
+  function entryPoints(entry, group, index) {
+    const points = Array.isArray(entry.points) ? entry.points : [];
+    return points.map((point, pointIndex) => `
+      <div class="rf-point">
+        <textarea rows="2" data-rf-point="${group}" data-idx="${index}" data-pidx="${pointIndex}" placeholder="What you did and the result">${escapeHtml(point)}</textarea>
+        <button type="button" class="rf-icon-btn" data-rf-delpoint="${group}" data-idx="${index}" data-pidx="${pointIndex}" title="Remove bullet">&#215;</button>
+      </div>`).join('');
+  }
+
+  function renderEntryGroup(group, draft) {
+    const config = ENTRY_GROUPS[group];
+    const entries = Array.isArray(draft[group]) ? draft[group] : [];
+    const cards = entries.map((entry, index) => `
+      <div class="rf-entry">
+        <div class="rf-entry-head">
+          <span>${escapeHtml(entry.title || entry.degree || entry.company || entry.school || `Entry ${index + 1}`)}</span>
+          <button type="button" class="rf-icon-btn" data-rf-del="${group}" data-idx="${index}" title="Remove entry">&#215;</button>
+        </div>
+        <div class="rf-grid">
+          ${config.fields.map(([key, label]) => `
+            <div class="rf-field">
+              <label>${label}</label>
+              <input type="text" data-rf-entry="${group}" data-idx="${index}" data-key="${key}" value="${escapeAttr(entry[key] || '')}">
+            </div>`).join('')}
+        </div>
+        ${entryPoints(entry, group, index)}
+        <button type="button" class="rf-add" data-rf-addpoint="${group}" data-idx="${index}">+ Add bullet</button>
+      </div>`).join('');
+    return `
+      <div class="rf-card">
+        <div class="rf-card-head">
+          <span class="rf-card-title">${config.label}</span>
+          <span class="resume-help">${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}</span>
+        </div>
+        ${cards || '<small class="resume-help">Nothing here yet.</small>'}
+        <button type="button" class="rf-add" data-rf-add="${group}">+ Add ${config.addLabel}</button>
+      </div>`;
+  }
+
+  function resumeProfileWarningsFor(resume) {
+    return resumeProfileWarnings(resumeDraft(resume));
+  }
+
+  function refreshDraftWarnings() {
+    const resume = getActiveResume();
+    const warn = document.getElementById('rfWarn');
+    if (!resume || !warn) return;
+    const list = resumeProfileWarningsFor(resume);
+    warn.classList.toggle('visible', list.length > 0 || !!resume.parseReview);
+    const target = warn.querySelector('[data-rf-warn-list]');
+    if (target) target.textContent = list.join(' ');
+  }
+
   function renderTabContent() {
     const resume = getActiveResume();
     if (!resume) return;
-
-    const isRefining = refiningResumeId === resume.id;
-    const isCheckingAts = checkingAtsResumeId === resume.id;
-    const isExtracting = extractingResumeId === resume.id;
-    const mode = editorMode;
+    const draft = resumeDraft(resume);
+    const review = resume.parseReview
+      ? (Array.isArray(resume.parseReview.warnings) ? resume.parseReview.warnings : [])
+      : null;
+    const linksValue = (draft.links || []).map((link) => link.url || link.text || '').filter(Boolean).join('\n');
 
     const labelRow = `
       <div class="resume-label-row">
+        <div class="resume-icon-wrap">
+          <button type="button" class="resume-icon-btn" id="resumeIconBtn" title="Pick an icon">${resumeIconSvg(resume.icon)}</button>
+          <div class="resume-icon-pop" id="resumeIconPop" style="display: none;">
+            ${Object.keys(RESUME_ICONS).map((iconId) => `
+              <button type="button" class="resume-icon-option${(resume.icon || 'doc') === iconId ? ' active' : ''}" data-icon="${iconId}" title="${iconId}">${resumeIconSvg(iconId)}</button>
+            `).join('')}
+          </div>
+        </div>
         <input type="text" id="resumeLabelInput" class="resume-label-input"
                placeholder="Label (e.g. Project Manager)" value="${escapeAttr(resume.label)}" maxlength="40">
         ${resumes.length > 1 ? '<button type="button" class="delete-tab-btn" id="deleteTabBtn">Delete</button>' : ''}
       </div>
     `;
 
-    const subTabs = `
-      <div class="editor-sub-tabs">
-        <button type="button" class="editor-sub-tab${mode === 'resume' ? ' active' : ''}" data-mode="resume">Resume Content</button>
-        <button type="button" class="editor-sub-tab${mode === 'json' ? ' active' : ''}" data-mode="json">JSON Profile</button>
+    tabContentArea.innerHTML = labelRow + `
+      <div class="rf">
+        <div class="rf-warn" id="rfWarn">
+          <strong>Almost there.</strong> <span data-rf-warn-list></span>
+          ${review ? `
+            <p class="resume-help" style="margin:6px 0 0" data-rf-review-copy></p>
+            <div class="paste-card-actions" style="margin-top:8px">
+              <button type="button" class="success-btn" id="rfConfirmResume">Looks right — confirm</button>
+            </div>
+          ` : ''}
+        </div>
+
+        <div class="rf-card paste-card">
+          <div class="rf-card-head">
+            <span class="rf-card-title">Paste an existing resume</span>
+            <span class="resume-help">Local parser · nothing leaves this device</span>
+          </div>
+          <textarea id="rfPasteInput" placeholder="Paste your resume text here. Headings like EXPERIENCE, SKILLS, EDUCATION help the parser."></textarea>
+          <div class="paste-card-actions">
+            <button type="button" class="secondary-action-btn" id="rfParseBtn">Parse resume</button>
+            <small class="resume-help" id="rfParseStatus"></small>
+          </div>
+        </div>
+
+        <div class="rf-card">
+          <div class="rf-card-head"><span class="rf-card-title">Header</span></div>
+          <div class="rf-grid">
+            <div class="rf-field">
+              <label>Full name</label>
+              <input type="text" data-rf-field="name" value="${escapeAttr(draft.name || '')}">
+            </div>
+            <div class="rf-field">
+              <label>Headline</label>
+              <input type="text" data-rf-field="subtitle" value="${escapeAttr(draft.subtitle || '')}">
+            </div>
+            <div class="rf-field">
+              <label>Email</label>
+              <input type="text" data-rf-field="email" value="${escapeAttr(draft.email || '')}">
+            </div>
+            <div class="rf-field">
+              <label>Phone</label>
+              <input type="text" data-rf-field="phone" value="${escapeAttr(draft.phone || '')}">
+            </div>
+            <div class="rf-field">
+              <label>Location</label>
+              <input type="text" data-rf-field="location" value="${escapeAttr(draft.location || '')}">
+            </div>
+          </div>
+          <div class="rf-field">
+            <label>Links (one per line)</label>
+            <textarea rows="3" data-rf-links placeholder="linkedin.com/in/you&#10;github.com/you">${escapeHtml(linksValue)}</textarea>
+          </div>
+        </div>
+
+        <div class="rf-card">
+          <div class="rf-card-head"><span class="rf-card-title">Summary</span></div>
+          <div class="rf-field">
+            <textarea rows="4" data-rf-field="summary" placeholder="Two or three sentences: what you do, your scale, and the result you are known for.">${escapeHtml(draft.summary || '')}</textarea>
+          </div>
+        </div>
+
+        <div class="rf-card">
+          <div class="rf-card-head">
+            <span class="rf-card-title">Skills</span>
+            <span class="resume-help">Comma separated</span>
+          </div>
+          <div class="rf-field">
+            <textarea rows="3" data-rf-csv="skills" placeholder="React, TypeScript, Node.js, PostgreSQL">${escapeHtml((draft.skills || []).join(', '))}</textarea>
+          </div>
+        </div>
+
+        ${renderEntryGroup('experience', draft)}
+        ${renderEntryGroup('projects', draft)}
+        ${renderEntryGroup('education', draft)}
+
+        <div class="rf-card">
+          <div class="rf-card-head"><span class="rf-card-title">Certifications</span></div>
+          <div class="rf-field">
+            <textarea rows="3" data-rf-lines="certifications" placeholder="One per line">${escapeHtml((draft.certifications || []).join('\n'))}</textarea>
+          </div>
+        </div>
+
+        <div class="rf-card rf-advanced">
+          <details>
+            <summary>Advanced — JSON</summary>
+            <div class="rf-field" style="margin-top:8px">
+              <textarea id="rfJson" class="rf-json" spellcheck="false">${escapeHtml(serializeProfile(draft))}</textarea>
+            </div>
+            <div class="rf-json-actions">
+              <button type="button" class="ghost-btn" id="rfCopyJsonBtn">Copy JSON</button>
+              <button type="button" class="ghost-btn" id="rfApplyJsonBtn">Apply JSON</button>
+              <button type="button" class="ghost-btn" id="rfRefreshJsonBtn">Refresh preview</button>
+            </div>
+          </details>
+        </div>
       </div>
     `;
 
-    let editorHTML = '';
-    if (mode === 'resume') {
-      editorHTML = `
-        <textarea id="resumeContentTextarea"
-                  placeholder="Paste your resume content for this profile here. The AI will use this to generate tailored resumes.">${escapeHtml(resume.content)}</textarea>
-        <div class="resume-actions">
-          <button type="button" class="secondary-action-btn" id="refineResumeBtn" ${isRefining ? 'disabled' : ''}>${isRefining ? 'Refining...' : 'Refine Resume'}</button>
-          <button type="button" class="accent-btn" id="checkAtsBtn" ${isCheckingAts || isRefining ? 'disabled' : ''}>${isCheckingAts ? 'Checking ATS...' : 'Check ATS'}</button>
-          ${resume.lastRefineBackup ? '<button type="button" class="ghost-btn" id="undoRefineBtn">Undo Last Refine</button>' : ''}
-        </div>
-        <small class="resume-help">Creates a single cross-style master resume: clearer structure, better sectioning, and safer wording for all supported layouts without inventing new facts.</small>
-      `;
-    } else {
-      editorHTML = `
-        <textarea id="resumeJsonTextarea"
-                  placeholder="Structured JSON profile data. Click Extract JSON to generate from your resume content, or edit manually.">${escapeHtml(resume.jsonContent)}</textarea>
-        <div class="resume-actions">
-          <button type="button" class="secondary-action-btn" id="extractJsonBtn" ${isExtracting ? 'disabled' : ''}>${isExtracting ? 'Extracting JSON...' : 'Extract JSON'}</button>
-        </div>
-        <small class="resume-help">Save settings to generate structured profile data, or click Extract JSON to retry manually.</small>
-      `;
+    const labelInput = document.getElementById('resumeLabelInput');
+    if (labelInput) {
+      labelInput.addEventListener('input', () => {
+        const tabBtns = tabBar.querySelectorAll('.tab-btn');
+        const labelSpan = tabBtns[activeTabIndex] ? tabBtns[activeTabIndex].querySelector('span') : null;
+        if (labelSpan) {
+          labelSpan.textContent = labelInput.value.trim() || `Resume ${activeTabIndex + 1}`;
+        }
+      });
     }
 
-    tabContentArea.innerHTML = labelRow + subTabs + editorHTML;
-
-    const labelInput = document.getElementById('resumeLabelInput');
-    labelInput.addEventListener('input', () => {
-      const tabBtns = tabBar.querySelectorAll('.tab-btn');
-      if (tabBtns[activeTabIndex]) {
-        tabBtns[activeTabIndex].textContent = labelInput.value.trim() || `Resume ${activeTabIndex + 1}`;
-      }
-    });
+    const iconBtn = document.getElementById('resumeIconBtn');
+    const iconPop = document.getElementById('resumeIconPop');
+    if (iconBtn && iconPop) {
+      iconBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        iconPop.style.display = iconPop.style.display === 'none' ? 'grid' : 'none';
+      });
+      iconPop.addEventListener('click', async (event) => {
+        const option = event.target.closest('[data-icon]');
+        if (!option) return;
+        resume.icon = option.dataset.icon;
+        await setLocalStorage({ resumes: getPersistedResumes() });
+        renderTabBar();
+        renderTabContent();
+        runAutoSync();
+      });
+    }
 
     const deleteBtn = document.getElementById('deleteTabBtn');
     if (deleteBtn) {
@@ -1744,34 +1475,163 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
-    document.querySelectorAll('.editor-sub-tab').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const mode = btn.dataset.mode;
-        if (mode === editorMode) return;
-        setEditorMode(mode);
+    const parseBtn = document.getElementById('rfParseBtn');
+    if (parseBtn) {
+      parseBtn.addEventListener('click', () => {
+        const input = document.getElementById('rfPasteInput');
+        const text = input ? input.value.trim() : '';
+        if (!text) {
+          showStatus('Paste your resume text first.', 'error', 3000);
+          return;
+        }
+        const parsed = applyParsedText(resume, text);
+        renderTabBar();
+        renderTabContent();
+        const counted = [];
+        if (parsed.experience.length) counted.push(`${parsed.experience.length} roles`);
+        if (parsed.skills.length) counted.push(`${parsed.skills.length} skills`);
+        if (parsed.education.length) counted.push(`${parsed.education.length} education`);
+        showStatus(`Parsed ${counted.join(' · ') || 'no sections'}. Check the form, then confirm.`, 'success', 6000);
       });
-    });
-
-    const refineResumeBtn = document.getElementById('refineResumeBtn');
-    if (refineResumeBtn) {
-      refineResumeBtn.addEventListener('click', handleRefineResume);
     }
 
-    const checkAtsBtn = document.getElementById('checkAtsBtn');
-    if (checkAtsBtn) {
-      checkAtsBtn.addEventListener('click', handleCheckAts);
+    const confirmBtn = document.getElementById('rfConfirmResume');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', async () => {
+        resume.parseReview = null;
+        resume.parseConfirmedAt = Date.now();
+        saveCurrentTabToState();
+        await setLocalStorage({ resumes: getPersistedResumes(), parseConfirmedAt: Date.now() });
+        renderTabContent();
+        showStatus('Resume confirmed. Generation is unlocked.', 'success', 4000);
+      });
     }
 
-    const extractJsonBtn = document.getElementById('extractJsonBtn');
-    if (extractJsonBtn) {
-      extractJsonBtn.addEventListener('click', handleExtractJson);
+    const jsonArea = document.getElementById('rfJson');
+    const copyJsonBtn = document.getElementById('rfCopyJsonBtn');
+    if (copyJsonBtn && jsonArea) {
+      copyJsonBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(jsonArea.value);
+          showStatus('JSON copied.', 'success', 2000);
+        } catch {
+          showStatus('Copy failed — select the JSON and copy manually.', 'error', 4000);
+        }
+      });
     }
 
-    const undoRefineBtn = document.getElementById('undoRefineBtn');
-    if (undoRefineBtn) {
-      undoRefineBtn.addEventListener('click', handleUndoRefine);
+    const refreshingJsonBtn = document.getElementById('rfRefreshJsonBtn');
+    if (refreshingJsonBtn && jsonArea) {
+      refreshingJsonBtn.addEventListener('click', () => {
+        jsonArea.value = serializeProfile(resumeDraft(resume));
+        showStatus('JSON preview refreshed.', 'info', 2000);
+      });
     }
+
+    const applyJsonBtn = document.getElementById('rfApplyJsonBtn');
+    if (applyJsonBtn && jsonArea) {
+      applyJsonBtn.addEventListener('click', () => {
+        try {
+          const parsed = normalizeResumeProfile(JSON.parse(jsonArea.value));
+          resume._draft = parsed;
+          renderTabContent();
+          showStatus('JSON applied to the form.', 'success', 3000);
+        } catch (error) {
+          showStatus(`JSON is not valid: ${error.message}`, 'error', 5000);
+        }
+      });
+    }
+
+    if (review) {
+      const copy = document.querySelector('[data-rf-review-copy]');
+      if (copy) {
+        copy.textContent = review.length
+          ? 'We rebuilt this from your pasted text. Fix anything above, then confirm to unlock generation.'
+          : 'We rebuilt this from your pasted text. Confirm to unlock generation.';
+      }
+      document.getElementById('rfWarn').classList.add('visible');
+    }
+    refreshDraftWarnings();
   }
+
+  tabContentArea.addEventListener('input', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const resume = getActiveResume();
+    if (!resume) return;
+    const draft = resumeDraft(resume);
+
+    if (target.dataset.rfField) {
+      draft[target.dataset.rfField] = target.value;
+      if (target.dataset.rfField === 'subtitle') draft.position = target.value;
+    } else if (target.dataset.rfCsv) {
+      draft[target.dataset.rfCsv] = target.value.split(/[,;\n]/).map((value) => value.trim()).filter(Boolean);
+    } else if (target.dataset.rfLines) {
+      draft[target.dataset.rfLines] = target.value.split('\n').map((value) => value.trim()).filter(Boolean);
+    } else if ('rfLinks' in target.dataset) {
+      draft.links = target.value
+        .split('\n')
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .map((url) => ({
+          label: /linkedin/i.test(url) ? 'LinkedIn' : /github/i.test(url) ? 'GitHub' : 'Portfolio',
+          text: url.replace(/^https?:\/\//i, '').replace(/\/+$/, ''),
+          url: /^https?:\/\//i.test(url) ? url : `https://${url}`
+        }));
+    } else if (target.dataset.rfEntry) {
+      const entries = draft[target.dataset.rfEntry];
+      const entry = Array.isArray(entries) ? entries[Number(target.dataset.idx)] : null;
+      if (entry) entry[target.dataset.key] = target.value;
+    } else if (target.dataset.rfPoint) {
+      const entries = draft[target.dataset.rfPoint];
+      const entry = Array.isArray(entries) ? entries[Number(target.dataset.idx)] : null;
+      if (entry && Array.isArray(entry.points)) entry.points[Number(target.dataset.pidx)] = target.value;
+    } else {
+      return;
+    }
+    refreshDraftWarnings();
+  });
+
+  tabContentArea.addEventListener('click', (event) => {
+    const button = event.target.closest('button');
+    if (!button) return;
+    const resume = getActiveResume();
+    if (!resume) return;
+    const draft = resumeDraft(resume);
+
+    if (button.dataset.rfAdd) {
+      const group = button.dataset.rfAdd;
+      if (!Array.isArray(draft[group])) draft[group] = [];
+      draft[group].push(blankEntry(group));
+      renderTabContent();
+      return;
+    }
+    if (button.dataset.rfDel) {
+      const group = button.dataset.rfDel;
+      const index = Number(button.dataset.idx);
+      if (Array.isArray(draft[group])) draft[group].splice(index, 1);
+      renderTabContent();
+      return;
+    }
+    if (button.dataset.rfAddpoint) {
+      const group = button.dataset.rfAddpoint;
+      const entry = Array.isArray(draft[group]) ? draft[group][Number(button.dataset.idx)] : null;
+      if (entry) {
+        if (!Array.isArray(entry.points)) entry.points = [];
+        entry.points.push('');
+        renderTabContent();
+      }
+      return;
+    }
+    if (button.dataset.rfDelpoint) {
+      const group = button.dataset.rfDelpoint;
+      const entry = Array.isArray(draft[group]) ? draft[group][Number(button.dataset.idx)] : null;
+      if (entry && Array.isArray(entry.points)) {
+        entry.points.splice(Number(button.dataset.pidx), 1);
+        renderTabContent();
+      }
+    }
+  });
 
   function handleCancelRefine() {
     const resume = getActiveResume();
@@ -1808,22 +1668,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderTabBar();
     renderTabContent();
     showStatus('Original resume restored. Click Save Settings to persist.', 'info', 4500);
-  }
-
-  async function handleExtractJson() {
-    saveCurrentTabToState();
-    const resume = getActiveResume();
-    if (!resume) return;
-    if (!resume.content.trim()) {
-      showStatus('Add some resume content before extracting JSON.', 'error', 3500);
-      return;
-    }
-    try {
-      await extractJsonForResume(resume);
-      showStatus('JSON profile extracted and saved successfully.', 'success', 5000);
-    } catch (error) {
-      showStatus(`Error: ${error.message}`, 'error', 4500);
-    }
   }
 
   async function handleRefineResume() {
@@ -2259,35 +2103,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const TOUR_STEPS = [
     {
-      target: '.provider-icons',
-      title: 'Pick your AI provider',
-      body: 'Click a provider icon. Google Gemini is the easiest free start. If you browse a different provider, click "Set as Active Provider" below the icons.'
+      target: '#accountCard',
+      title: 'One account, every device',
+      body: 'Create a free account to sync resumes and keep the Job Tracker on every device. Everything is free until Dec 31.'
     },
     {
-      target: '#apiKeyWrapper',
-      title: 'Paste your API key',
-      body: 'Paste the key for the provider you picked. The link just below this field tells you where to get one.',
-      validate: 'apiKey'
+      target: '#rfPasteInput',
+      title: 'Paste your resume once',
+      body: 'Paste your current resume text. The on-device parser turns it into an editable profile — no upload, no API key, nothing leaves this browser.'
     },
     {
-      target: '#modelRow',
-      title: 'Choose a model (optional)',
-      body: 'Leave this empty to use the provider\'s default model, or type a model ID. "Load Models" fetches the list your account can use.'
+      target: '#rfParseBtn',
+      title: 'Parse, then correct',
+      body: 'Click Parse resume. The parser fills the form below; fix anything it got wrong, then confirm.'
     },
     {
-      target: '#resumeContentTextarea',
-      title: 'Paste your master resume',
-      body: 'Paste your full, unedited master resume in this box. PocketResume tailors it to each job posting — your original text stays untouched.'
-    },
-    {
-      target: '#refineResumeBtn',
-      title: 'Optional: Refine Resume',
-      body: 'Optional. Click this once to let the AI restructure your resume into a clean master version. You review the result and can apply it or cancel.'
+      target: '#coverLetterDetails',
+      title: 'One cover letter, every job',
+      body: 'Copy the prompt into your favourite assistant, paste the reply here, and every application gets a letter with the company and role filled in.'
     },
     {
       target: '#save',
       title: 'Save Settings',
-      body: 'Click Save Settings. PocketResume also extracts a structured JSON profile from your resume automatically.'
+      body: 'Click Save Settings. Then open the popup on a job posting and generate a tailored resume.'
     }
   ];
 
@@ -2413,16 +2251,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const step = tourSteps[tourStepIndex];
-    if (step.target === '#resumeContentTextarea' && editorMode !== 'resume') {
-      setEditorMode('resume');
-    }
     const el = document.querySelector(step.target);
     if (el) el.scrollIntoView({ block: 'center' });
     tourHighlight.style.display = el ? 'block' : 'none';
     tourStepLabel.textContent = `Step ${tourStepIndex + 1} of ${tourSteps.length}`;
     tourTitle.textContent = step.title;
     tourBody.textContent = step.body;
-    tourHint.style.display = step.validate === 'apiKey' && !apiKeyInput.value.trim() ? 'block' : 'none';
+    tourHint.style.display = 'none';
     tourBackBtn.style.visibility = tourStepIndex === 0 ? 'hidden' : 'visible';
     tourNextBtn.textContent = 'Next';
 
@@ -2502,20 +2337,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   function startRefineNudgeFromTrigger() {
     if (tourActive) return;
     chrome.storage.local.set({ refineNudge: { active: false } });
-    if (typeof setEditorMode === 'function' && editorMode !== 'resume') setEditorMode('resume');
     tourOpenAt(0, 'nudge');
   }
 
   function startAtsNudgeFromTrigger() {
     if (tourActive) return;
     chrome.storage.local.set({ atsNudge: { active: false } });
-    if (typeof setEditorMode === 'function' && editorMode !== 'resume') setEditorMode('resume');
     tourOpenAt(0, 'atsnudge');
   }
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
-    refreshCredentialsFromStorage(changes);
     if (tourActive) return;
     if (changes.onboarding) {
       const ob = changes.onboarding.newValue;
@@ -2557,33 +2389,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   saveButton.addEventListener('click', async () => {
     saveCurrentTabToState();
-    apiKeys[currentlyViewedProvider] = apiKeyInput.value.trim();
     const resume = getActiveResume();
-    const contentChanged = !!resume && resume.content !== resume._lastSavedContent;
-    const refineResult = applyPendingRefineDraft(resume);
-    const shouldExtractJson = !!resume?.content?.trim() && (
-      refineResult.applied ||
-      contentChanged ||
-      !(resume.jsonContent || '').trim()
-    );
-
-    if (shouldExtractJson && (refineResult.applied || contentChanged)) {
-      resume.jsonContent = '';
-    }
-    resumes.forEach((entry) => {
-      if (entry.id !== resume?.id && entry.content !== entry._lastSavedContent) {
-        entry.jsonContent = '';
-      }
-    });
-    renderTabBar();
-    renderTabContent();
-
+    const warnings = resume ? resumeProfileWarningsFor(resume) : [];
     saveButton.disabled = true;
 
     try {
-      await commitViewedProviderCredentials();
-      const storedCredentials = await getStoredProviderCredentials();
-      await setLocalStorage(getSettingsPayload(storedCredentials));
+      await setLocalStorage(getSettingsPayload());
       universalCoverLetter = readUniversalCoverLetter();
       if (uclStatus) {
         uclStatus.textContent = universalCoverLetter?.body
@@ -2591,53 +2402,19 @@ document.addEventListener('DOMContentLoaded', async () => {
           : '';
       }
       updateCoverLetterFallbackPill();
+      renderCoverLetterPreview();
       resumes.forEach((entry) => {
         entry._lastSavedContent = entry.content;
       });
       tourNotifySaved();
 
-      const nowProfileComplete = isAppProfileComplete(readAppProfileFromForm());
-      if (nowProfileComplete) {
-        chrome.storage.local.set({ appProfileOnboarding: { active: false } });
-        if (tourActive && tourMode === 'profile' && tourStepIndex < tourSteps.length) {
-          tourStepIndex = tourSteps.length;
-          renderTourStep();
-        }
+      if (warnings.length) {
+        showStatus(`Settings saved. ${warnings.length} field${warnings.length === 1 ? '' : 's'} still need attention.`, 'info', 5000);
+      } else {
+        showStatus('Settings saved!', 'success');
       }
     } catch (error) {
       showStatus(`Error: ${error.message}`, 'error', 4500);
-      saveButton.disabled = false;
-      return;
-    }
-
-    if (!resume?.content?.trim()) {
-      saveButton.disabled = false;
-      showStatus('Settings saved!', 'success');
-      return;
-    }
-    if (!shouldExtractJson) {
-      saveButton.disabled = false;
-      showStatus(refineResult.stale ? 'Settings saved. Stale refine draft skipped.' : 'Settings saved!', 'success');
-      return;
-    }
-
-    const loadingMessage = refineResult.stale
-      ? 'Settings saved. Refine draft was stale; extracting JSON from current resume...'
-      : refineResult.applied
-        ? 'Settings saved. Refined resume applied. Extracting JSON profile...'
-        : 'Settings saved. Extracting JSON profile...';
-    showStatus(loadingMessage, 'loading', 0);
-
-    try {
-      await extractJsonForResume(resume);
-      const successMessage = refineResult.applied
-        ? 'Settings saved. Refined resume applied and JSON profile extracted.'
-        : refineResult.stale
-          ? 'Settings saved. Stale refine draft skipped and JSON profile extracted.'
-          : 'Settings saved and JSON profile extracted.';
-      showStatus(successMessage, 'success', 5000);
-    } catch (error) {
-      showStatus(`Settings saved, but JSON extraction failed: ${error.message}. Open Advanced and retry Extract JSON.`, 'error', 7000);
     } finally {
       saveButton.disabled = false;
     }

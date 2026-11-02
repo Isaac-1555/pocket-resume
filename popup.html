@@ -849,6 +849,41 @@
       color: var(--text);
       cursor: pointer;
       transition: background var(--ease);
+      position: relative;
+    }
+
+    #fillFormBtn {
+      overflow: hidden;
+    }
+
+    .fill-tape {
+      position: absolute;
+      top: 50%;
+      left: -6%;
+      width: 112%;
+      height: 15px;
+      transform: translateY(-50%) rotate(-4deg);
+      background: repeating-linear-gradient(-45deg, #151515 0 10px, #ffd400 10px 20px);
+      border: 1px solid rgba(0, 0, 0, 0.6);
+      border-radius: 3px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .fill-tape span {
+      background: #151515;
+      color: #ffd400;
+      font-size: 7.5px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 1.5px 9px;
+      border-radius: 8px;
+      white-space: nowrap;
     }
 
     .list-row:hover {
@@ -1521,8 +1556,98 @@
         animation: none !important;
       }
     }
+
+    .access-reminder {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 10px;
+      margin-bottom: 10px;
+      border-radius: 10px;
+      border: 1px solid var(--orange-border);
+      background: var(--orange-fill);
+      font-size: 11px;
+      color: #ffd3aa;
+    }
+
+    .access-reminder-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .access-reminder button {
+      margin: 0;
+      padding: 3px 8px;
+      min-height: 0;
+      font-size: 10.5px;
+      border-radius: 7px;
+      border: 1px solid var(--orange-border);
+      background: transparent;
+      color: #ffb066;
+      cursor: pointer;
+    }
+
+    .access-reminder #reminderDismissBtn {
+      border-color: transparent;
+      color: var(--text-faint);
+      font-size: 13px;
+      padding: 0 4px;
+    }
+
+    .cover-letter-generate {
+      margin-top: 8px;
+      min-height: 56px;
+      padding: var(--space-4);
+      border-radius: var(--radius-card);
+      font-size: 15.5px;
+      font-weight: 600;
+      color: #7cc0ff;
+      background: linear-gradient(160deg, rgba(74, 158, 255, 0.30), rgba(74, 158, 255, 0.14));
+      border: 1px solid var(--accent-blue-border);
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      box-shadow: inset 0 1px 0 rgba(170, 205, 255, 0.35),
+                  inset 0 -12px 20px rgba(10, 40, 100, 0.20),
+                  0 0 30px rgba(74, 158, 255, 0.25),
+                  0 10px 26px rgba(0, 0, 0, 0.4);
+      transition: transform 150ms ease, box-shadow 300ms ease, border-color 300ms ease, background 300ms ease;
+    }
+
+    .cover-letter-generate:hover {
+      transform: translateY(-1px);
+      background: linear-gradient(160deg, rgba(74, 158, 255, 0.38), rgba(74, 158, 255, 0.20));
+      color: #a8d1ff;
+    }
+
+    .cover-letter-generate:active {
+      transform: translateY(0) scale(0.99);
+    }
+
+    .cover-letter-generate:disabled {
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    body[data-status="idle"] .cover-letter-generate:disabled {
+      background: var(--glass-fill);
+      border-color: var(--glass-border);
+      box-shadow: inset 0 1px 0 var(--glass-highlight), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+      color: var(--text-faint);
+    }
+
+    body[data-status="generating"] .cover-letter-generate {
+      cursor: progress;
+      transform: none;
+    }
+
+    .list-row:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
   </style>
-  <link rel="stylesheet" href="feature-video.css">
 </head>
 <body data-status="idle">
   <div class="glow-bloom" aria-hidden="true"></div>
@@ -1540,16 +1665,45 @@
     </div>
     <div class="header-side header-right">
       <button id="errorInfoBtn" class="error-info-btn" type="button" aria-label="Show error details">?</button>
-      <button id="featureVideoBtn" class="feature-video-btn" type="button" title="Watch the feature tour" aria-label="Watch the feature tour"><span class="fv-play-tri" aria-hidden="true"></span></button>
     </div>
   </header>
 
-  <div class="mode-bar">
-    <div class="mode-switch" role="group" aria-label="Generation mode">
-      <button type="button" id="modeAiBtn" data-mode="ai" aria-pressed="true">AI</button>
-      <button type="button" id="modeOfflineBtn" data-mode="offline" aria-pressed="false">Offline</button>
+  <div id="accessReminder" class="access-reminder" style="display: none;">
+    <span id="accessReminderText">Everything is free until Dec 31.</span>
+    <div class="access-reminder-actions">
+      <button type="button" id="reminderPlansBtn">See plans</button>
+      <button type="button" id="reminderDismissBtn" aria-label="Dismiss">&#215;</button>
     </div>
-    <span class="mode-lock" id="modeLockHint" style="display: none;">Pro</span>
+  </div>
+
+  <div id="signinCard" class="setup-card glass" style="display: none;">
+    <div class="setup-head">
+      <p class="setup-title">Sign in to generate</p>
+    </div>
+    <p class="setup-done-text">Your resume engine runs in this browser, but the account keeps it unlocked and synced. Free until Dec 31, no card required.</p>
+    <div style="display: grid; gap: 8px;">
+      <button type="button" id="popupSignUpBtn" class="setup-goto setup-goto-wide">Create free account</button>
+      <button type="button" id="popupSignInBtn" class="setup-goto setup-goto-wide ghost">Sign in</button>
+    </div>
+  </div>
+
+  <div id="reviewCard" class="setup-card glass" style="display: none;">
+    <div class="setup-head">
+      <p class="setup-title">Confirm your resume</p>
+    </div>
+    <p class="setup-done-text">We rebuilt your resume from the text you pasted. Check the parsed fields once, then generation unlocks.</p>
+    <button type="button" id="reviewOpenSettingsBtn" class="setup-goto setup-goto-wide">Review in Settings</button>
+  </div>
+
+  <div id="planLockCard" class="setup-card glass" style="display: none;">
+    <div class="setup-head">
+      <p class="setup-title">Your free period ended</p>
+    </div>
+    <p class="setup-done-text">Generation and the Job Tracker need a Pro plan now. Your resume, tracker data, and JSON export stay available.</p>
+    <div style="display: grid; gap: 8px;">
+      <button type="button" id="planUnlockBtn" class="setup-goto setup-goto-wide">See plans</button>
+      <button type="button" id="planExportBtn" class="setup-goto setup-goto-wide ghost">Export my resume JSON</button>
+    </div>
   </div>
 
   <div id="setupCard" class="setup-card glass" style="display: none;">
@@ -1558,27 +1712,27 @@
       <button type="button" id="setupSkipBtn" class="setup-skip">Skip setup</button>
     </div>
     <div id="setupSteps">
-      <div class="setup-step" id="setupStepProvider">
+      <div class="setup-step" id="setupStepAccount">
         <span class="setup-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
         <div class="setup-step-text">
-          <p class="setup-step-label">Choose an AI provider</p>
-          <p class="setup-step-desc">Google Gemini has a generous free tier</p>
+          <p class="setup-step-label">Create your free account</p>
+          <p class="setup-step-desc">Keeps your resume synced</p>
         </div>
-        <button type="button" class="setup-goto" data-tour-step="1">Do it</button>
-      </div>
-      <div class="setup-step" id="setupStepApiKey">
-        <span class="setup-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-        <div class="setup-step-text">
-          <p class="setup-step-label">Paste your API key</p>
-          <p class="setup-step-desc">Takes about 30 seconds</p>
-        </div>
-        <button type="button" class="setup-goto" data-tour-step="2">Do it</button>
+        <button type="button" class="setup-goto" id="setupAccountBtn">Do it</button>
       </div>
       <div class="setup-step" id="setupStepResume">
         <span class="setup-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
         <div class="setup-step-text">
-          <p class="setup-step-label">Paste your master resume</p>
-          <p class="setup-step-desc">Your original is never modified</p>
+          <p class="setup-step-label">Build your resume</p>
+          <p class="setup-step-desc">Paste once, correct anything</p>
+        </div>
+        <button type="button" class="setup-goto" data-tour-step="2">Do it</button>
+      </div>
+      <div class="setup-step" id="setupStepCover">
+        <span class="setup-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+        <div class="setup-step-text">
+          <p class="setup-step-label">Add a cover letter</p>
+          <p class="setup-step-desc">One template, every job</p>
         </div>
         <button type="button" class="setup-goto" data-tour-step="4">Do it</button>
       </div>
@@ -1588,15 +1742,11 @@
           <p class="setup-step-label">Save settings</p>
           <p class="setup-step-desc">Then generate on any job page</p>
         </div>
-        <button type="button" class="setup-goto" data-tour-step="6">Do it</button>
+        <button type="button" class="setup-goto" data-tour-step="5">Do it</button>
       </div>
     </div>
     <div id="setupDoneState" style="display: none;">
-      <p class="setup-done-text" id="setupDoneText">You're all set. Visit a job posting and click <strong>Generate PDF Resume</strong>.</p>
-      <div id="setupVideoOffer" style="display: grid; gap: 8px;">
-        <button type="button" id="setupWatchVideoBtn" class="setup-goto setup-goto-wide">▶ Watch the feature tour</button>
-        <button type="button" id="setupVideoNoBtn" class="setup-goto setup-goto-wide ghost">Not now</button>
-      </div>
+      <p class="setup-done-text" id="setupDoneText">You're all set. Visit a job posting and click <strong>Generate Resume</strong>.</p>
       <button type="button" id="setupDoneBtn" class="setup-goto setup-goto-wide">Let's go</button>
     </div>
   </div>
@@ -1606,36 +1756,6 @@
       <p class="setup-title">Finish setup to start generating</p>
     </div>
     <button type="button" id="setupResumeBtn" class="setup-goto setup-goto-wide">Resume setup</button>
-  </div>
-
-  <div id="fillProfileCard" class="setup-card glass" style="display: none;">
-    <div class="setup-head">
-      <p class="setup-title">Form Filler needs a quick setup</p>
-    </div>
-    <p class="setup-done-text">Answer a few questions about you once (name, address, salary, work authorization). Every Fill Form reuses them.</p>
-    <button type="button" id="fillProfileSetupBtn" class="setup-goto setup-goto-wide">Complete setup</button>
-  </div>
-
-  <div id="fillProCard" class="setup-card glass" style="display: none;">
-    <div class="setup-head">
-      <p class="setup-title" id="fillProTitle">Form Filler is a Pro feature</p>
-    </div>
-    <ul class="plan-feature-list" id="fillProFeatures"></ul>
-    <button type="button" id="fillProActionBtn" class="setup-goto setup-goto-wide" data-target="pricing">See Pro plans</button>
-    <p class="fill-pro-footnote" id="fillProFootnote" style="display: none;">No card required during the launch trial.</p>
-  </div>
-
-  <div id="noJsonCard" class="setup-card glass" style="display: none;">
-    <div class="setup-head">
-      <p class="setup-title">Offline mode needs a structured profile</p>
-      <button type="button" id="noJsonSkipBtn" class="setup-skip">Not now</button>
-    </div>
-    <p class="setup-done-text">Run <strong>Extract JSON</strong> once so the offline aligner can read your sections. One AI call, stored locally.</p>
-    <div style="display: grid; gap: 8px;">
-      <button type="button" id="noJsonExtractBtn" class="setup-goto setup-goto-wide">Extract JSON in Settings</button>
-      <button type="button" id="noJsonRawBtn" class="setup-goto setup-goto-wide ghost" style="font-size: 11px; min-height: 34px;">Try offline parse from raw text</button>
-    </div>
-    <p class="offline-warning">Guessed from raw text — may misread sections, dates, and job titles.</p>
   </div>
 
   <div class="control-group">
@@ -1671,23 +1791,7 @@
     <!-- Rendered dynamically by popup.js -->
   </div>
 
-  <div class="toggle-group glass">
-    <div class="toggle-row-left">
-      <span class="toggle-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 6l10 7 10-7"/></svg>
-      </span>
-      <div class="toggle-label">
-        <p class="toggle-label-text">Cover Letter</p>
-        <p class="toggle-label-desc">Also generate a cover letter</p>
-      </div>
-    </div>
-    <label class="toggle-switch">
-      <input type="checkbox" id="coverLetterToggle">
-      <span class="toggle-slider"></span>
-    </label>
-  </div>
-
-  <button id="generateBtn" type="button">
+  <button id="generateBtn" type="button" disabled>
     <span class="gen-icon gen-idle" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.6L13.5 10.5L19.4 12L13.5 13.5L12 19.4L10.5 13.5L4.6 12L10.5 10.5Z"/></svg>
     </span>
@@ -1697,12 +1801,14 @@
     <span class="gen-icon gen-failure" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </span>
-    <span id="generateLabel">Generate PDF Resume</span>
+    <span id="generateLabel">Generate Resume</span>
   </button>
 
-  <p class="offline-notice" id="offlineNotice">No AI. Built from your saved profile with on-device rules — sections reordered and matched to this posting, wording never rewritten.</p>
+  <button id="coverLetterBtn" type="button" class="setup-goto setup-goto-wide accent cover-letter-generate" disabled>Generate Cover Letter</button>
+
+  <p class="offline-notice" id="offlineNotice">On-device engine: your saved profile is matched to this posting. No API key, no upload, wording never rewritten.</p>
   <p class="offline-report" id="offlineReport"></p>
-  <p class="offline-letter-note" id="offlineLetterNote" style="display: none;"><span id="offlineLetterNoteText">Cover letter skipped —</span> <button type="button" id="offlineLetterSettingsBtn" class="offline-letter-link">add a universal cover letter</button></p>
+  <p class="offline-letter-note" id="offlineLetterNote" style="display: none;"><span id="offlineLetterNoteText">Cover letter not set up —</span> <button type="button" id="offlineLetterSettingsBtn" class="offline-letter-link">add one in Settings</button></p>
 
   <div class="list-row-pair">
     <button id="settingsBtn" class="list-row glass" type="button">
@@ -1731,12 +1837,12 @@
       <span id="trackerNewBadge" class="tracker-new-badge">New</span>
     </button>
 
-    <button id="fillFormBtn" class="list-row glass" type="button">
+    <button id="fillFormBtn" class="list-row glass" type="button" disabled title="Form Filler is being rebuilt">
       <span class="list-row-left">
         <svg class="row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
         <span class="list-row-label" id="fillFormLabel">Fill Form</span>
       </span>
-      <span id="fillFormNewBadge" class="tracker-new-badge">New</span>
+      <span class="fill-tape" aria-hidden="true"><span>Under construction</span></span>
     </button>
   </div>
 
@@ -1749,17 +1855,8 @@
       </div>
       <h2>Something went wrong</h2>
       <p id="errorMessageText" class="error-message"></p>
-      <div id="offlineOffer" class="offline-offer">
-        <p class="offline-offer-text" id="offlineOfferText">AI couldn't finish. Generate an offline, job-aligned resume instead?</p>
-        <button id="errorOfflineBtn" class="cloud-primary-btn" type="button">Generate offline</button>
-        <label class="offline-remember">
-          <input type="checkbox" id="offlineRememberToggle">
-          <span>Always use offline when AI fails</span>
-        </label>
-        <p class="offline-warning" id="offlineOfferNote" style="display: none;"></p>
-      </div>
       <div class="onboarding-actions">
-        <button id="errorOpenSettingsBtn" class="cloud-secondary-btn" style="display: none;">Open Provider Settings</button>
+        <button id="errorOpenSettingsBtn" class="cloud-secondary-btn" style="display: none;">Open Settings</button>
         <button id="errorCopyBtn" class="cloud-secondary-btn">Copy Details</button>
         <button id="errorCloseBtn" class="cloud-primary-btn">Got it</button>
       </div>
@@ -1805,18 +1902,17 @@
       <div class="onboarding-icon" aria-hidden="true">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m5.6 5.6 2.8 2.8"/><path d="m15.6 15.6 2.8 2.8"/><path d="m18.4 5.6-2.8 2.8"/><path d="m8.4 15.6-2.8 2.8"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> — offline mode, zero tokens</h2>
+      <h2>New in <span id="whatsNewVersion"></span> — the on-device resume engine</h2>
       <p class="error-message">
-        AI still writes the best resume. When it fails — or when you'd rather not spend a token — PocketResume can now build a job-aligned resume entirely on your device.
+        Your resume is now generated entirely on this device — no API keys, no uploads, no third-party AI. The account only keeps it unlocked and synced, and everything is free until Dec 31.
       </p>
       <ul class="whatsnew-collected">
-        <li><strong>Offline switch in the popup header</strong> — deterministic JD alignment: sections reordered, skills matched, wording never rewritten</li>
-        <li><strong>Automatic fallback</strong> after three AI failures, with a remember-my-choice toggle</li>
-        <li><strong>Universal cover letter</strong> in Settings, used whenever the AI letter fails</li>
-        <li><strong>Skill directory</strong> refreshed weekly from the public O*NET database (Pro)</li>
+        <li><strong>On-device, proprietary engine</strong> — the tailored resume is built locally from your saved profile and the job page. Nothing leaves this browser.</li>
+        <li><strong>Faster and more accurate</strong> — generation takes milliseconds: deterministic keyword alignment, skill matching, and bullet selection that never invents a fact or a number.</li>
+        <li><strong>New UI and settings</strong> — matched Generate buttons, a cleaner sidebar with smarter defaults, and an icon you can pick for each resume.</li>
       </ul>
       <div class="onboarding-actions">
-        <button id="whatsNewPlansBtn" class="cloud-primary-btn">Check my plan</button>
+        <button id="whatsNewPlansBtn" class="cloud-primary-btn">Open Settings</button>
         <button id="whatsNewGotBtn" class="cloud-secondary-btn">Got it</button>
       </div>
     </div>
@@ -1825,8 +1921,6 @@
   <script src="libs/jspdf.umd.min.js"></script>
   <script src="cloud-sync-core.js"></script>
   <script src="resume-renderers.js"></script>
-  <script src="assets/tour/frames.js"></script>
-  <script src="feature-video.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

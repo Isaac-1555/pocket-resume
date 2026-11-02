@@ -2,6 +2,7 @@
 // Deterministic job-description alignment. Pure logic: no chrome.* APIs, no
 // network, no randomness. Same inputs always produce the same resume JSON.
 // Imported by background.js (module service worker).
+import { parseResumeText } from './resume-parse.js';
 
 const STOPWORDS = new Set(`
 a about above after again against all also am an and any are as at be because been before being below
@@ -18,13 +19,26 @@ great good best like well must need needs needed we're you'll you're it's don't
 `.trim().split(/\s+/));
 
 const SECTION_ZONES = [
-    { zone: 'required', re: /^(requirements?|qualifications?|minimum qualifications?|basic qualifications?|must haves?|what you.?ll need|what we.?re looking for|who you are|skills? (?:required|needed))\b/i },
+    { zone: 'required', re: /^(requirements?|qualifications?|minimum qualifications?|basic qualifications?|must haves?|what you.?ll need|what we.?re looking for|who you are|accreditations?|skills? (?:required|needed)|skills?\s*(?:and|&)\s*(?:qualifications?|experience)|skills?,?\s*(?:experience\s*)?(?:and|&)?\s*(?:requirements?|qualifications?))\b/i },
     { zone: 'preferred', re: /^(preferred|nice to haves?|bonus|plus(?:es)?|desired|additional qualifications?)\b/i },
+    {
+        zone: 'skills',
+        re: /^(?:(?:technical|core|key|required|relevant|top|primary)\s+)?skills?(?:\s*(?:and|&)\s*(?:tools|technologies))?(?:\s*(?:summary|snapshot))?$|^(?:core )?competenc(?:y|ies)$|^technologies$|^tech(?:nology)? stack$|^tools(?:\s*(?:and|&)\s*technologies)?$|^what you.?ll bring$|^your (?:toolkit|skills)$/i,
+    },
     { zone: 'duties', re: /^(responsibilities|what you.?ll do|the role|about the role|day to day|duties|your impact)\b/i },
     { zone: 'company', re: /^(benefits|perks|compensation|about (?:us|the company|the team)|equal opportunity|why join)\b/i },
 ];
 
-const ZONE_WEIGHT = { title: 2, required: 2, preferred: 1, duties: 0.8, company: 0.35, body: 0.75 };
+const ZONE_WEIGHT = { title: 2, required: 2, skills: 1.8, preferred: 1, duties: 0.8, company: 0.35, body: 0.75 };
+
+const SKILL_ADD_LIMIT = 10;
+const SKILL_TOTAL_LIMIT = 30;
+
+const GENERIC_SKILL_TERMS = new Set([
+    'programming', 'programming languages', 'google', 'computer science', 'information technology',
+    'tools', 'software', 'applications', 'computers and electronics',
+    'facebook', 'linkedin', 'twitter', 'instagram', 'youtube', 'tiktok', 'pinterest', 'reddit', 'whatsapp',
+]);
 
 const ACTION_VERBS = `
 led directed managed owned built architected engineered developed designed implemented deployed automated
@@ -52,6 +66,24 @@ const GERUND_TO_PAST = {
 };
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+const PROVINCE_OR_STATE = /^(?:[A-Z]{2}|Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New Hampshire|New Jersey|New Mexico|New York|North Carolina|North Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode Island|South Carolina|South Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West Virginia|Wisconsin|Wyoming|Alberta|British Columbia|Manitoba|New Brunswick|Newfoundland and Labrador|Nova Scotia|Northwest Territories|Nunavut|Ontario|Prince Edward Island|Quebec|Saskatchewan|Yukon)$/;
+
+function findPlaceInText(text) {
+    const lines = String(text || '').split(/\n+/).map((line) => normalizeSpace(line)).filter(Boolean);
+    for (const line of lines) {
+        if (line.length > 80) continue;
+        for (const part of line.split(/\s*[|·•]\s*/)) {
+            const match = part.match(/^([A-Z][A-Za-z.'\- ]{1,40}),\s*([A-Z][A-Za-z.'\- ]{1,30})$/);
+            if (!match) continue;
+            const city = normalizeSpace(match[1]);
+            const region = normalizeSpace(match[2]);
+            if (!PROVINCE_OR_STATE.test(region)) continue;
+            return { city, region };
+        }
+    }
+    return null;
+}
 
 function normalizeSpace(text) {
     return String(text || '').replace(/\s+/g, ' ').trim();
@@ -90,10 +122,18 @@ function numbersIn(text) {
     return new Set(found.map((value) => value.replace(/,/g, '').replace(/\.$/, '')));
 }
 
+function escapeRegExp(text) {
+    return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function phrasePresent(haystack, phrase) {
     const needle = normalizeTerm(phrase);
     if (!needle) return false;
-    return normalizeTerm(haystack).includes(needle);
+    const hay = normalizeTerm(haystack);
+    if (!hay) return false;
+    const plural = /[a-z0-9]$/.test(needle) ? 's?' : '';
+    const pattern = new RegExp(`(?<![a-z0-9])${escapeRegExp(needle)}${plural}(?![a-z0-9])`);
+    return pattern.test(hay);
 }
 
 function uniqueNames(list) {
@@ -108,8 +148,7 @@ function uniqueNames(list) {
     return out;
 }
 
-function sentencesOf(line) {
-    return normalizeSpace(line)
+function sentencesOf(line) {    return normalizeSpace(line)
         .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
         .map((part) => part.trim())
         .filter(Boolean);
@@ -117,6 +156,7 @@ function sentencesOf(line) {
 
 function detectZone(headingLine) {
     const cleaned = normalizeSpace(headingLine).replace(/[:•]+$/, '');
+    if (!cleaned || cleaned.length > 100) return null;
     for (const entry of SECTION_ZONES) {
         if (entry.re.test(cleaned)) return entry.zone;
     }
@@ -145,6 +185,22 @@ function cleanJobTitle(raw, fallbackTitle) {
     );
 }
 
+function mergePageText(bodyText, description) {
+    const body = String(bodyText || '');
+    const desc = String(description || '')
+        .replace(/\r/g, '')
+        .split('\n')
+        .map((line) => normalizeSpace(line))
+        .filter(Boolean)
+        .join('\n')
+        .trim();
+    if (!desc) return body;
+    if (desc.length >= 400) return desc;
+    const probe = normalizeTerm(desc).slice(0, 160);
+    if (probe && normalizeTerm(body).includes(probe)) return body;
+    return body ? `${body}\n${desc}` : desc;
+}
+
 function parseJobPosting({ title = '', text = '', structured = null } = {}) {
     const bodyText = String(text || '');
     const pageTitle = normalizeSpace(title);
@@ -171,9 +227,9 @@ function parseJobPosting({ title = '', text = '', structured = null } = {}) {
     let location = normalizeSpace(structuredData.location || '');
     if (!location) {
         const remote = bodyText.match(/\b(fully remote|remote|hybrid|on-?site)\b/i);
-        const cityState = bodyText.match(/\b([A-Z][a-zA-Z.\-]+(?:\s+[A-Z][a-zA-Z.\-]+)?),\s*([A-Z]{2}|[A-Z][a-z]+)\b/);
-        if (remote && cityState) location = `${cityState[1]}, ${cityState[2]} (${remote[1]})`;
-        else if (cityState) location = `${cityState[1]}, ${cityState[2]}`;
+        const place = findPlaceInText(bodyText);
+        if (place && remote) location = `${place.city}, ${place.region} (${remote[1]})`;
+        else if (place) location = `${place.city}, ${place.region}`;
         else if (remote) location = remote[1];
     }
 
@@ -201,7 +257,7 @@ function buildKeywordModel(jd, lexicon) {
         const existing = terms.get(key);
         if (existing) {
             existing.weight = Math.max(existing.weight, weight);
-            if (zone === 'required') existing.required = true;
+            if (zone === 'required' || zone === 'skills') existing.required = true;
             if (zone === 'preferred') existing.preferred = true;
             if (options.skill) existing.skill = true;
             return;
@@ -210,7 +266,7 @@ function buildKeywordModel(jd, lexicon) {
             key,
             name: normalizeSpace(name),
             weight,
-            required: zone === 'required',
+            required: zone === 'required' || zone === 'skills',
             preferred: zone === 'preferred',
             skill: !!options.skill,
         });
@@ -230,6 +286,7 @@ function buildKeywordModel(jd, lexicon) {
         const zoneWeight = ZONE_WEIGHT[zone] || ZONE_WEIGHT.body;
         const matches = matchSkills(line, lexicon);
         for (const match of matches) {
+            if (GENERIC_SKILL_TERMS.has(normalizeTerm(match.name))) continue;
             addTerm(match.name, zoneWeight * (match.hot ? 1.15 : 1), zone, { skill: true });
         }
 
@@ -354,35 +411,117 @@ function applyJobFields(resume, jd) {
     return fields;
 }
 
-function rankSkill(skill, model, fallbackIndex) {
-    const key = normalizeTerm(skill);
-    const hit = model.terms.find((term) => term.key === key);
-    return { weight: hit ? hit.weight : 0, index: fallbackIndex };
-}
+function alignSkills(resume, profileIndex, model, lexicon, { allowUnverified = false } = {}) {
+    const groups = Array.isArray(resume.skillGroups) ? resume.skillGroups : [];
+    const groupItems = groups.flatMap((group) => {
+        if (!group || typeof group !== 'object') return [];
+        const items = group.items || group.skills || group.values;
+        return Array.isArray(items) ? items.filter((item) => typeof item === 'string' && item.trim()) : [];
+    });
+    const original = (Array.isArray(resume.skills) ? resume.skills.filter((skill) => typeof skill === 'string' && skill.trim()) : []);
+    const sourceSkills = original.length ? original : groupItems;
+    const entries = [];
+    const byKey = new Map();
+    let deduped = 0;
 
-function alignSkills(resume, profileIndex, model) {
-    const original = Array.isArray(resume.skills) ? resume.skills.filter((skill) => typeof skill === 'string' && skill.trim()) : [];
-    const seen = new Set(original.map((skill) => normalizeTerm(skill)));
-    const added = [];
+    const jdWeight = (key) => {
+        const hit = model.terms.find((term) => term.key === key);
+        return hit ? hit.weight : 0;
+    };
 
-    for (const term of model.required) {
-        if (added.length >= 8) break;
-        if (!term.skill) continue;
-        const key = normalizeTerm(term.name);
-        if (!key || key.length < 2 || seen.has(key)) continue;
-        if (!termPresent(term, profileIndex)) continue;
-        seen.add(key);
-        added.push(term.name);
+    const canonicalKey = (skill) => {
+        const match = matchesExactSkill(skill, lexicon);
+        return normalizeTerm(match ? match.name : skill);
+    };
+
+    const containsPhrase = (haystack, needle) => (
+        !!needle && new RegExp(`(?<![a-z0-9])${escapeRegExp(needle)}(?![a-z0-9])`).test(haystack)
+    );
+
+    const addEntry = (key, name, weight) => {
+        if (!key || key.length < 2) return null;
+        const existing = byKey.get(key);
+        if (existing) {
+            deduped++;
+            existing.weight = Math.max(existing.weight, weight);
+            return null;
+        }
+        const entry = { key, name: normalizeSpace(name), weight, index: entries.length };
+        byKey.set(key, entry);
+        entries.push(entry);
+        return entry;
+    };
+
+    for (const skill of sourceSkills) {
+        const match = matchesExactSkill(skill, lexicon);
+        const key = normalizeTerm(match ? match.name : skill);
+        const weight = jdWeight(key);
+        addEntry(key, weight > 0 && match ? match.name : skill, weight);
     }
 
-    const merged = [...original, ...added];
-    const ordered = merged
-        .map((skill, index) => ({ skill, ...rankSkill(skill, model, index) }))
+    const coveredBy = (key) => entries.find((entry) => (
+        containsPhrase(entry.key, key) || containsPhrase(key, entry.key)
+    ));
+
+    const added = [];
+    const unverified = [];
+    const skippedNoEvidence = [];
+    for (const term of model.terms) {
+        if (!term.skill) continue;
+        const key = normalizeTerm(term.name);
+        if (!key || key.length < 2 || byKey.has(key)) continue;
+        const covered = coveredBy(key);
+        if (covered) {
+            covered.weight = Math.max(covered.weight, term.weight);
+            continue;
+        }
+        const evidenced = termPresent(term, profileIndex);
+        if (!evidenced && !allowUnverified) {
+            if (skippedNoEvidence.length < 8) skippedNoEvidence.push(term.name);
+            continue;
+        }
+        if (added.length >= SKILL_ADD_LIMIT) continue;
+        if (!addEntry(key, term.name, term.weight)) continue;
+        added.push(term.name);
+        if (!evidenced) unverified.push(term.name);
+    }
+
+    const orderedEntries = [...entries]
         .sort((a, b) => (b.weight - a.weight) || (a.index - b.index))
-        .map((entry) => entry.skill);
+        .slice(0, SKILL_TOTAL_LIMIT);
+    const ordered = orderedEntries.map((entry) => entry.name);
 
     resume.skills = ordered;
-    return added;
+
+    if (groups.length) {
+        const finalByKey = new Map(orderedEntries.map((entry) => [entry.key, entry]));
+        const used = new Set();
+        const nextGroups = [];
+        for (const group of groups) {
+            if (!group || typeof group !== 'object') continue;
+            const items = group.items || group.skills || group.values;
+            if (!Array.isArray(items)) continue;
+            const kept = [];
+            for (const item of items) {
+                if (typeof item !== 'string') continue;
+                const key = canonicalKey(item);
+                const entry = finalByKey.get(key);
+                if (!entry || used.has(key)) continue;
+                used.add(key);
+                kept.push(entry.name);
+            }
+            if (kept.length) nextGroups.push({ ...group, items: kept });
+        }
+        const leftovers = orderedEntries.filter((entry) => !used.has(entry.key)).map((entry) => entry.name);
+        if (leftovers.length) {
+            const target = nextGroups.find((group) => /^(?:core(?: skills)?|additional|other)$/i.test(normalizeSpace(group.label || group.name || '')));
+            if (target) target.items = [...target.items, ...leftovers];
+            else nextGroups.push({ label: 'Core Skills', items: leftovers });
+        }
+        resume.skillGroups = nextGroups;
+    }
+
+    return { added, deduped, skippedNoEvidence, unverified, masterCount: sourceSkills.length };
 }
 
 function fixBulletOpener(text) {
@@ -477,7 +616,7 @@ function buildSummary(resume, model, profileIndex, jd) {
     return `${role} with hands-on delivery across ${matched.join(', ')}. Focused on shipping measurable outcomes and working closely with cross-functional teams.`;
 }
 
-function verifyAlignedResume(source, aligned, styleConfig) {
+function verifyAlignedResume(source, aligned, styleConfig, lexicon, { allowUnverifiedSkills = false } = {}) {
     const allowedNumbers = numbersIn(JSON.stringify(source || {}));
     const sourceText = JSON.stringify(source || {});
     const issues = [];
@@ -504,9 +643,11 @@ function verifyAlignedResume(source, aligned, styleConfig) {
         });
     }
 
-    if (Array.isArray(aligned.skills)) {
+    if (Array.isArray(aligned.skills) && !allowUnverifiedSkills) {
         aligned.skills = aligned.skills.filter((skill) => {
-            const present = phrasePresent(sourceText, skill);
+            const match = matchesExactSkill(skill, lexicon);
+            const present = phrasePresent(sourceText, skill)
+                || (match ? [match.name, ...(match.aliases || [])].some((value) => phrasePresent(sourceText, value)) : false);
             if (!present) issues.push(`skill:${skill}`);
             return present;
         });
@@ -534,7 +675,8 @@ function alignResumeJson(profile, jd, options = {}) {
     const model = buildKeywordModel(jd, lexicon);
     const profileIndex = buildProfileIndex(source);
     const fieldsApplied = applyJobFields(resume, jd);
-    const skillsAdded = alignSkills(resume, profileIndex, model);
+    const skillsResult = alignSkills(resume, profileIndex, model, lexicon, { allowUnverified: !!options.allowUnverifiedSkills });
+    const skillsAdded = skillsResult.added;
 
     const experienceResult = alignEntries(resume.experience, model, profileIndex, { limit, maxBullets });
     resume.experience = experienceResult.entries;
@@ -546,10 +688,10 @@ function alignResumeJson(profile, jd, options = {}) {
         if (summary) resume.summary = summary;
     }
 
-    const verified = verifyAlignedResume(source, resume, styleConfig);
+    const verified = verifyAlignedResume(source, resume, styleConfig, lexicon, { allowUnverifiedSkills: !!options.allowUnverifiedSkills });
 
     const matched = uniqueNames(model.required
-        .filter((term) => termPresent(term, profileIndex))
+        .filter((term) => termPresent(term, profileIndex) && (term.skill || term.weight >= 1.4))
         .map((term) => term.name))
         .slice(0, 12);
     const missingRequired = uniqueNames(model.required
@@ -568,6 +710,9 @@ function alignResumeJson(profile, jd, options = {}) {
     ), 0);
     const score = totalWeight > 0 ? Math.round((matchedWeight / totalWeight) * 100) : 0;
 
+    const jdSkillCount = model.terms.filter((term) => term.skill).length;
+    const jdWarnings = jdSkillCount ? [] : ['No skill keywords found on the page — make sure the posting is open and fully loaded.'];
+
     return {
         resume: verified.resume,
         report: {
@@ -576,6 +721,10 @@ function alignResumeJson(profile, jd, options = {}) {
             missingRequired,
             missingPreferred,
             skillsAdded,
+            skillsAddedUnverified: skillsResult.unverified,
+            skillsDeduped: skillsResult.deduped,
+            skillsSkippedNoEvidence: skillsResult.skippedNoEvidence,
+            masterSkillCount: skillsResult.masterCount,
             bulletsDropped: experienceResult.dropped + projectResult.dropped,
             bulletsTrimmed: experienceResult.trimmed + projectResult.trimmed,
             bulletsReordered: experienceResult.reordered + projectResult.reordered,
@@ -584,188 +733,11 @@ function alignResumeJson(profile, jd, options = {}) {
             company: jd.company,
             location: jd.location,
             requiredCount: model.required.length,
+            jdSkillCount,
+            jdWarnings,
             warnings: verified.issues,
         },
     };
-}
-
-function looksLikeDateRange(line) {
-    return /(?:\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{4}\b|\b\d{4}\b)\s*[-–—]\s*(?:present|current|now|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{4}\b|\b\d{4}\b)/i.test(line);
-}
-
-function splitTitleCompany(line) {
-    const cleaned = normalizeSpace(line).replace(/^[-•*–]\s*/, '');
-    const atMatch = cleaned.match(/^(.{2,60}?)\s+(?:at|@)\s+(.{2,60})$/i);
-    if (atMatch) return { title: atMatch[1], company: atMatch[2] };
-    if (cleaned.includes('|')) {
-        const [title, company] = cleaned.split('|').map((part) => part.trim());
-        return { title, company };
-    }
-    if (cleaned.includes(' - ')) {
-        const [title, company] = cleaned.split(' - ').map((part) => part.trim());
-        return { title, company };
-    }
-    const commaParts = cleaned.split(',').map((part) => part.trim()).filter(Boolean);
-    if (commaParts.length >= 2) return { title: commaParts[0], company: commaParts.slice(1).join(', ') };
-    return { title: cleaned, company: '' };
-}
-
-function isBulletLine(line) {
-    return /^[-•*–—·]\s+/.test(line);
-}
-
-function parseExperienceSection(lines) {
-    const entries = [];
-    let current = null;
-    let pendingHeader = null;
-
-    const pushCurrent = () => {
-        if (!current) return;
-        if (!current.points.length && pendingHeader) current.points.push(pendingHeader);
-        if (current.title || current.company || current.points.length) entries.push(current);
-        current = null;
-    };
-
-    for (let index = 0; index < lines.length; index++) {
-        const rawLine = lines[index];
-        const line = normalizeSpace(rawLine);
-        if (!line) continue;
-        if (looksLikeDateRange(line)) {
-            const header = pendingHeader || '';
-            const { title, company } = splitTitleCompany(header);
-            pushCurrent();
-            current = { title, company, location: '', period: line, points: [] };
-            pendingHeader = null;
-            continue;
-        }
-        if (isBulletLine(line)) {
-            const text = line.replace(/^[-•*–—·]\s+/, '');
-            if (!current) current = { title: '', company: '', location: '', period: '', points: [] };
-            current.points.push(text);
-            continue;
-        }
-        if (current && !current.points.length && !current.title && !current.company) {
-            const { title, company } = splitTitleCompany(line);
-            current.title = title;
-            current.company = company;
-            continue;
-        }
-        if (current && current.points.length) {
-            const nextLine = normalizeSpace(lines[index + 1] || '');
-            if (looksLikeDateRange(nextLine)) {
-                pendingHeader = line;
-                continue;
-            }
-            const lastIndex = current.points.length - 1;
-            current.points[lastIndex] = `${current.points[lastIndex]} ${line}`.trim();
-            continue;
-        }
-        pendingHeader = line;
-    }
-    pushCurrent();
-    return entries;
-}
-
-function parseResumeText(rawText) {
-    const text = String(rawText || '').replace(/\r/g, '');
-    const lines = text.split('\n').map((line) => line.replace(/\s+$/, '')).filter((line) => line.trim());
-    const warnings = [];
-
-    const header = { name: '', subtitle: '', contactParts: [] };
-    const sections = { summary: [], skills: [], experience: [], projects: [], education: [], certifications: [], honors: [], publications: [] };
-    let zone = 'header';
-
-    const sectionFor = (line) => {
-        const cleaned = normalizeSpace(line).replace(/[:•]+$/, '').toUpperCase();
-        if (/^(SUMMARY|PROFILE|OBJECTIVE|ABOUT)/.test(cleaned)) return 'summary';
-        if (/^(SKILLS|TECHNICAL SKILLS|CORE COMPETENCIES|TECHNOLOGIES)/.test(cleaned)) return 'skills';
-        if (/^(EXPERIENCE|WORK EXPERIENCE|PROFESSIONAL EXPERIENCE|EMPLOYMENT)/.test(cleaned)) return 'experience';
-        if (/^(PROJECTS|SELECTED PROJECTS|PERSONAL PROJECTS)/.test(cleaned)) return 'projects';
-        if (/^(EDUCATION|ACADEMIC)/.test(cleaned)) return 'education';
-        if (/^(CERTIFICATIONS|CERTIFICATES|LICENSES)/.test(cleaned)) return 'certifications';
-        if (/^(AWARDS|HONORS|ACHIEVEMENTS)/.test(cleaned)) return 'honors';
-        if (/^(PUBLICATIONS|PAPERS)/.test(cleaned)) return 'publications';
-        return null;
-    };
-
-    for (const line of lines) {
-        const section = sectionFor(line);
-        if (section) {
-            zone = section;
-            continue;
-        }
-        if (zone === 'header') {
-            if (!header.name && !/@|\d{3}/.test(line) && line.length <= 60) header.name = line;
-            else if (!header.subtitle && !/@|\d{3}/.test(line) && line.length <= 70 && !looksLikeDateRange(line)) header.subtitle = line;
-            header.contactParts.push(line);
-            continue;
-        }
-        sections[zone].push(line);
-    }
-
-    const headerText = header.contactParts.join(' | ');
-    const email = (text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i) || [''])[0];
-    const phone = (text.match(/(?:\+?\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/) || [''])[0];
-    const urls = [...new Set((text.match(/https?:\/\/[^\s|)]+/gi) || []))].slice(0, 5);
-    const locationMatch = headerText.match(/\b([A-Z][a-zA-Z.\-]+(?:\s+[A-Z][a-zA-Z.\-]+)?),\s*([A-Z]{2}|[A-Z][a-z]+)\b/);
-    const location = locationMatch ? `${locationMatch[1]}, ${locationMatch[2]}` : '';
-    const contact = [phone, email, ...urls].filter(Boolean).join(' | ');
-
-    const skills = sections.skills
-        .flatMap((line) => line.replace(/^[-•*–—·]\s+/, '').split(/[,|;/]+/))
-        .map((skill) => normalizeSpace(skill))
-        .filter((skill) => skill && skill.length <= 40 && skill.split(' ').length <= 5)
-        .slice(0, 60);
-
-    const experience = parseExperienceSection(sections.experience);
-    const projects = parseExperienceSection(sections.projects).map((entry) => ({ ...entry, platform: '', description: '', url: '', stars: '', venue: '' }));
-
-    const education = [];
-    for (const line of sections.education) {
-        if (looksLikeDateRange(line) || !/[A-Za-z]/.test(line)) continue;
-        if (/\b(bachelor|master|b\.?s\.?|m\.?s\.?|ph\.?d|mba|associate|diploma|degree)\b/i.test(line)) {
-            education.push({ degree: normalizeSpace(line), school: '', year: '', location: '', details: [] });
-        } else if (education.length) {
-            const last = education[education.length - 1];
-            if (!last.school) last.school = normalizeSpace(line);
-            else last.details.push(normalizeSpace(line));
-        }
-    }
-
-    if (!email && !phone) warnings.push('No email or phone found.');
-    if (!experience.length) warnings.push('No experience entries detected.');
-    if (!skills.length) warnings.push('No skills section detected.');
-    if (!header.name) warnings.push('Name not detected.');
-
-    const profile = {
-        name: header.name,
-        subtitle: header.subtitle,
-        position: header.subtitle,
-        location,
-        company: '',
-        recruiterName: '',
-        recruiterEmail: '',
-        contact,
-        summary: normalizeSpace(sections.summary.join(' ')).slice(0, 700),
-        skills,
-        skillGroups: [],
-        links: urls.map((url) => ({ label: '', text: url, url })),
-        experience,
-        projects,
-        openSourceProjects: [],
-        education,
-        certifications: sections.certifications.map((line) => normalizeSpace(line.replace(/^[-•*–—·]\s+/, ''))).filter(Boolean),
-        honors: [],
-        publicationsSummary: '',
-        publications: [],
-        researchInterests: [],
-        teaching: [],
-        service: [],
-        parseQuality: 'low',
-        parseWarnings: warnings,
-    };
-
-    return profile;
 }
 
 function buildCoverLetterFromTemplate(template, context = {}) {
@@ -826,6 +798,7 @@ export {
     parseJobPosting,
     buildKeywordModel,
     buildProfileIndex,
+    mergePageText,
     alignResumeJson,
     verifyAlignedResume,
     parseResumeText,

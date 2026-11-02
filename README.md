@@ -1,6 +1,6 @@
 # PocketResume
 
-> AI-powered Chrome extension that generates tailored resumes and cover letters from any job description. Paste your master profile once — PocketResume rewrites it for every application.
+> Chrome extension that turns one saved resume into a tailored PDF for every job posting. No API key, no upload, no rate limit — the resume engine runs on your device.
 
 [![Website](https://img.shields.io/badge/Website-pocket--resume.xyz-blue.svg)](https://pocket-resume.xyz)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -9,27 +9,23 @@
 
 ## Features
 
+- **On-device resume engine** — deterministic job-description alignment: JD title/company/location filled in, skills ranked by relevance, strongest bullets selected, banned openers fixed. Wording is never rewritten, and a verifier reverts any number that is not in your profile
+- **Paste once, edit a form** — the local parser turns resume text into a structured, editable profile. No API key, no cloud round-trip
 - **4 Resume Layouts** — Professional, FAANG, Deedy (double-sided, dense two-column), Academic CV
-- **5 AI Providers** — Google Gemini, OpenAI, Anthropic, OpenRouter, plus any custom/local OpenAI-compatible endpoint (Ollama, LM Studio, NVIDIA NIM, Groq, ...)
-- **AI Form Filler** — One click fills application form questions ("Why are you a great fit?") in your voice: first person, plain words, no AI tells, resume as the only source of facts. Never submits or overwrites — you review and hit submit
-- **Model Selection** — Override the model per provider; fetch the live model list from each provider
-- **Cover Letters** — Optional, single-page cover letter generated alongside your resume
-- **Clear Error Reporting** — Generation failures keep the popup red until you close it or retry; a "?" button opens a human-readable error message with copyable raw details
-- **PDF Export** — Clean, print-ready PDFs via jsPDF for every layout
-- **Check ATS** — On-demand ATS-readiness scan: animated score gauge, critical issues with why an ATS trips on them, and AI-suggested fixes
-- **Refine Resume** — AI polishes your master resume with a grounded question pass first, before/after ATS scores, change summary + warnings, and side-by-side review before applying
-- **Guided Onboarding** — New users get a setup checklist card in the popup plus a spotlight tour that walks the Settings page; Form Filler has its own one-time questionnaire
-- **Extract JSON** — Converts freeform resume text into structured JSON profile
-- **Multi-Profile** — Save up to 3 master profiles and switch between them
-- **Free & Pro Plans** — A free account syncs your resumes across devices; Pro adds the full Job Tracker and Form Filler (sign in from Settings → Account & Cloud Sync). During the launch promo every Pro feature is free until Oct 31
-- **Privacy First** — API keys and profile data stored locally
+- **Separate cover letter** — one universal letter with `{{company}}`, `{{role}}`, and `{{recipient}}` filled from the posting; Settings includes a sample and a copyable prompt for any assistant you already use
+- **Job Tracker** — every generation drops a card with the job URL, company, and role. Pipeline board + analytics, no extra calls
+- **Quick Download** — re-download your saved resume as a professional PDF without reading the page
+- **PDF Export** — clean, print-ready PDFs via jsPDF for every layout
+- **Multi-Profile** — save up to 3 master profiles and switch between them
+- **Privacy First** — resumes stay in `chrome.storage.local`; the engine makes no network requests
 
-### What's New in v8.8
+### What's New in v10.0
 
-- **Automatic cloud sync** — Signed-in resumes sync both ways with no Push or Restore buttons. Edits save to the cloud and newer versions restore automatically.
-- **Deletes propagate** — Deleting a resume removes it from the cloud too.
-- **Conflict handling** — When the same resume changed in two places, the most recent edit wins.
-- **Launch offer** — Every Pro feature stays free until Oct 31.
+- **No more API keys.** Pick-your-provider, model overrides, and custom endpoints are gone. Generation is local.
+- **Editable resume form** replaces the raw text and JSON boxes; existing resumes are parsed and shown for review once.
+- **Generate Resume and Generate Cover Letter** are separate buttons.
+- **Everything free until Dec 31, 2026** with a free account.
+- **Form Filler, Refine, and Check ATS** are marked `Soon` while they are rebuilt without AI.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
@@ -50,22 +46,21 @@ npm install
 ## Setup
 
 1. Click the extension icon → gear icon (Settings)
-2. Select AI provider → paste API key → "Set as Active Provider"
-   - For **Custom / Local**: pick a preset (Ollama, LM Studio, NVIDIA NIM) or enter any OpenAI-compatible Base URL, optional API key, and model → "Test Connection" → "Save Endpoint" → "Set as Active Provider"
-3. Paste your master resume into the profile text area → **Save**
-4. (Optional) Enable Cover Letter toggle
-5. (Optional) Create a free account for resume cloud sync, or upgrade to Pro for the Job Tracker + Form Filler — Settings → Account & Cloud Sync
+2. Create a free account (required to generate; free until Dec 31, 2026)
+3. Paste your resume text into **Paste an existing resume** → **Parse resume**
+4. Fix anything the parser missed in the form → **Looks right — confirm** → **Save Settings**
+5. Optional: add a universal cover letter under **Cover letter**
 
 ## Usage
 
 1. Navigate to any job posting (LinkedIn, Indeed, company pages)
 2. Click PocketResume icon → choose resume style
-3. Click **Generate Resume**
-4. PDF downloads automatically
-5. Hit an application form with essay questions? Click **Fill Form** — PocketResume answers using your resume, then you review and submit
-6. Polish your master resume on the options page: **Refine Resume** (asks a few grounded questions, then rewrites with before/after ATS scores), **Check ATS** (instant score + fixes), or **Extract JSON** (structured profile for generation)
+3. Click **Generate Resume** — the PDF downloads and a Job Tracker card is created
+4. Click **Generate Cover Letter** for the matching letter (needs a saved universal letter)
 
-If generation fails, the popup stays red — click the **?** button (top right) to see a readable error message with the option to copy the full raw details. The error clears when you close the popup or click **Generate Resume** again.
+If generation fails, the popup stays red — click the **?** button (top right) for a readable message plus copyable raw details. The error clears when you close the popup or retry.
+
+Refine Resume, Check ATS, Profile Autofill, and Form Filler are visible but disabled with a **Soon** badge while they are rebuilt without AI.
 
 ## Configuration
 
@@ -73,7 +68,7 @@ Resume generation works out of the box and is fully local. One optional integrat
 
 ### Plans (Clerk + Convex)
 
-A **free account** (`free_user`) includes resume cloud sync. **Pro** (`pocketresume_pro`) adds the full Job Tracker and Form Filler. During the launch promo, free-plan subscribers get every Pro feature until Oct 31. Sign-in, plan checks, and the embedded pricing table run through [Clerk](https://clerk.com); synced resumes are stored in your own [Convex](https://convex.dev) deployment (`convex/resumes.ts`):
+A **free account** (`free_user`) is required to generate and includes resume cloud sync. Everything is free until **Dec 31, 2026**; after that a **Pro** plan (`pocketresume_pro`) keeps generation and Job Tracker editing unlocked. Resume editing and JSON export stay available without a plan. Sign-in, plan checks, and the embedded pricing table run through [Clerk](https://clerk.com); synced resumes are stored in your own [Convex](https://convex.dev) deployment (`convex/resumes.ts`):
 
 1. Fill in `CLERK_PUBLISHABLE_KEY`, `CLERK_FRONTEND_API_URL`, and `CONVEX_URL` in `.env.local`
 2. Run `npm run build:clerk` to bundle `src/cloud-sync.js` → `cloud-sync.js` with your env vars injected
@@ -86,7 +81,7 @@ A **free account** (`free_user`) includes resume cloud sync. **Pro** (`pocketres
 
 - **Runtime:** Vanilla HTML/CSS/JS, Manifest V3
 - **PDF:** [jsPDF](libs/jspdf.umd.min.js) (vendored)
-- **AI:** Gemini, GPT-4o-mini, Claude 3.5 Haiku, OpenRouter, plus any custom/local OpenAI-compatible endpoint
+- **Resume engine:** deterministic in-extension parser + JD aligner (`resume-parse.js`, `resume-align.js`, `skill-lexicon.js`)
 - **Cloud (optional):** [Clerk](https://clerk.com) auth + pricing (Pro), [Convex](https://convex.dev) resume sync
 - **Build:** esbuild (only for `cloud-sync.js` bundle); no bundler for app code
 

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "PocketResume",
-  "version": "9.1.0",
-  "description": "Generate tailored resumes from job descriptions using AI for free*.",
+  "version": "10.1.1",
+  "description": "Tailor your resume to any job posting on-device. No API key, no quota, no rate limit.",
   "permissions": [
     "storage",
     "activeTab",
@@ -11,10 +11,6 @@
     "downloads"
   ],
   "host_permissions": [
-    "https://api.openai.com/*",
-    "https://api.anthropic.com/*",
-    "https://openrouter.ai/*",
-    "https://generativelanguage.googleapis.com/*",
     "https://*.convex.cloud/*",
     "https://*.clerk.accounts.dev/*",
     "https://clerk.pocket-resume.xyz/*"
@@ -34,8 +30,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ]
     }
   ]
 }
