@@ -283,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.type = 'button';
       btn.className = 'glass style-btn' + (resume.id === selectedResumeId ? ' active' : '');
       btn.title = resume.label || `Resume ${index + 1}`;
-      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span class="rs-label">${escapeHtml(resume.label || `Resume ${index + 1}`)}</span>`;
+      btn.innerHTML = `${resumeIconSvg(resume.icon)}<span class="rs-label">${escapeHtml(resume.label || `Resume ${index + 1}`)}</span>`;
       btn.addEventListener('click', () => {
         selectedResumeId = resume.id;
         chrome.storage.local.set({ selectedResumeId: resume.id });
@@ -293,6 +293,23 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       resumeSelectorDiv.appendChild(btn);
     });
+  }
+
+  const RESUME_ICONS = {
+    doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+    briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>',
+    code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+    pen: '<path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/>',
+    data: '<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>',
+    zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+    globe: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+    star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+    target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+    layers: '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>'
+  };
+
+  function resumeIconSvg(iconId) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${RESUME_ICONS[iconId] || RESUME_ICONS.doc}</svg>`;
   }
 
   function escapeHtml(str) {
@@ -785,29 +802,48 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (output !== 'cover-letter') {
-          renderResumePdf(resumeData, selectedStyle, styleConfig);
-        }
-
-        if (output !== 'resume' || response.coverLetterData) {
           if (response.coverLetterData) {
             const coverParsed = JSON.parse(sanitizeJsonControlChars(String(response.coverLetterData)));
             generateCoverLetterPDF(coverParsed);
             setOfflineLetterNote(false);
-          } else if (output === 'cover-letter') {
-            const data = await chrome.storage.local.get('universalCoverLetter');
-            universalCoverLetter = data.universalCoverLetter || null;
-            setOfflineLetterNote(true, response.coverLetterStatus === 'empty'
-              ? 'Cover letter is empty —'
-              : 'No cover letter saved —');
           }
+          playResumeLoop(() => {
+            try {
+              renderResumePdf(resumeData, selectedStyle, styleConfig);
+              setMatchReport(response.report || null, !!response.coverLetterData);
+              setStatus('success');
+              if (generateLabel) generateLabel.textContent = 'Generate Resume';
+              setGenerateEnabled(true);
+            } catch (error) {
+              console.error('Generation parse error:', error);
+              setError(error.message || 'Could not read the generated resume. Please try again.');
+              if (generateLabel) generateLabel.textContent = 'Generate Resume';
+              setGenerateEnabled(true);
+            }
+          });
+          return;
         }
 
         setMatchReport(response.report || null, !!response.coverLetterData);
+
+        if (response.coverLetterData) {
+          const coverParsed = JSON.parse(sanitizeJsonControlChars(String(response.coverLetterData)));
+          generateCoverLetterPDF(coverParsed);
+          setOfflineLetterNote(false);
+        } else if (output === 'cover-letter') {
+          const data = await chrome.storage.local.get('universalCoverLetter');
+          universalCoverLetter = data.universalCoverLetter || null;
+          setOfflineLetterNote(true, response.coverLetterStatus === 'empty'
+            ? 'Cover letter is empty —'
+            : 'No cover letter saved —');
+        }
+
         setStatus('success');
+        if (generateLabel) generateLabel.textContent = 'Generate Resume';
+        setGenerateEnabled(true);
       } catch (error) {
         console.error('Generation parse error:', error);
         setError(error.message || 'Could not read the generated resume. Please try again.');
-      } finally {
         if (generateLabel) generateLabel.textContent = 'Generate Resume';
         setGenerateEnabled(true);
       }
@@ -887,8 +923,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.1';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.1';
+  const ANNOUNCEMENT_VERSION = '10.1.1';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.1.1';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
@@ -1022,6 +1058,51 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       generateLabel.textContent = out;
     }, 34);
+  }
+
+  function renderScrambleFrame(target, settledCount) {
+    let out = '';
+    for (let i = 0; i < target.length; i++) {
+      if (i < settledCount || target[i] === ' ' || target[i] === '\u2026') {
+        out += target[i];
+      } else {
+        out += SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
+      }
+    }
+    generateLabel.textContent = out;
+  }
+
+  function playResumeLoop(done) {
+    if (!generateLabel) {
+      done();
+      return;
+    }
+    stopScramble();
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      generateLabel.textContent = 'Generating…';
+      done();
+      return;
+    }
+    let labelIdx = 0;
+    let frame = 0;
+    const settleFrames = 9;
+    const holdFrames = 15;
+    scrambleTimer = setInterval(() => {
+      frame++;
+      const target = BUSY_LABELS[labelIdx % BUSY_LABELS.length];
+      if (frame > settleFrames + holdFrames) {
+        labelIdx++;
+        frame = 0;
+        if (labelIdx >= BUSY_LABELS.length) {
+          stopScramble();
+          generateLabel.textContent = BUSY_LABELS[BUSY_LABELS.length - 1];
+          done();
+          return;
+        }
+        return;
+      }
+      renderScrambleFrame(target, Math.floor((frame / settleFrames) * target.length));
+    }, 32);
   }
 
   function setFillStatus(state, persist = false) {

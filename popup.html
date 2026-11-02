@@ -849,6 +849,41 @@
       color: var(--text);
       cursor: pointer;
       transition: background var(--ease);
+      position: relative;
+    }
+
+    #fillFormBtn {
+      overflow: hidden;
+    }
+
+    .fill-tape {
+      position: absolute;
+      top: 50%;
+      left: -6%;
+      width: 112%;
+      height: 15px;
+      transform: translateY(-50%) rotate(-4deg);
+      background: repeating-linear-gradient(-45deg, #151515 0 10px, #ffd400 10px 20px);
+      border: 1px solid rgba(0, 0, 0, 0.6);
+      border-radius: 3px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .fill-tape span {
+      background: #151515;
+      color: #ffd400;
+      font-size: 7.5px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 1.5px 9px;
+      border-radius: 8px;
+      white-space: nowrap;
     }
 
     .list-row:hover {
@@ -1562,22 +1597,50 @@
       padding: 0 4px;
     }
 
-    .soon-badge {
-      margin-left: auto;
-      padding: 1px 6px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.18);
-      background: rgba(255,255,255,0.07);
-      color: var(--text-faint);
-      font-size: 8.5px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
     .cover-letter-generate {
       margin-top: 8px;
-      min-height: 43px;
+      min-height: 56px;
+      padding: var(--space-4);
+      border-radius: var(--radius-card);
+      font-size: 15.5px;
+      font-weight: 600;
+      color: #7cc0ff;
+      background: linear-gradient(160deg, rgba(74, 158, 255, 0.30), rgba(74, 158, 255, 0.14));
+      border: 1px solid var(--accent-blue-border);
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      box-shadow: inset 0 1px 0 rgba(170, 205, 255, 0.35),
+                  inset 0 -12px 20px rgba(10, 40, 100, 0.20),
+                  0 0 30px rgba(74, 158, 255, 0.25),
+                  0 10px 26px rgba(0, 0, 0, 0.4);
+      transition: transform 150ms ease, box-shadow 300ms ease, border-color 300ms ease, background 300ms ease;
+    }
+
+    .cover-letter-generate:hover {
+      transform: translateY(-1px);
+      background: linear-gradient(160deg, rgba(74, 158, 255, 0.38), rgba(74, 158, 255, 0.20));
+      color: #a8d1ff;
+    }
+
+    .cover-letter-generate:active {
+      transform: translateY(0) scale(0.99);
+    }
+
+    .cover-letter-generate:disabled {
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    body[data-status="idle"] .cover-letter-generate:disabled {
+      background: var(--glass-fill);
+      border-color: var(--glass-border);
+      box-shadow: inset 0 1px 0 var(--glass-highlight), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+      color: var(--text-faint);
+    }
+
+    body[data-status="generating"] .cover-letter-generate {
+      cursor: progress;
+      transform: none;
     }
 
     .list-row:disabled {
@@ -1779,7 +1842,7 @@
         <svg class="row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
         <span class="list-row-label" id="fillFormLabel">Fill Form</span>
       </span>
-      <span class="soon-badge">Soon</span>
+      <span class="fill-tape" aria-hidden="true"><span>Under construction</span></span>
     </button>
   </div>
 
@@ -1839,15 +1902,14 @@
       <div class="onboarding-icon" aria-hidden="true">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m5.6 5.6 2.8 2.8"/><path d="m15.6 15.6 2.8 2.8"/><path d="m18.4 5.6-2.8 2.8"/><path d="m8.4 15.6-2.8 2.8"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> — smarter skill matching</h2>
+      <h2>New in <span id="whatsNewVersion"></span> — the on-device resume engine</h2>
       <p class="error-message">
-        Job-description keywords now land in your skills section. PocketResume reads every skills list in the posting, keeps only what your resume already proves, and removes the duplicates.
+        Your resume is now generated entirely on this device — no API keys, no uploads, no third-party AI. The account only keeps it unlocked and synced, and everything is free until Dec 31.
       </p>
       <ul class="whatsnew-collected">
-        <li><strong>JD skills are added</strong> — from requirements, a plain Skills list, or responsibilities</li>
-        <li><strong>More of your vocabulary is recognized</strong> — SQL, Jira, Agile, Scrum, .NET and 18 other core terms</li>
-        <li><strong>No duplicates</strong> — React / React.js / javascript collapse into one entry</li>
-        <li><strong>Aliases are kept</strong> — k8s in your resume becomes Kubernetes when the JD says so</li>
+        <li><strong>On-device, proprietary engine</strong> — the tailored resume is built locally from your saved profile and the job page. Nothing leaves this browser.</li>
+        <li><strong>Faster and more accurate</strong> — generation takes milliseconds: deterministic keyword alignment, skill matching, and bullet selection that never invents a fact or a number.</li>
+        <li><strong>New UI and settings</strong> — matched Generate buttons, a cleaner sidebar with smarter defaults, and an icon you can pick for each resume.</li>
       </ul>
       <div class="onboarding-actions">
         <button id="whatsNewPlansBtn" class="cloud-primary-btn">Open Settings</button>

@@ -168,6 +168,8 @@ Settings → **Cover letter** stores `universalCoverLetter: { greeting, body, si
 
 ### Form filler setup (Application Questions — Soon in v10.0)
 
+Since 10.1.1 the Form Filler Setup section markup is removed from the Options left panel (it stays drifted out of view while the feature is rebuilt); the JS side in `options.js` is intact and fully null-guarded, and `applicationProfile` storage keeps working.
+
 Everything below is dormant: the section is visible with a `Soon` badge and its buttons are disabled. It is kept as the basis for the deterministic rebuild.
 
 One-time onboarding for Form Filler: the user answers common application-form questions once; fills reuse them.
@@ -213,7 +215,7 @@ Configured by `getResumeStyleConfig(...)` in `background.js`:
 
 Bullet selection is deterministic in `alignResumeJson(...)` (`resume-align.js`): per entry it keeps the strongest 2–3 bullets (metric presence + JD keyword hits + strong action-verb opener + length), rewrites banned openers from a fixed table (`fixBulletOpener`), and trims long bullets at clause boundaries without dropping numbers (`trimBullet`). It never authors new text. `professional`/`deedy`/`academic-cv` share the same selector; `faang` gets the same selection with tighter limits.
 
-`alignSkills(...)` merges the JD's skill terms (any zone, including a plain `Skills:` / `Tech Stack:` / `Core Competencies` block) into `resume.skills`, but only terms the master resume already evidences (canonical name or alias, word-boundary matched). The list is deduped on lexical identity (`React`/`React.js`, `javascript`/`JAVASCRIPT`, `Apache Spark`/`Spark`), displays the lexicon canonical name for JD matches, caps at 10 additions / 30 total, and rewrites `skillGroups` (kept verbatim by the Deedy / Academic renderers) so the groups carry the same deduped set plus any JD addition. `verifyAlignedResume(...)` re-checks skills against canonical names and aliases, so an alias spelling (`k8s` → `Kubernetes`) survives verification while an invented skill still drops. Opt-in `allowUnverifiedSkills` (Settings toggle, off by default) lifts the evidence gate: unevidenced JD keywords are added anyway, exempted from the verifier's skill filter, and reported separately as `skillsAddedUnverified`.
+`alignSkills(...)` merges the JD's skill terms (any zone, including a plain `Skills:` / `Tech Stack:` / `Core Competencies` block) into `resume.skills`, but only terms the master resume already evidences (canonical name or alias, word-boundary matched). The list is deduped on lexical identity (`React`/`React.js`, `javascript`/`JAVASCRIPT`, `Apache Spark`/`Spark`), displays the lexicon canonical name for JD matches, caps at 10 additions / 30 total, and rewrites `skillGroups` (kept verbatim by the Deedy / Academic renderers) so the groups carry the same deduped set plus any JD addition. `verifyAlignedResume(...)` re-checks skills against canonical names and aliases, so an alias spelling (`k8s` → `Kubernetes`) survives verification while an invented skill still drops. `allowUnverifiedSkills` (Settings toggle, **on by default** since 10.1.1) lifts the evidence gate: unevidenced JD keywords are added anyway, exempted from the verifier's skill filter, and reported separately as `skillsAddedUnverified`.
 
 Cover letters are template-driven: `buildCoverLetterFromTemplate(...)` fills `{{company}}`, `{{role}}`, `{{recipient}}` and returns the shape `generateCoverLetterPDF` consumes. There is no tone-guide fork anymore.
 
@@ -225,7 +227,7 @@ Settings are stored in `chrome.storage.local`, managed in `options.js`.
 
 Important keys:
 
-- `resumes`: array of `{ id, label, content, jsonContent, legacyContent, parseReview, parseConfirmedAt, lastRefineBackup, lastRefineAppliedAt, refineAnswers, updatedAt }` (up to 3). `jsonContent` is canonical; `content`/`legacyContent` preserve the pasted text. `parseReview: { warnings, parsedAt }` blocks generation until `parseConfirmedAt` is set. `updatedAt` (ms) drives cloud sync last-write-wins.
+- `resumes`: array of `{ id, label, icon, content, jsonContent, legacyContent, parseReview, parseConfirmedAt, lastRefineBackup, lastRefineAppliedAt, refineAnswers, updatedAt }` (up to 3). `icon` is a local-only field (`''` = doc glyph) shown on the resume tabs and the popup resume selector; it is not sent to Convex. `jsonContent` is canonical; `content`/`legacyContent` preserve the pasted text. `parseReview: { warnings, parsedAt }` blocks generation until `parseConfirmedAt` is set. `updatedAt` (ms) drives cloud sync last-write-wins.
 - `deletedResumeIds`: `[{ id, deletedAt }]` — delete tombstones so automatic cloud restore doesn't resurrect a locally deleted resume
 - `selectedResumeId`: which resume is active in the popup
 - `cloudSyncStatus`: `"idle" | "syncing" | "synced" | "error"` (cloud sync indicator, written by `src/cloud-sync.js`)
@@ -244,7 +246,7 @@ Important keys:
 - `skillLexicon`: compact O*NET-derived vocabulary (`{ schema, source, version, fetchedAt, count, terms: [[name, category, hot, inDemand, aliases]] }`) — overrides the bundled baseline
 - `skillLexiconMeta`: `{ source, version, fetchedAt, count, lastError }` — status shown in Settings → Skill directory
 - `skillLexiconAutoUpdate`: boolean (default true) — weekly refresh
-- `allowUnverifiedSkills`: boolean (default false) — Settings → Skills on generated resumes → "Add unverified JD keywords"; when true, `background.js` passes it to `alignResumeJson` so unevidenced JD keywords are added and exempted from the verifier's skill filter
+- `allowUnverifiedSkills`: boolean (default true) — Settings → Skills on generated resumes → "Add unverified JD keywords"; when true, `background.js` passes it to `alignResumeJson` so unevidenced JD keywords are added and exempted from the verifier's skill filter. Read as `!== false` everywhere (unset = on).
 - `pendingExtract`: boolean — legacy flag; the options page now focuses the paste box instead of running extraction
 - `proAccessCache`: `{ signedIn, isFreeSubscriber, isPro, promoActive, withinWindow, canGenerate, cloudSyncAccess, proAccess, resolved, healthy, source, checkedAt }` — the **page-published access snapshot**. Written by `getAccessState()` in every page realm (options / popup / tracker) for *both* signed-in and signed-out resolutions; the service worker never writes it (it has no session to report) and never deletes it. Background `getGenerationAccess()` allows only `signedIn && (withinWindow || isPro)` from this snapshot while it is younger than 60 min, otherwise denies. A Clerk `addListener` in the pages rewrites it the moment a session starts or ends, so a session expiry cannot leave a stale "Pro" behind.
 - `trackerLockDismissed`: boolean — user dismissed the Job Tracker lock banner

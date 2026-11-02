@@ -11,6 +11,27 @@ Notes on history:
 
 ---
 
+## [10.1.1] — 2026-11-02
+
+### Changed
+
+- **Generate Cover Letter now matches Generate Resume.** Same footprint and state styling (full width, 56px, glow, hover lift) in the blue accent.
+- **Uniform collapsible cards in Settings.** The summary rows (Skills on generated resumes / Skill directory / Cover letter) share one fixed-height style and all expanded bodies get proper padding again — the Form Filler removal had orphaned the only `.app-profile-body` padding rule.
+- **The resume PDF download waits for one busy-text loop.** Generation is instant as before; the scramble animation plays one full pass, then the PDF saves. Cover letters still download instantly. `prefers-reduced-motion` skips the wait.
+- **Settings sidebar reordered.** Account → Skills on generated resumes → Skill directory → Cover letter. Job Tracker settings removed (capture is always on by default) and the dormant Form Filler setup section is hidden while the feature is rebuilt.
+- **"Add unverified JD keywords" is now on by default.** Existing users keep whatever they saved; new accounts and anyone who never touched the toggle get JD keyword matching.
+
+### Added
+
+- **Icons on resumes.** Each resume label gets an icon picker in Settings (10 inline SVG icons) shown on the resume tabs and the popup resume selector. Stored locally as `resumes[].icon` (`doc` default).
+
+### Removed
+
+- The dead "Offline Mode" settings block (drag-over markup from the pre-on-device engine).
+- The v10.0 / v10.1 What's New modal — replaced by this 10.1.1 announcement (on-device engine, speed/accuracy, new UI and settings).
+
+---
+
 ## [10.1.0] — 2026-11-02
 
 ### Fixed

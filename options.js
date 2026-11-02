@@ -105,10 +105,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  function createResumeEntry(label, content) {
+  function createResumeEntry(label, content, icon = '') {
     return {
       id: generateId(),
       label: label || 'Resume 1',
+      icon: icon || '',
       content: content || '',
       jsonContent: '',
       legacyContent: '',
@@ -172,6 +173,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return {
       id: resume.id,
       label: resume.label,
+      icon: resume.icon || '',
       content: resume.content,
       jsonContent: resume.jsonContent || '',
       legacyContent: resume.legacyContent || '',
@@ -186,6 +188,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function getPersistedResumes() {
     return resumes.map(serializeResumeEntry);
+  }
+
+  const RESUME_ICONS = {
+    doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+    briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>',
+    code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+    pen: '<path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/>',
+    data: '<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>',
+    zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+    globe: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+    star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+    target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+    layers: '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>'
+  };
+
+  function resumeIconSvg(iconId) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${RESUME_ICONS[iconId] || RESUME_ICONS.doc}</svg>`;
   }
 
   function getActiveResume() {
@@ -421,7 +440,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateCoverLetterFallbackPill();
     renderCoverLetterPreview();
     if (skillLexiconAutoToggle) skillLexiconAutoToggle.checked = data.skillLexiconAutoUpdate !== false;
-    if (allowUnverifiedSkillsToggle) allowUnverifiedSkillsToggle.checked = data.allowUnverifiedSkills === true;
+    if (allowUnverifiedSkillsToggle) allowUnverifiedSkillsToggle.checked = data.allowUnverifiedSkills !== false;
     refreshSkillLexiconStatus();
   }
 
@@ -526,6 +545,15 @@ My background:
   if (uclGreeting) uclGreeting.addEventListener('input', renderCoverLetterPreview);
   if (uclSignOff) uclSignOff.addEventListener('input', renderCoverLetterPreview);
   if (uclBody) uclBody.addEventListener('input', renderCoverLetterPreview);
+
+  document.addEventListener('click', (event) => {
+    const pop = document.getElementById('resumeIconPop');
+    if (!pop || pop.style.display === 'none') return;
+    if (pop.contains(event.target)) return;
+    const btn = document.getElementById('resumeIconBtn');
+    if (event.target === btn) return;
+    pop.style.display = 'none';
+  });
 
   if (skillLexiconAutoToggle) {
     skillLexiconAutoToggle.addEventListener('change', () => {
@@ -1172,7 +1200,7 @@ My background:
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'tab-btn' + (index === activeTabIndex ? ' active' : '');
-      btn.textContent = resume.label || `Resume ${index + 1}`;
+      btn.innerHTML = `${resumeIconSvg(resume.icon)}<span>${escapeHtml(resume.label || `Resume ${index + 1}`)}</span>`;
       btn.addEventListener('click', () => {
         saveCurrentTabToState();
         activeTabIndex = index;
@@ -1289,6 +1317,14 @@ My background:
 
     const labelRow = `
       <div class="resume-label-row">
+        <div class="resume-icon-wrap">
+          <button type="button" class="resume-icon-btn" id="resumeIconBtn" title="Pick an icon">${resumeIconSvg(resume.icon)}</button>
+          <div class="resume-icon-pop" id="resumeIconPop" style="display: none;">
+            ${Object.keys(RESUME_ICONS).map((iconId) => `
+              <button type="button" class="resume-icon-option${(resume.icon || 'doc') === iconId ? ' active' : ''}" data-icon="${iconId}" title="${iconId}">${resumeIconSvg(iconId)}</button>
+            `).join('')}
+          </div>
+        </div>
         <input type="text" id="resumeLabelInput" class="resume-label-input"
                placeholder="Label (e.g. Project Manager)" value="${escapeAttr(resume.label)}" maxlength="40">
         ${resumes.length > 1 ? '<button type="button" class="delete-tab-btn" id="deleteTabBtn">Delete</button>' : ''}
@@ -1397,9 +1433,28 @@ My background:
     if (labelInput) {
       labelInput.addEventListener('input', () => {
         const tabBtns = tabBar.querySelectorAll('.tab-btn');
-        if (tabBtns[activeTabIndex]) {
-          tabBtns[activeTabIndex].textContent = labelInput.value.trim() || `Resume ${activeTabIndex + 1}`;
+        const labelSpan = tabBtns[activeTabIndex] ? tabBtns[activeTabIndex].querySelector('span') : null;
+        if (labelSpan) {
+          labelSpan.textContent = labelInput.value.trim() || `Resume ${activeTabIndex + 1}`;
         }
+      });
+    }
+
+    const iconBtn = document.getElementById('resumeIconBtn');
+    const iconPop = document.getElementById('resumeIconPop');
+    if (iconBtn && iconPop) {
+      iconBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        iconPop.style.display = iconPop.style.display === 'none' ? 'grid' : 'none';
+      });
+      iconPop.addEventListener('click', async (event) => {
+        const option = event.target.closest('[data-icon]');
+        if (!option) return;
+        resume.icon = option.dataset.icon;
+        await setLocalStorage({ resumes: getPersistedResumes() });
+        renderTabBar();
+        renderTabContent();
+        runAutoSync();
       });
     }
 

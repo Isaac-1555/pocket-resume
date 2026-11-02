@@ -639,6 +639,7 @@
         if (cloudDoc && cloudAt > resumeUpdatedAt(local)) {
           merged.push({
             ...cloudToLocal(cloudDoc),
+            icon: local.icon || '',
             lastRefineBackup: local.lastRefineBackup || '',
             refineAnswers: Array.isArray(local.refineAnswers) ? local.refineAnswers : [],
           });
@@ -690,6 +691,7 @@
         const persisted = limited.map((r) => ({
           id: r.id,
           label: r.label,
+          icon: r.icon || '',
           content: r.content || '',
           jsonContent: r.jsonContent || '',
           lastRefineBackup: r.lastRefineBackup || '',

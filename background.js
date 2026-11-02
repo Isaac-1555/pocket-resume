@@ -375,7 +375,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         lexicon,
                         styleConfig,
                         generateSummary: !!payload.generateSummary,
-                        allowUnverifiedSkills: settings.allowUnverifiedSkills === true
+                        allowUnverifiedSkills: settings.allowUnverifiedSkills !== false
                     });
                     return { jd, ...aligned };
                 };
