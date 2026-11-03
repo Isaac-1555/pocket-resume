@@ -109,7 +109,7 @@ Requires `CONVEX_DEPLOYMENT` in `.env.local`. Generated code goes to `convex/_ge
 
 Chrome Web Store upload = a zip with `manifest.json` at the root and **only runtime files**. Include:
 
-`manifest.json`, `background.js`, `content.js`, `form-filler.js`, `form-profile.js`, `popup.html`, `popup.js`, `options.html`, `options.js`, `tracker.html`, `tracker.js`, `resume-renderers.js`, `resume-align.js`, `skill-lexicon.js`, `feature-video.js`, `feature-video.css`, `cloud-sync.js`, `cloud-sync-core.js`, `icon.png`, `libs/` (jsPDF, ldrs loader, animations, skills lexicon), `assets/tour/`.
+`manifest.json`, `background.js`, `content.js`, `form-filler.js`, `form-profile.js`, `popup.html`, `popup.js`, `options.html`, `options.js`, `tracker.html`, `tracker.js`, `resume-renderers.js`, `resume-align.js`, `resume-parse.js`, `resume-health.js`, `skill-lexicon.js`, `feature-video.js`, `feature-video.css`, `cloud-sync.js`, `cloud-sync-core.js`, `icon.png`, `libs/` (jsPDF, ldrs loader, animations, skills lexicon), `assets/tour/`.
 
 Exclude: `node_modules/`, `dist/`, `.git`, `.github/`, `convex/`, `scripts/`, `src/`, `store-assets/`, `redesign/`, `models/`, `*.md`, `package*.json`, `.env*`. Output to `dist/pocketresume-vX.Y.zip`.
 
@@ -152,9 +152,9 @@ Exclude: `node_modules/`, `dist/`, `.git`, `.github/`, `convex/`, `scripts/`, `s
 
 Frames were captured against the old BYOK UI and the entry points (`#featureVideoBtn`, setup-card offer) are removed until `npm run build:tour` is re-run against the new popup/options UI. `feature-video.js`, `assets/tour/`, and the capture script remain in the repo.
 
-### Refine / ATS / Form Filler (Soon)
+### Resume Health Check (Beta)
 
-These AI-backed flows are disabled. Their buttons render disabled with a `.soon-badge`, and background replies `{ status: 'unavailable', feature }` for `CHECK_ATS`, `GET_REFINE_QUESTIONS`, `REFINE_RESUME`, `PROFILE_AUTOFILL`, and `FILL_APPLICATION_FORM`. The UI/analysis code remains for a deterministic rebuild (an on-device ATS linter is the intended replacement).
+Opt-in rule-based checker in the Settings sidebar (`#resumeHealthDetails` → `#healthPanel`). Sends redacted `jsonContent` to a hardcoded provider chain — **Pollinations** (`https://text.pollinations.ai/openai`, no key, `reasoning_effort: low`) first, then local **Ollama** (`http://localhost:11434/v1/chat/completions`, model `llama3.2`). Endpoints, model, and fallback order are constants in `resume-health.js` — there is no provider UI and nothing user-editable. Enabling the check is the only consent step; it requests the `http://localhost:11434/*` optional origin for the fallback. Failures on the first provider fall through automatically (each provider gets its own 60 s timeout). Results are stored per resume as `healthReport` (`baseScore` + live `score`, `provider`, `providerLabel`, `model`, `issues[]` with `status: 'fixed'` tracking). Marking an issue fixed bumps the score locally (critical +8, warning +5, suggestion +3, capped at 100) and hides it; fixed issues never re-render. A re-check is blocked while any issue is open — the button says "Mark the remaining issues fixed" and no request goes out — and only unlocks when all issues are fixed (or the report went stale because the resume was edited). `resume.healthCooldownUntil` enforces a persisted 60 s cooldown per resume across reloads. No sign-in required.
 
 ### Skill directory (v9.1)
 
@@ -234,14 +234,13 @@ Important keys:
 - `resumeType`: `"professional" | "faang" | "deedy" | "academic-cv"`
 - `applicationProfile`: Form Filler answers — `{ firstName, lastName, email, phone, streetAddress, addressLine2, city, state, postalCode, country, salaryAmount, salaryCurrency, salaryPeriod, startDate, yearsExperience, workAuthorized, needsSponsorship, over18, willingToRelocate, remotePreference, linkedin, website, github, eeoOptIn, eeo: { gender, race, hispanicLatino, veteran, disability }, customQA: [{ id, question, answer }], updatedAt }`
 - `appProfileOnboarding`: `{ active: boolean }` — trigger for the Form Filler setup spotlight tour (set by the popup, consumed by the options page)
-- `refineNudge`: `{ active: boolean }` — trigger for the v8.2 "Smarter Refine" spotlight on `#refineResumeBtn` (set by the popup's What's New modal via `startRefineNudge()`, consumed by the options page via `NUDGE_TOUR_STEPS` + a `'nudge'` tour mode)
-- `atsNudge`: `{ active: boolean }` — trigger for the v8.2 "Check ATS" spotlight on `#checkAtsBtn` (set by the popup's What's New modal via `startAtsNudge()`, consumed by the options page via `ATS_NUDGE_TOUR_STEPS` + an `'atsnudge'` tour mode)
-- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'10.0'` current)
+- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'10.2.0'` current)
 - `parseConfirmedAt`: ms timestamp of the last parsed-resume confirmation
 - `accessReminderLastShown`: `YYYY-MM-DD` — daily "free until Dec 31" reminder dismissal
 - `featureVideoDeclined`: boolean — legacy flag (tour entry points are hidden in v10.0)
 - `quickDownloadNewBadgeDismissed`: boolean — the Quick Download "New" badge is removed after the user's first hover/focus and never returns
 - `trackerPlanCache`: `{ proAccess, isPro, promoActive, signedIn, checkedAt }` — last Job Tracker access resolution, used for first paint / offline (ignored when `checkedAt` is older than 60 min)
+- per resume: `healthReport` (`baseScore`, live `score`, `summary`, `issues[]` with `status`/`fixedAt`, `provider`, `providerLabel`, `model`, `checkedAt`), `healthEnabledLocal` (opt-in flag), `healthCooldownUntil` (ms; 60 s gate on re-checks)
 - `universalCoverLetter`: `{ greeting, body, signOff, updatedAt }` — the letter rendered by Generate Cover Letter
 - `skillLexicon`: compact O*NET-derived vocabulary (`{ schema, source, version, fetchedAt, count, terms: [[name, category, hot, inDemand, aliases]] }`) — overrides the bundled baseline
 - `skillLexiconMeta`: `{ source, version, fetchedAt, count, lastError }` — status shown in Settings → Skill directory
@@ -307,6 +306,7 @@ PocketResume/
 ├── resume-renderers.js      # Jake / Deedy / Academic CV PDF layouts
 ├── resume-parse.js          # Resume text -> structured profile + normalization (pure, no network)
 ├── resume-align.js          # Deterministic JD alignment + verifier + cover-letter template (pure)
+├── resume-health.js         # Opt-in health check: redaction, prompt, JSON salvage, Pollinations→Ollama chain
 ├── skill-lexicon.js         # O*NET CSV parsing, alias map, lexicon merge/compact (pure)
 ├── src/cloud-sync.js        # Pro auth/plan/pricing/sync source (bundled → cloud-sync.js + cloud-sync-core.js)
 ├── cloud-sync.js            # [generated, gitignored] esbuild bundle, Clerk UI (options.html)
@@ -338,6 +338,7 @@ PocketResume/
 - **Change access gating**: `src/cloud-sync.js` (`getAccessState`/`hasProAccess`/`ACCESS_WINDOW`), `background.js` (`getGenerationAccess`), `popup.js` (`refreshGate` + gate cards).
 - **Change generation / JD alignment**: `resume-align.js` (`parseJobPosting`, `alignResumeJson`, verifier), `background.js` (`GENERATE`, `BUILD_COVER_LETTER`), `popup.js` (`runGeneration`, `refreshGate`) / `popup.html` (`#signinCard`, `#reviewCard`, `#planLockCard`).
 - **Change the skill vocabulary or update source**: `skill-lexicon.js` (parsers, `CURATED_ALIASES`, source URLs) + `scripts/build-lexicon.mjs` (bundled baseline) + `background.js` (`updateSkillLexicon`, alarms). Keep the O*NET attribution in `NOTICE` and in Settings.
+- **Change Resume Health Check**: `resume-health.js` (`buildProviders`, `checkResumeHealth`, `validateHealthReport`, `SCORE_WEIGHTS`), `background.js` (`CHECK_RESUME_HEALTH`), `options.html`/`options.js` (`#resumeHealthDetails` → `renderHealthPanel` / `runResumeHealthCheck`, cooldown + local fix scoring).
 - **Change the universal cover letter**: `options.html`/`options.js` (Cover letter section: guidance, sample, prompt, editor) + `buildCoverLetterFromTemplate` in `resume-align.js`.
 - **Change saved-answer resolution / canonical matchers**: `form-profile.js` (`CANONICAL_MATCHERS`, `resolveFormAnswers`) — dormant until Form Filler returns.
 - **Change Form Filler onboarding / application profile**: `options.html` + `options.js` (`#appProfileDetails` section, `APP_PROFILE_FIELDS`, `PROFILE_TOUR_STEPS`), `background.js` (`PROFILE_AUTOFILL` handler + `generateApplicationProfileFromResume`), popup gating in `popup.js` (`isFormFillerProfileComplete` / `#fillProfileCard`).
@@ -379,7 +380,7 @@ Buttons use semantic accent tokens so paired actions both read as intentional (n
 - **`jsonContent` is the only input the engine accepts.** There is no raw-text generation fallback anymore; if a resume has only `content`, it must be parsed and saved in Settings first.
 - **Generation requires a signed-in session.** Hard block, no offline grace: if the snapshot is stale or missing, the worker denies and the popup shows `#signinCard`.
 - **Manifest `key` field is intentionally absent.** Chrome assigns a fresh extension ID on first load. Do not re-add it (it would lock all contributors to one ID).
-- **`host_permissions`** in `manifest.json` covers Clerk + Convex only. Update both the manifest and this file if you add a new backend.
+- **`host_permissions`** in `manifest.json` covers Clerk + Convex + `https://text.pollinations.ai/*` (Resume Health Check) only. Update both the manifest and this file if you add a new backend.
 - **Chrome extension service workers can be killed** between messages. Do not store in-memory state across calls — read from `chrome.storage.local` each time.
 - **Content script CSP**: avoid inline scripts / eval in `content.js`. The page's CSP applies.
 - **Client-rendered job boards need the JSON-LD path.** Sites like `careers.atb.com` serve a 650-character shell at `domcontentloaded` ("We didn't find any …") and hydrate the posting a moment later; the only lexicon word in that shell is a footer link (`LinkedIn`). `content.js` waits up to 4 s for the body to fill in, and `background.js` merges `JobPosting.description` from the schema.org block, which is present in the initial HTML. Never rely on `document.body.innerText` alone for a JD.
@@ -390,5 +391,5 @@ Buttons use semantic accent tokens so paired actions both read as intentional (n
 PocketResume is privacy-first by default. See `privacy-policy.md` for the full policy. The Chrome extension:
 
 - Stores resumes locally in `chrome.storage.local`; cloud sync is opt-in via a free PocketResume account and only talks to the user's own Convex backend
-- Makes no third-party AI requests; generation is local
+- Makes no AI requests except the opt-in Resume Health Check (redacted `jsonContent` to Pollinations, or local Ollama on fallback); generation is local
 - Sends nothing to Clerk/Convex unless you sign in, and then only resumes you sync

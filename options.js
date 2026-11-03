@@ -27,12 +27,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const cloudPricingTable = document.getElementById('cloudPricingTable');
   const cloudPricingFallback = document.getElementById('cloudPricingFallback');
   const cloudClosePricingBtn = document.getElementById('cloudClosePricingBtn');
-  const refineModal = document.getElementById('refineModal');
-  const refineModalContent = document.getElementById('refineModalContent');
-  const refineQuestionsModal = document.getElementById('refineQuestionsModal');
-  const refineQuestionsContent = document.getElementById('refineQuestionsContent');
-  const atsResultModal = document.getElementById('atsResultModal');
-  const atsResultContent = document.getElementById('atsResultContent');
   const appProfileDetails = document.getElementById('appProfileDetails');
   const appProfileStatePill = document.getElementById('appProfileStatePill');
   const profileAutofillBtn = document.getElementById('profileAutofillBtn');
@@ -56,14 +50,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let resumes = [];
   let activeTabIndex = 0;
-  let refiningResumeId = null;
-  let refineQuestionsState = null;
-  let checkingAtsResumeId = null;
   let statusTimeoutId = null;
+  let healthChecking = false;
   let appProfileCustomQa = [];
   let appProfileAutofilling = false;
   let universalCoverLetter = null;
   let skillLexiconMeta = null;
+  let healthError = '';
 
   function generateId() {
     return 'r_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
@@ -115,44 +108,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       legacyContent: '',
       parseReview: null,
       parseConfirmedAt: 0,
-      lastRefineBackup: '',
-      lastRefineAppliedAt: '',
-      refineAnswers: [],
       updatedAt: Date.now(),
       _lastSavedContent: content || '',
-      pendingRefine: null
+      healthReport: null
     };
-  }
-
-  function normalizeRefineAnswersList(value) {
-    if (!Array.isArray(value)) return [];
-    return value
-      .map((item) => {
-        if (!item || typeof item !== 'object') return null;
-        const question = typeof item.question === 'string' ? item.question.trim() : '';
-        if (!question) return null;
-        const answer = typeof item.answer === 'string' ? item.answer.trim() : '';
-        return {
-          question,
-          answer,
-          skipped: item.skipped === true || !answer,
-          updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : ''
-        };
-      })
-      .filter(Boolean)
-      .slice(0, 10);
   }
 
   function normalizeResumeEntry(resume, index) {
     const content = typeof resume?.content === 'string' ? resume.content : '';
-    const lastRefineAppliedAt = typeof resume?.lastRefineAppliedAt === 'string' ? resume.lastRefineAppliedAt : '';
     const explicitUpdatedAt = Number(resume?.updatedAt);
-    const updatedAt = Number.isFinite(explicitUpdatedAt) && explicitUpdatedAt > 0
-      ? explicitUpdatedAt
-      : (Date.parse(lastRefineAppliedAt) || 0);
+    const updatedAt = Number.isFinite(explicitUpdatedAt) && explicitUpdatedAt > 0 ? explicitUpdatedAt : Date.now();
     return {
       id: typeof resume?.id === 'string' && resume.id.trim() ? resume.id : generateId(),
       label: typeof resume?.label === 'string' && resume.label.trim() ? resume.label : `Resume ${index + 1}`,
+      icon: typeof resume?.icon === 'string' ? resume.icon : '',
       content,
       jsonContent: typeof resume?.jsonContent === 'string' ? resume.jsonContent : '',
       legacyContent: typeof resume?.legacyContent === 'string' ? resume.legacyContent : '',
@@ -160,12 +129,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? { warnings: resume.parseReview.warnings.filter((item) => typeof item === 'string'), parsedAt: Number(resume.parseReview.parsedAt) || 0 }
         : null,
       parseConfirmedAt: Number(resume?.parseConfirmedAt) || 0,
-      lastRefineBackup: typeof resume?.lastRefineBackup === 'string' ? resume.lastRefineBackup : '',
-      lastRefineAppliedAt,
-      refineAnswers: normalizeRefineAnswersList(resume?.refineAnswers),
       updatedAt,
       _lastSavedContent: content,
-      pendingRefine: null
+      healthReport: resume?.healthReport && typeof resume.healthReport === 'object' ? resume.healthReport : null,
+      healthEnabledLocal: !!resume?.healthEnabledLocal,
+      healthCooldownUntil: Number(resume?.healthCooldownUntil) || 0
     };
   }
 
@@ -179,10 +147,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       legacyContent: resume.legacyContent || '',
       parseReview: resume.parseReview || null,
       parseConfirmedAt: Number(resume.parseConfirmedAt) || 0,
-      lastRefineBackup: resume.lastRefineBackup || '',
-      lastRefineAppliedAt: resume.lastRefineAppliedAt || '',
-      refineAnswers: normalizeRefineAnswersList(resume.refineAnswers),
-      updatedAt: Number(resume.updatedAt) || 0
+      updatedAt: Number(resume.updatedAt) || 0,
+      healthReport: resume.healthReport || null,
+      healthEnabledLocal: !!resume.healthEnabledLocal,
+      healthCooldownUntil: Number(resume.healthCooldownUntil) || 0
     };
   }
 
@@ -567,6 +535,10 @@ My background:
     });
   }
 
+  function requestEndpointPermission(origin) {
+    return chrome.permissions.request({ origins: [origin] }).catch(() => false);
+  }
+
   if (skillLexiconUpdateBtn) {
     skillLexiconUpdateBtn.addEventListener('click', async () => {
       const granted = await chrome.permissions.request({ origins: ['https://www.onetcenter.org/*'] }).catch(() => false);
@@ -794,45 +766,7 @@ My background:
     return out;
   }
 
-  function mergeRefineAnswers(resume, draftAnswers) {
-    const existing = normalizeRefineAnswersList(resume.refineAnswers);
-    const incoming = (Array.isArray(draftAnswers) ? draftAnswers : [])
-      .map((item) => {
-        if (!item || typeof item.question !== 'string' || !item.question.trim()) return null;
-        const answer = typeof item.answer === 'string' ? item.answer.trim() : '';
-        return {
-          question: item.question.trim(),
-          answer,
-          skipped: item.skipped === true || !answer,
-          updatedAt: new Date().toISOString()
-        };
-      })
-      .filter(Boolean);
-    const merged = [...incoming];
-    existing.forEach((entry) => {
-      if (!merged.some((m) => m.question === entry.question)) {
-        merged.push(entry);
-      }
-    });
-    resume.refineAnswers = merged.slice(0, 10);
-  }
 
-  function applyPendingRefineDraft(resume) {
-    if (!resume?.pendingRefine) {
-      return { applied: false, stale: false };
-    }
-    if (resume.content !== resume.pendingRefine.source) {
-      resume.pendingRefine = null;
-      return { applied: false, stale: true };
-    }
-    resume.lastRefineBackup = resume.content;
-    resume.lastRefineAppliedAt = new Date().toISOString();
-    resume.updatedAt = Date.now();
-    resume.content = resume.pendingRefine.refinedText;
-    mergeRefineAnswers(resume, resume.pendingRefine.answers);
-    resume.pendingRefine = null;
-    return { applied: true, stale: false };
-  }
 
   function parseProfileText(text) {
     return normalizeResumeProfile(parseResumeText(text));
@@ -1091,107 +1025,266 @@ My background:
     });
   }
 
-  function showRefineModal(resume) {
-    if (!resume?.pendingRefine) return;
+  const HEALTH_COOLDOWN_MS = 60000;
+  const HEALTH_SCORE_WEIGHTS = { critical: 8, warning: 5, suggestion: 3 };
+  let healthCountdownTimer = null;
 
-    const sourceChanged = resume.pendingRefine.source !== resume.content;
-    const warnings = Array.isArray(resume.pendingRefine.warnings) ? resume.pendingRefine.warnings : [];
-    const changeSummary = Array.isArray(resume.pendingRefine.changeSummary) ? resume.pendingRefine.changeSummary : [];
-    const aiFilled = Array.isArray(resume.pendingRefine.aiFilled) ? resume.pendingRefine.aiFilled : [];
-    const atsData = resume.pendingRefine.ats || null;
-    const atsBefore = atsData ? atsData.before : null;
-    const atsAfter = atsData ? atsData.after : null;
-    const hasAtsScores = typeof atsBefore === 'number' && typeof atsAfter === 'number';
-    const issues = atsData && Array.isArray(atsData.criticalIssues) ? atsData.criticalIssues : [];
-    const bulletIssues = atsData && Array.isArray(atsData.bulletIssues) ? atsData.bulletIssues : [];
+  function getHealthStale(resume) {
+    if (!resume?.healthReport) return false;
+    const checkedAt = resume.healthReport.checkedAt || 0;
+    const updatedAt = resume.updatedAt || 0;
+    return updatedAt > checkedAt;
+  }
 
-    function renderListCard(title, items) {
-      if (!items.length) return '';
-      return `
-        <div class="review-card">
-          <h4>${title}</h4>
-          <ul>
-            ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}
-          </ul>
+  function healthCooldownRemaining(resume) {
+    const until = Number(resume?.healthCooldownUntil) || 0;
+    return Math.max(0, until - Date.now());
+  }
+
+  function openHealthIssues(report) {
+    return (Array.isArray(report?.issues) ? report.issues : []).filter((issue) => issue.status !== 'fixed');
+  }
+
+  function recomputeHealthScore(report) {
+    if (!report) return 0;
+    const base = Number(report.baseScore ?? report.score) || 0;
+    const bump = (Array.isArray(report.issues) ? report.issues : [])
+      .filter((issue) => issue.status === 'fixed')
+      .reduce((sum, issue) => sum + (HEALTH_SCORE_WEIGHTS[issue.severity] || 0), 0);
+    return Math.min(100, Math.round(base + bump));
+  }
+
+  function healthScoreClass(score) {
+    if (score >= 80) return 'health-score-green';
+    if (score >= 60) return 'health-score-amber';
+    return 'health-score-red';
+  }
+
+  function healthPillLabel(resume) {
+    if (!resume) return 'Not checked';
+    if (!resume.healthReport) return resume.healthEnabledLocal ? 'Ready' : 'Off';
+    return `${resume.healthReport.score || 0}/100`;
+  }
+
+  function stopHealthCountdown() {
+    if (healthCountdownTimer) {
+      clearInterval(healthCountdownTimer);
+      healthCountdownTimer = null;
+    }
+  }
+
+  function describeHealthProvider(report) {
+    if (!report?.providerLabel) return '';
+    return report.provider === 'ollama'
+      ? `Checked with ${report.providerLabel} (${report.model}) — nothing left this machine.`
+      : `Checked with ${report.providerLabel}.`;
+  }
+
+  function renderHealthPanel() {
+    const container = document.getElementById('healthPanel');
+    if (!container) return;
+    stopHealthCountdown();
+
+    const pill = document.getElementById('healthScorePill');
+    const resume = getActiveResume();
+    if (pill) {
+      pill.textContent = healthPillLabel(resume);
+      pill.classList.remove('health-score-green', 'health-score-amber', 'health-score-red');
+      if (resume?.healthReport) pill.classList.add(healthScoreClass(resume.healthReport.score || 0));
+    }
+
+    if (!resume) {
+      container.innerHTML = '<p class="health-panel-state">Select a resume to check it.</p>';
+      return;
+    }
+
+    if (!resume.healthEnabledLocal) {
+      container.innerHTML = `
+        <p class="health-panel-state">Checks the rules recruiters scan for: action-verb openers, measurable impact, tense, contact details, skills, and filler. Off by default — nothing is sent until you enable it.</p>
+        <div class="tracker-toggle-row">
+          <div class="tracker-toggle-text"><p>Enable online health check</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="healthEnableToggle"><span class="toggle-slider"></span></label>
         </div>
+        <small class="resume-help">Contact details are redacted before sending. Pollinations runs first, local Ollama is the fallback.</small>
       `;
+      const toggle = document.getElementById('healthEnableToggle');
+      if (toggle) {
+        toggle.addEventListener('change', async () => {
+          if (toggle.checked) {
+            await requestEndpointPermission('http://localhost:11434/*');
+          }
+          resume.healthEnabledLocal = toggle.checked;
+          resume.healthCooldownUntil = toggle.checked ? (resume.healthCooldownUntil || 0) : 0;
+          await setLocalStorage({ resumes: getPersistedResumes() });
+          renderHealthPanel();
+        });
+      }
+      return;
     }
 
-    refineModalContent.innerHTML = `
-      <h3>Review refined resume</h3>
-      <p class="review-note${sourceChanged ? ' warning' : ''}">
-        ${sourceChanged
-          ? 'The source text changed after this draft was generated. Run Refine Resume again before applying it.'
-          : 'Apply this draft to replace the current resume text. Undo will stay available after you apply it.'}
-      </p>
-      <div class="review-meta-grid">
-        ${renderListCard('Change summary', changeSummary)}
-        ${renderListCard('AI filled in (questions you skipped — please double-check)', aiFilled)}
-        ${renderListCard('Warnings', warnings)}
-      </div>
-      ${hasAtsScores ? `
-      <div class="ats-hero">
-        ${buildAtsGaugeMarkup(atsAfter)}
-        <div class="ats-hero-text">
-          <h4>ATS readiness</h4>
-          <p>Where an automated ATS parser stands on the refinement: score of your current resume vs the proposed version below.</p>
-          <div class="ats-score-summary ${getAtsSummaryClass(atsAfter)}">Before ${atsBefore} &rarr; After ${atsAfter}</div>
-        </div>
-      </div>
-      ${renderAtsIssuesCard(issues)}
-      ${renderBulletIssuesCard(bulletIssues)}` : ''}
-      <div class="review-preview-grid">
-        <div class="review-preview-column">
-          <label>Current resume</label>
-          <textarea class="review-preview-textarea" readonly>${escapeHtml(resume.pendingRefine.source)}</textarea>
-        </div>
-        <div class="review-preview-column">
-          <label>Proposed refined version</label>
-          <textarea class="review-preview-textarea" readonly>${escapeHtml(resume.pendingRefine.refinedText)}</textarea>
-        </div>
-      </div>
-      <div class="review-actions">
-        <button type="button" class="success-btn" id="applyRefineBtn" ${sourceChanged ? 'disabled' : ''}>Apply Refined Resume</button>
-        <button type="button" class="ghost-btn" id="cancelRefineBtn">Cancel</button>
-      </div>
-    `;
+    const report = resume.healthReport;
+    const stale = getHealthStale(resume);
+    const issues = Array.isArray(report?.issues) ? report.issues : [];
+    const open = issues.filter((issue) => issue.status !== 'fixed');
+    const fixedCount = issues.length - open.length;
+    const cooldown = healthCooldownRemaining(resume);
+    const allFixed = !!report && issues.length > 0 && open.length === 0;
+    const blockedByOpenIssues = !!report && open.length > 0 && !stale;
+    const canCheck = !healthChecking && !blockedByOpenIssues && cooldown === 0 && !!resume.jsonContent;
 
-    refineModal.style.display = 'flex';
+    const buttonLabel = healthChecking
+      ? 'Checking…'
+      : cooldown > 0
+        ? `Re-check in ${Math.ceil(cooldown / 1000)}s`
+        : report
+          ? 'Re-check resume'
+          : 'Check resume';
 
-    if (hasAtsScores) {
-      animateAtsGauge(refineModalContent, atsBefore, atsAfter, 1400);
+    const parts = [];
+    parts.push(`
+      <div class="tracker-toggle-row">
+        <div class="tracker-toggle-text"><p>Enable online health check</p></div>
+        <label class="toggle-switch"><input type="checkbox" id="healthEnableToggle" checked><span class="toggle-slider"></span></label>
+      </div>
+    `);
+
+    if (healthError) {
+      parts.push(`<p class="health-note warn">${escapeHtml(healthError)}</p>`);
     }
-    wireAtsFixToggles();
 
-    document.getElementById('applyRefineBtn').addEventListener('click', () => {
-      closeRefineModal();
-      handleApplyRefine();
+    if (!report) {
+      parts.push('<p class="health-panel-state">Run the first check to see what to fix.</p>');
+    } else {
+      parts.push(`
+        <div class="health-score-row">
+          <div class="health-score ${healthScoreClass(report.score || 0)}">${report.score || 0}/100</div>
+          <div class="health-summary">${escapeHtml(report.summary || '')}</div>
+        </div>
+        <p class="resume-help">${open.length} open · ${fixedCount} fixed${report.checkedAt ? ` · checked ${formatLexiconTimestamp(report.checkedAt)}` : ''}</p>
+        ${describeHealthProvider(report) ? `<p class="resume-help">${escapeHtml(describeHealthProvider(report))}</p>` : ''}
+        ${stale ? '<p class="health-note warn">Resume changed since this check. Re-run to match the current text.</p>' : ''}
+        ${!stale && open.length === 0 ? '<p class="health-note">All issues marked fixed. Run a re-check to confirm the new score.</p>' : ''}
+        ${allFixed ? '' : `
+          <div class="health-issues">
+            ${open.map((issue) => {
+              const idx = issues.indexOf(issue);
+              return `
+                <div class="health-issue" data-issue-idx="${idx}">
+                  <div class="health-issue-head">
+                    <span class="health-sev ${issue.severity}">${issue.severity}</span>
+                    <strong>${escapeHtml(issue.item || '')}</strong>
+                  </div>
+                  <p class="health-problem">${escapeHtml(issue.problem || '')}</p>
+                  ${issue.fix ? `<p class="health-fix"><em>Fix:</em> ${escapeHtml(issue.fix)}</p>` : ''}
+                  <button type="button" class="ghost-btn health-fix-btn" data-fix-idx="${idx}">Mark fixed</button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `}
+      `);
+    }
+
+    parts.push(`
+      <div class="health-actions">
+        <button type="button" class="secondary-action-btn" id="healthCheckBtn" ${canCheck ? '' : 'disabled'}>${buttonLabel}</button>
+      </div>
+      ${blockedByOpenIssues ? '<p class="health-note">Mark the remaining issues fixed before running another check.</p>' : ''}
+      ${!resume.jsonContent ? '<p class="health-note">Parse and save this resume first — the check reads the structured profile.</p>' : ''}
+    `);
+
+    container.innerHTML = parts.join('');
+
+    const toggle = document.getElementById('healthEnableToggle');
+    if (toggle) {
+      toggle.addEventListener('change', async () => {
+        if (toggle.checked) {
+          await requestEndpointPermission('http://localhost:11434/*');
+        }
+        resume.healthEnabledLocal = toggle.checked;
+        if (!toggle.checked) resume.healthCooldownUntil = 0;
+        await setLocalStorage({ resumes: getPersistedResumes() });
+        renderHealthPanel();
+      });
+    }
+
+    container.querySelectorAll('.health-fix-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const idx = Number(btn.dataset.fixIdx);
+        if (!report || !Array.isArray(report.issues) || !report.issues[idx]) return;
+        report.issues[idx].status = 'fixed';
+        report.issues[idx].fixedAt = Date.now();
+        report.score = recomputeHealthScore(report);
+        await setLocalStorage({ resumes: getPersistedResumes() });
+        renderHealthPanel();
+        if (openHealthIssues(report).length === 0) {
+          showStatus('All issues marked fixed. Run a re-check to confirm.', 'success', 4000);
+        }
+      });
     });
 
-    document.getElementById('cancelRefineBtn').addEventListener('click', () => {
-      closeRefineModal();
-      handleCancelRefine();
-    });
+    const checkBtn = document.getElementById('healthCheckBtn');
+    if (checkBtn) {
+      checkBtn.addEventListener('click', () => runResumeHealthCheck(resume));
+    }
+
+    if (cooldown > 0 && !healthChecking) {
+      healthCountdownTimer = setInterval(() => {
+        const remaining = healthCooldownRemaining(resume);
+        const target = document.getElementById('healthCheckBtn');
+        if (!target) {
+          stopHealthCountdown();
+          return;
+        }
+        if (remaining <= 0) {
+          stopHealthCountdown();
+          renderHealthPanel();
+          return;
+        }
+        target.textContent = `Re-check in ${Math.ceil(remaining / 1000)}s`;
+      }, 1000);
+    }
   }
 
-  function closeRefineModal() {
-    refineModal.style.display = 'none';
-    refineModalContent.innerHTML = '';
+  async function runResumeHealthCheck(resume) {
+    if (!resume || !resume.jsonContent || healthChecking) return;
+    const stale = getHealthStale(resume);
+    const report = resume.healthReport;
+    if (report && openHealthIssues(report).length > 0 && !stale) {
+      showStatus('Mark the remaining issues fixed before running another check.', 'info', 4000);
+      return;
+    }
+    if (healthCooldownRemaining(resume) > 0) return;
+
+    healthChecking = true;
+    healthError = '';
+    resume.healthCooldownUntil = Date.now() + HEALTH_COOLDOWN_MS;
+    await setLocalStorage({ resumes: getPersistedResumes() });
+    renderHealthPanel();
+    showStatus('Running resume health check…', 'loading', 0);
+
+    try {
+      const response = await sendRuntimeMessage({
+        type: 'CHECK_RESUME_HEALTH',
+        payload: { jsonContent: resume.jsonContent }
+      });
+      if (!response || response.status !== 'success' || !response.data) {
+        throw new Error(response?.message || 'Health check failed');
+      }
+      resume.healthReport = response.data;
+      resume.healthReport.score = recomputeHealthScore(resume.healthReport);
+      await setLocalStorage({ resumes: getPersistedResumes() });
+      showStatus(response.data.provider === 'ollama'
+        ? 'Health check complete (local Ollama).'
+        : 'Health check complete.', 'success', 3000);
+    } catch (error) {
+      healthError = error.message;
+      showStatus(`Health check failed: ${error.message}`, 'error', 6000);
+    } finally {
+      healthChecking = false;
+      renderHealthPanel();
+    }
   }
-
-  refineModal.addEventListener('click', (e) => {
-    if (e.target === refineModal) {
-      closeRefineModal();
-      handleCancelRefine();
-    }
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && refineModal.style.display === 'flex') {
-      closeRefineModal();
-      handleCancelRefine();
-    }
-  });
 
   function renderTabBar() {
     tabBar.innerHTML = '';
@@ -1309,6 +1402,7 @@ My background:
   function renderTabContent() {
     const resume = getActiveResume();
     if (!resume) return;
+    healthError = '';
     const draft = resumeDraft(resume);
     const review = resume.parseReview
       ? (Array.isArray(resume.parseReview.warnings) ? resume.parseReview.warnings : [])
@@ -1426,8 +1520,11 @@ My background:
             </div>
           </details>
         </div>
+
       </div>
     `;
+
+    renderHealthPanel();
 
     const labelInput = document.getElementById('resumeLabelInput');
     if (labelInput) {
@@ -1633,450 +1730,7 @@ My background:
     }
   });
 
-  function handleCancelRefine() {
-    const resume = getActiveResume();
-    if (!resume?.pendingRefine) return;
-    resume.pendingRefine = null;
-    renderTabContent();
-    showStatus('Refinement draft discarded.', 'info');
-  }
 
-  function handleApplyRefine() {
-    saveCurrentTabToState();
-    const resume = getActiveResume();
-    if (!resume?.pendingRefine) return;
-    const result = applyPendingRefineDraft(resume);
-    renderTabBar();
-    renderTabContent();
-    if (result.stale) {
-      showStatus('Resume text changed after the draft was created. Please refine again.', 'error', 4500);
-      return;
-    }
-    showStatus('Refined resume applied. Click Save Settings to persist or Undo to restore the original.', 'success', 5000);
-  }
-
-  function handleUndoRefine() {
-    saveCurrentTabToState();
-    const resume = getActiveResume();
-    if (!resume?.lastRefineBackup) return;
-    if (!confirm('Undo will replace the current resume text with the pre-refine version. Continue?')) return;
-    resume.pendingRefine = null;
-    resume.content = resume.lastRefineBackup;
-    resume.lastRefineBackup = '';
-    resume.lastRefineAppliedAt = '';
-    resume.updatedAt = Date.now();
-    renderTabBar();
-    renderTabContent();
-    showStatus('Original resume restored. Click Save Settings to persist.', 'info', 4500);
-  }
-
-  async function handleRefineResume() {
-    saveCurrentTabToState();
-    const resume = getActiveResume();
-    if (!resume) return;
-    if (!resume.content.trim()) {
-      showStatus('Add some resume content before refining it.', 'error', 3500);
-      return;
-    }
-
-    refiningResumeId = resume.id;
-    renderTabContent();
-    showStatus('Reading your resume to see if any questions are missing…', 'loading', 0);
-
-    let freshQuestions = [];
-    try {
-      const questionsResponse = await sendRuntimeMessage({
-        type: 'GET_REFINE_QUESTIONS',
-        payload: { resumeId: resume.id, sourceText: resume.content }
-      });
-      if (questionsResponse?.status === 'success' && Array.isArray(questionsResponse.data?.questions)) {
-        freshQuestions = questionsResponse.data.questions;
-      }
-    } catch (error) {
-      showStatus('Could not check for open questions — refining without them.', 'info', 3500);
-    }
-
-    refineQuestionsState = null;
-    if (freshQuestions.length && refineQuestionsModal) {
-      refineQuestionsState = buildRefineQuestionsState(resume, freshQuestions);
-      showRefineQuestionsModal();
-      renderTabContent();
-      refiningResumeId = null;
-      showStatus('A few questions before refining. Answer them or let the AI fill in.', 'info', 6000);
-      return;
-    }
-
-    showStatus('Refining resume into a reusable cross-style master version…', 'loading', 0);
-    await runRefineGeneration(resume);
-  }
-
-  function buildRefineQuestionsState(resume, questions) {
-    const items = questions.slice(0, 5).map((q) => {
-      const stored = (resume.refineAnswers || []).find((a) => normalizeQuestionText(a.question) === normalizeQuestionText(q.question));
-      return {
-        id: q.id,
-        question: q.question,
-        why: q.why || '',
-        value: stored && !stored.skipped ? stored.answer : '',
-        skipped: stored ? stored.skipped : false,
-        reused: !!(stored && !stored.skipped)
-      };
-    });
-    return { resumeId: resume.id, items, index: 0 };
-  }
-
-  function normalizeQuestionText(text) {
-    return (text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  }
-
-  function getRefineQuestionPrimaryLabel(item, state) {
-    if (!item.value.trim()) return 'Skip, let AI fill it';
-    return state.index >= state.items.length - 1 ? 'Refine Resume' : 'Next';
-  }
-
-  function showRefineQuestionsModal() {
-    const state = refineQuestionsState;
-    if (!state) return;
-    const item = state.items[state.index];
-    if (!item) return;
-
-    refineQuestionsContent.innerHTML = `
-      <h3>Before refining</h3>
-      <p class="review-note">The AI needs a bit of context to write a stronger resume. Answer below, or skip and let the AI fill it in conservatively.</p>
-      <div class="review-card refine-question-card">
-        <h4>Question ${state.index + 1} of ${state.items.length}${item.reused ? ' (from last time)' : ''}</h4>
-        <p class="refine-question-text">${escapeHtml(item.question)}</p>
-        ${item.why ? `<p class="review-note refine-question-why">${escapeHtml(item.why)}</p>` : ''}
-        <label>Your answer${item.skipped && !item.value ? ' (optional — skipped for now)' : ''}</label>
-        <textarea class="review-preview-textarea refine-question-input" id="refineQuestionInput" placeholder="Type your answer, or leave empty and skip">${escapeHtml(item.value || '')}</textarea>
-      </div>
-      <div class="review-actions refine-question-actions">
-        <button type="button" class="secondary-action-btn" id="refineQuestionNextBtn">${getRefineQuestionPrimaryLabel(item, state)}</button>
-        ${state.index > 0 ? '<button type="button" class="ghost-btn" id="refineQuestionBackBtn">Back</button>' : ''}
-        <button type="button" class="ghost-btn" id="refineQuestionCancelBtn">Cancel</button>
-      </div>
-    `;
-
-    refineQuestionsModal.style.display = 'flex';
-
-    const input = document.getElementById('refineQuestionInput');
-    const nextBtn = document.getElementById('refineQuestionNextBtn');
-    input.addEventListener('input', () => {
-      item.value = input.value;
-      item.skipped = false;
-      nextBtn.textContent = getRefineQuestionPrimaryLabel(item, state);
-    });
-    input.focus();
-
-    nextBtn.addEventListener('click', handleRefineQuestionNext);
-    const backBtn = document.getElementById('refineQuestionBackBtn');
-    if (backBtn) backBtn.addEventListener('click', () => {
-      item.value = input.value;
-      state.index = Math.max(0, state.index - 1);
-      showRefineQuestionsModal();
-    });
-    document.getElementById('refineQuestionCancelBtn').addEventListener('click', handleRefineQuestionsCancel);
-  }
-
-  function handleRefineQuestionNext() {
-    const state = refineQuestionsState;
-    if (!state) return;
-    const item = state.items[state.index];
-    if (!item.value.trim()) {
-      item.value = '';
-      item.skipped = true;
-    } else {
-      item.skipped = false;
-    }
-
-    if (state.index < state.items.length - 1) {
-      state.index += 1;
-      showRefineQuestionsModal();
-      return;
-    }
-    handleRefineQuestionFinish();
-  }
-
-  async function handleRefineQuestionFinish() {
-    const state = refineQuestionsState;
-    if (!state) return;
-    const item = state.items[state.index];
-    if (item && !item.value.trim() && !item.skipped) item.skipped = true;
-
-    const resume = resumes.find((r) => r.id === state.resumeId) || getActiveResume();
-    const answers = state.items.map((q) => ({
-      id: q.id,
-      question: q.question,
-      answer: q.skipped ? '' : q.value.trim(),
-      skipped: q.skipped
-    }));
-
-    closeRefineQuestionsModal();
-    refineQuestionsState = null;
-    if (!resume) {
-      renderTabContent();
-      return;
-    }
-    showStatus('Refining resume into a reusable cross-style master version…', 'loading', 0);
-    await runRefineGeneration(resume, answers);
-  }
-
-  function handleRefineQuestionsCancel() {
-    closeRefineQuestionsModal();
-    refineQuestionsState = null;
-    showStatus('Refinement questions closed. Resume unchanged.', 'info');
-  }
-
-  function closeRefineQuestionsModal() {
-    refineQuestionsModal.style.display = 'none';
-    refineQuestionsContent.innerHTML = '';
-  }
-
-  refineQuestionsModal.addEventListener('click', (e) => {
-    if (e.target === refineQuestionsModal && !!refineQuestionsState) {
-      handleRefineQuestionsCancel();
-    }
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && refineQuestionsModal.style.display === 'flex' && !!refineQuestionsState) {
-      handleRefineQuestionsCancel();
-    }
-  });
-
-  // --- ATS rendering helpers (shared by refine review + Check ATS) ---
-  const ATS_GAUGE_RADIUS = 40;
-  const ATS_GAUGE_CIRC = 2 * Math.PI * ATS_GAUGE_RADIUS;
-
-  function getAtsColorClass(score) {
-    if (score === null || score === undefined) return '';
-    if (score >= 80) return 'ats-green';
-    if (score >= 60) return 'ats-amber';
-    return 'ats-red';
-  }
-
-  function getAtsSummaryClass(score) {
-    if (score === null || score === undefined) return '';
-    if (score >= 80) return 'ats-summary-green';
-    if (score >= 60) return 'ats-summary-amber';
-    return 'ats-summary-red';
-  }
-
-  function getAtsScorePhrase(score) {
-    if (score === null || score === undefined) return 'Not scored';
-    if (score >= 90) return 'Excellent';
-    if (score >= 80) return 'Strong';
-    if (score >= 60) return 'Needs work';
-    return 'Poor';
-  }
-
-  function buildAtsGaugeMarkup(score) {
-    const cls = getAtsColorClass(score);
-    return `
-      <div class="ats-gauge-wrap">
-        <svg viewBox="0 0 92 92" aria-hidden="true">
-          <circle class="ats-gauge-track" cx="46" cy="46" r="${ATS_GAUGE_RADIUS}"></circle>
-          <circle class="ats-gauge-value ${cls}" cx="46" cy="46" r="${ATS_GAUGE_RADIUS}"
-                  stroke-dasharray="${ATS_GAUGE_CIRC.toFixed(1)}" stroke-dashoffset="${ATS_GAUGE_CIRC.toFixed(1)}"></circle>
-        </svg>
-        <div class="ats-gauge-number">0</div>
-      </div>
-    `;
-  }
-
-  function animateAtsGauge(container, fromScore, toScore, duration = 1200) {
-    const circle = container.querySelector('.ats-gauge-value');
-    const numberEl = container.querySelector('.ats-gauge-number');
-    if (!circle || !numberEl) return;
-    const startVal = Number.isFinite(fromScore) ? fromScore : 0;
-    const target = Number.isFinite(toScore) ? toScore : 0;
-    let start = null;
-    const easeOut = (t) => 1 - Math.pow(1 - t, 3);
-    const frame = (ts) => {
-      if (start === null) start = ts;
-      const t = Math.min(1, (ts - start) / duration);
-      const value = startVal + (target - startVal) * easeOut(t);
-      numberEl.textContent = Math.round(value);
-      circle.style.strokeDashoffset = `${(ATS_GAUGE_CIRC * (1 - value / 100)).toFixed(1)}`;
-      if (t < 1) requestAnimationFrame(frame);
-    };
-    requestAnimationFrame(frame);
-  }
-
-  function renderAtsIssueRow(item, index, key = 'ats') {
-    const showStage = item.stage === 'after' || item.stage === 'both';
-    const fixHtml = item.suggestedFix
-      ? `<button type="button" class="ghost-btn ats-fix-toggle" data-${key}-issue-index="${index}">Fix</button>`
-      : '';
-    return `
-      <div class="ats-issue-row">
-        <div class="ats-issue-head">
-          ${showStage ? `<span class="ats-issue-stage ats-stage-${item.stage === 'both' ? 'after' : item.stage}">${item.stage}</span>` : ''}
-          <div class="ats-issue-body">
-            <strong>${escapeHtml(item.issue)}</strong>
-            ${item.whyFlagged ? `<span>${escapeHtml(item.whyFlagged)}</span>` : ''}
-          </div>
-          ${fixHtml}
-        </div>
-        ${item.suggestedFix ? `<div class="ats-fix-reveal" data-${key}-issue-reveal="${index}" style="display: none;"><em>AI suggested fix</em>${escapeHtml(item.suggestedFix)}</div>` : ''}
-        ${item.userMustFix ? `<div class="ats-user-fix"><em>You'll need to</em>${escapeHtml(item.userMustFix)}</div>` : ''}
-      </div>
-    `;
-  }
-
-  function renderAtsIssuesCard(items) {
-    if (!Array.isArray(items) || !items.length) {
-      return '<div class="ats-issues-none">No critical ATS issues found — an automated parser should read this cleanly.</div>';
-    }
-    return `
-      <div class="ats-issues">
-        <h4>Critical ATS issues</h4>
-        ${items.map((item, index) => renderAtsIssueRow(item, index, 'ats')).join('')}
-      </div>
-    `;
-  }
-
-  function renderBulletIssuesCard(items) {
-    if (!Array.isArray(items) || !items.length) return '';
-    return `
-      <div class="ats-issues">
-        <h4>Bullet quality (does not affect the score)</h4>
-        ${items.map((item, index) => renderAtsIssueRow(item, index, 'bullet')).join('')}
-      </div>
-    `;
-  }
-
-  function wireAtsFixToggles() {
-    document.querySelectorAll('.ats-fix-toggle').forEach((btn) => {
-      const rawKey = (btn.getAttributeNames() || []).find((name) => name.startsWith('data-') && name.endsWith('-issue-index'));
-      if (!rawKey) return;
-      const key = rawKey.slice('data-'.length, -'-issue-index'.length);
-      const index = btn.getAttribute(rawKey);
-      const reveal = document.querySelector(`[data-${key}-issue-reveal="${index}"]`);
-      if (!reveal) return;
-      btn.addEventListener('click', () => {
-        const open = reveal.style.display === 'block';
-        reveal.style.display = open ? 'none' : 'block';
-        btn.textContent = open ? 'Fix' : 'Hide fix';
-      });
-    });
-  }
-
-  function showAtsResultModal(data) {
-    const score = typeof data?.score === 'number' ? data.score : 0;
-    const issues = Array.isArray(data?.criticalIssues) ? data.criticalIssues : [];
-    const bulletIssues = Array.isArray(data?.bulletIssues) ? data.bulletIssues : [];
-    const cls = getAtsColorClass(score);
-
-    atsResultContent.innerHTML = `
-      <h3>ATS check</h3>
-      <div class="ats-hero">
-        ${buildAtsGaugeMarkup(score)}
-        <div class="ats-hero-text">
-          <h4>${getAtsScorePhrase(score)} parse readiness</h4>
-          <p>How cleanly an automated ATS parser can read this resume.</p>
-          <div class="ats-score-summary ${getAtsSummaryClass(score)}">${score}/100</div>
-        </div>
-      </div>
-      ${renderAtsIssuesCard(issues)}
-      ${renderBulletIssuesCard(bulletIssues)}
-      <div class="review-actions refine-question-actions">
-        <button type="button" class="ghost-btn" id="atsCloseBtn">Close</button>
-      </div>
-    `;
-
-    atsResultModal.style.display = 'flex';
-    wireAtsFixToggles();
-    document.getElementById('atsCloseBtn').addEventListener('click', closeAtsResultModal);
-    animateAtsGauge(atsResultContent, 0, score);
-  }
-
-  function closeAtsResultModal() {
-    atsResultModal.style.display = 'none';
-    atsResultContent.innerHTML = '';
-  }
-
-  atsResultModal.addEventListener('click', (e) => {
-    if (e.target === atsResultModal) closeAtsResultModal();
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && atsResultModal.style.display === 'flex') closeAtsResultModal();
-  });
-
-  async function handleCheckAts() {
-    saveCurrentTabToState();
-    const resume = getActiveResume();
-    if (!resume) return;
-    if (!resume.content.trim()) {
-      showStatus('Add some resume content before checking the ATS score.', 'error', 3500);
-      return;
-    }
-
-    checkingAtsResumeId = resume.id;
-    renderTabContent();
-    showStatus('Scanning your resume the way an ATS would\u2026', 'loading', 0);
-
-    try {
-      const response = await sendRuntimeMessage({
-        type: 'CHECK_ATS',
-        payload: { resumeId: resume.id, sourceText: resume.content }
-      });
-      if (!response || response.status !== 'success' || !response.data) {
-        throw new Error(response?.message || 'Unknown ATS check error');
-      }
-      showAtsResultModal(response.data);
-      showStatus('ATS check complete.', 'success', 4000);
-    } catch (error) {
-      showStatus(`Error: ${error.message}`, 'error', 4500);
-    } finally {
-      checkingAtsResumeId = null;
-      renderTabContent();
-    }
-  }
-
-  async function runRefineGeneration(resume, answers = []) {
-    if (!resume) {
-      refiningResumeId = null;
-      renderTabContent();
-      return;
-    }
-    try {
-      const response = await sendRuntimeMessage({
-        type: 'REFINE_RESUME',
-        payload: {
-          resumeId: resume.id,
-          sourceText: resume.content,
-          answers
-        }
-      });
-
-      if (!response || response.status !== 'success' || !response.data) {
-        renderTabContent();
-        showStatus(`Error: ${response?.message || 'Unknown refinement error'}`, 'error', 4500);
-        return;
-      }
-
-      resume.pendingRefine = {
-        source: resume.content,
-        refinedText: response.data.refinedText || '',
-        warnings: Array.isArray(response.data.warnings) ? response.data.warnings : [],
-        changeSummary: Array.isArray(response.data.changeSummary) ? response.data.changeSummary : [],
-        aiFilled: Array.isArray(response.data.aiFilled) ? response.data.aiFilled : [],
-        ats: response.data.ats && typeof response.data.ats === 'object' ? response.data.ats : null,
-        answers
-      };
-
-      renderTabContent();
-      showRefineModal(resume);
-      showStatus('Review the refined draft in the dialog.', 'success', 5000);
-    } catch (error) {
-      showStatus(`Error: ${error.message}`, 'error', 4500);
-    } finally {
-      refiningResumeId = null;
-      renderTabContent();
-    }
-  }
 
   function escapeAttr(str) {
     return (str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -2167,21 +1821,7 @@ My background:
     }
   ];
 
-  const NUDGE_TOUR_STEPS = [
-    {
-      target: '#refineResumeBtn',
-      title: 'Refine again in 8.1',
-      body: 'Refine Resume now asks a few questions first — like what problem the company had before you joined. Answer them (answers are remembered) or let the AI fill in conservatively. Click the button to try it.'
-    }
-  ];
 
-  const ATS_NUDGE_TOUR_STEPS = [
-    {
-      target: '#checkAtsBtn',
-      title: 'New: Check ATS',
-      body: 'One click scores your resume the way an automated parser reads it — with an animated gauge and concrete fixes for every critical issue. Click the button to scan your resume now.'
-    }
-  ];
 
   let tourActive = false;
   let tourStepIndex = 0;
@@ -2197,14 +1837,6 @@ My background:
   function tourDismiss() {
     tourActive = false;
     tourOverlay.classList.remove('open');
-    if (tourMode === 'nudge') {
-      chrome.storage.local.set({ refineNudge: { active: false } });
-      return;
-    }
-    if (tourMode === 'atsnudge') {
-      chrome.storage.local.set({ atsNudge: { active: false } });
-      return;
-    }
     if (tourMode === 'profile') {
       chrome.storage.local.set({ appProfileOnboarding: { active: false } });
       return;
@@ -2234,15 +1866,11 @@ My background:
   function renderTourStep() {
     if (tourStepIndex >= tourSteps.length) {
       tourHighlight.style.display = 'none';
-      tourStepLabel.textContent = tourMode === 'nudge' ? 'All set' : 'Setup complete';
-      tourTitle.textContent = tourMode === 'nudge'
-        ? 'Ready when you are'
-        : tourMode === 'profile' ? 'Form Filler is ready' : "You're all set";
-      tourBody.textContent = tourMode === 'nudge'
-        ? 'Your answers are remembered for next time. Click Refine Resume whenever you want to refresh your master resume.'
-        : tourMode === 'profile'
-          ? 'Click Save Settings to keep your answers. Fill Form will start from them on every application.'
-          : 'Open the PocketResume popup and click Generate PDF Resume.';
+      tourStepLabel.textContent = 'Setup complete';
+      tourTitle.textContent = tourMode === 'profile' ? 'Form Filler is ready' : "You're all set";
+      tourBody.textContent = tourMode === 'profile'
+        ? 'Click Save Settings to keep your answers. Fill Form will start from them on every application.'
+        : 'Open the PocketResume popup and click Generate PDF Resume.';
       tourHint.style.display = 'none';
       tourBackBtn.style.visibility = 'hidden';
       tourNextBtn.textContent = 'Done';
@@ -2276,14 +1904,8 @@ My background:
   }
 
   function tourOpenAt(index, mode) {
-    tourMode = mode === 'profile' ? 'profile' : mode === 'nudge' ? 'nudge' : mode === 'atsnudge' ? 'atsnudge' : 'setup';
-    tourSteps = tourMode === 'profile'
-      ? PROFILE_TOUR_STEPS
-      : tourMode === 'nudge'
-        ? NUDGE_TOUR_STEPS
-        : tourMode === 'atsnudge'
-          ? ATS_NUDGE_TOUR_STEPS
-          : TOUR_STEPS;
+    tourMode = mode === 'profile' ? 'profile' : 'setup';
+    tourSteps = tourMode === 'profile' ? PROFILE_TOUR_STEPS : TOUR_STEPS;
     tourActive = true;
     tourStepIndex = Math.max(0, Math.min(index, tourSteps.length));
     tourOverlay.classList.add('open');
@@ -2334,17 +1956,9 @@ My background:
     tourOpenAt(0, 'profile');
   }
 
-  function startRefineNudgeFromTrigger() {
-    if (tourActive) return;
-    chrome.storage.local.set({ refineNudge: { active: false } });
-    tourOpenAt(0, 'nudge');
-  }
 
-  function startAtsNudgeFromTrigger() {
-    if (tourActive) return;
-    chrome.storage.local.set({ atsNudge: { active: false } });
-    tourOpenAt(0, 'atsnudge');
-  }
+
+
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
@@ -2356,14 +1970,6 @@ My background:
     if (changes.appProfileOnboarding) {
       const pv = changes.appProfileOnboarding.newValue;
       if (pv && pv.active) startProfileTourFromTrigger();
-    }
-    if (changes.refineNudge) {
-      const nv = changes.refineNudge.newValue;
-      if (nv && nv.active) startRefineNudgeFromTrigger();
-    }
-    if (changes.atsNudge) {
-      const av = changes.atsNudge.newValue;
-      if (av && av.active) startAtsNudgeFromTrigger();
     }
   });
 
@@ -2377,15 +1983,7 @@ My background:
     startProfileTourFromTrigger();
   }
 
-  const nudgeData = await chrome.storage.local.get(['refineNudge']);
-  if (nudgeData.refineNudge && nudgeData.refineNudge.active) {
-    startRefineNudgeFromTrigger();
-  }
 
-  const atsNudgeData = await chrome.storage.local.get(['atsNudge']);
-  if (atsNudgeData.atsNudge && atsNudgeData.atsNudge.active) {
-    startAtsNudgeFromTrigger();
-  }
 
   saveButton.addEventListener('click', async () => {
     saveCurrentTabToState();
