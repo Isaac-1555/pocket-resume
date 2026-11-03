@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.2.0] — 2026-11-02
+### Added
+- **Resume Health Check** (beta) — opt-in rule-based review that sends a redacted copy of your resume to Pollinations and flags action verbs, quantification, tense, contact completeness, skills/education, and more. If Pollinations fails, it falls back to a local Ollama server at `http://localhost:11434` — no provider setup, nothing to configure. Mark issues as fixed locally for a score bump; an open issue blocks a re-check until it is fixed, and checks are rate-limited to one per minute per resume. Re-checks go stale when you edit the resume.
+
+### Removed
+- **ATS Score Checker** and **Refine Resume** — removed to focus on JD-aware tailoring in the core flow.
+
 All notable changes to PocketResume, newest first. The version number matches `manifest.json` → `version`.
 
 Notes on history:

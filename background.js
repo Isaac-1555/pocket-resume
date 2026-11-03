@@ -18,6 +18,7 @@ import {
     emptyLexicon
 } from './skill-lexicon.js';
 import { SKILL_LEXICON_BASE } from './libs/skills-lexicon.js';
+import { checkResumeHealth } from './resume-health.js';
 
 // --- Pipeline Utilities ---
 function normalizeResumeStyle(selectedStyle) {
@@ -546,11 +547,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    if (message.type === 'CHECK_RESUME_HEALTH') {
+        (async () => {
+            try {
+                const payload = message.payload || {};
+                const jsonContent = payload.jsonContent || '';
+                if (!jsonContent) {
+                    sendResponse({ status: 'error', message: 'No resume data to check' });
+                    return;
+                }
+                const report = await checkResumeHealth(jsonContent);
+                sendResponse({ status: 'success', data: report });
+            } catch (error) {
+                sendResponse({ status: 'error', message: error.message || 'Health check failed' });
+            }
+        })();
+        return true;
+    }
+
     const unavailable = {
         START_GENERATION: 'ai_generation',
-        CHECK_ATS: 'ats_check',
-        GET_REFINE_QUESTIONS: 'refine',
-        REFINE_RESUME: 'refine',
         EXTRACT_RESUME_JSON: 'extraction',
         PROFILE_AUTOFILL: 'form_filler',
         FILL_APPLICATION_FORM: 'form_filler'
