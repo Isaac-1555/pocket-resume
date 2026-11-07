@@ -598,6 +598,32 @@
     await clerkClient.signOut({ redirectUrl: OPTIONS_URL });
   }
 
+  function serializeCoverLetter(letter) {
+    if (!letter || !String(letter.body || '').trim()) return '';
+    return JSON.stringify({
+      greeting: String(letter.greeting || ''),
+      body: String(letter.body || ''),
+      signOff: String(letter.signOff || ''),
+      updatedAt: Number(letter.updatedAt) || 0,
+    });
+  }
+
+  function parseCoverLetter(raw) {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed.body !== 'string' || !parsed.body.trim()) return null;
+      return {
+        greeting: typeof parsed.greeting === 'string' ? parsed.greeting : '',
+        body: parsed.body,
+        signOff: typeof parsed.signOff === 'string' ? parsed.signOff : '',
+        updatedAt: Number(parsed.updatedAt) || 0,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   async function pushResume(resume) {
     if (!convexClient) {
       console.log('[CloudSync] Not initialized, skipping push');
@@ -616,6 +642,7 @@
         label: resume.label || 'Resume',
         content: resume.content || '',
         jsonContent: resume.jsonContent || '',
+        coverLetter: serializeCoverLetter(resume.coverLetter),
         updatedAt,
       });
 
@@ -693,6 +720,7 @@
       label: doc.label || 'Resume',
       content: doc.content || '',
       jsonContent: doc.jsonContent || '',
+      coverLetter: parseCoverLetter(doc.coverLetter),
       lastRefineBackup: '',
       lastRefineAppliedAt: '',
       refineAnswers: [],
@@ -715,6 +743,7 @@
       if ((r.label || '') !== (o.label || '')) return false;
       if ((r.content || '') !== (o.content || '')) return false;
       if ((r.jsonContent || '') !== (o.jsonContent || '')) return false;
+      if (serializeCoverLetter(r.coverLetter) !== serializeCoverLetter(o.coverLetter)) return false;
     }
     return true;
   }
@@ -827,6 +856,7 @@
           icon: r.icon || '',
           content: r.content || '',
           jsonContent: r.jsonContent || '',
+          coverLetter: r.coverLetter || null,
           lastRefineBackup: r.lastRefineBackup || '',
           lastRefineAppliedAt: r.lastRefineAppliedAt || '',
           refineAnswers: Array.isArray(r.refineAnswers) ? r.refineAnswers : [],

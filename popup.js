@@ -136,8 +136,21 @@ document.addEventListener('DOMContentLoaded', () => {
     offlineReport.classList.add('show');
   }
 
-  function hasUniversalLetter() {
-    return !!(universalCoverLetter && String(universalCoverLetter.body || '').trim());
+  function coverLetterFor(list, legacy, resumeId) {
+    const items = Array.isArray(list) ? list : [];
+    const resume = items.find((item) => item && item.id === resumeId) || items[0] || null;
+    const letter = resume?.coverLetter;
+    if (letter && String(letter.body || '').trim()) return letter;
+    return legacy && String(legacy.body || '').trim() ? legacy : null;
+  }
+
+  function currentCoverLetter() {
+    const list = Array.isArray(gate.list) && gate.list.length ? gate.list : loadedResumes;
+    return coverLetterFor(list, universalCoverLetter, selectedResumeId);
+  }
+
+  function hasCoverLetter() {
+    return !!currentCoverLetter();
   }
 
   function setOfflineLetterNote(visible, reason = 'Cover letter not set up —') {
@@ -147,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function openUniversalLetterSettings() {
-    chrome.storage.local.set({ openCoverLetterSection: true }, () => {
+    chrome.storage.local.set({ openCoverLetterSection: { resumeId: selectedResumeId } }, () => {
       chrome.runtime.openOptionsPage();
     });
   }
@@ -436,7 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
     hideGateCards();
     setSetupStepDone('setupStepAccount', !!gate.signedIn);
     setSetupStepDone('setupStepResume', false);
-    setSetupStepDone('setupStepCover', hasUniversalLetter());
+    setSetupStepDone('setupStepCover', hasCoverLetter());
     setSetupStepDone('setupStepSave', !!gate.signedIn);
     setupCard.style.display = 'block';
   }
@@ -873,11 +886,12 @@ document.addEventListener('DOMContentLoaded', () => {
               generateCoverLetterPDF(coverParsed);
               setOfflineLetterNote(false);
             } else {
-              const data = await chrome.storage.local.get('universalCoverLetter');
+              const data = await chrome.storage.local.get(['resumes', 'universalCoverLetter']);
               universalCoverLetter = data.universalCoverLetter || null;
-              setOfflineLetterNote(true, response.coverLetterStatus === 'empty'
-                ? 'Cover letter is empty —'
-                : 'No cover letter saved —');
+              const letter = coverLetterFor(data.resumes, universalCoverLetter, selectedResumeId);
+              setOfflineLetterNote(true, letter
+                ? 'Cover letter could not be built —'
+                : 'No cover letter for this resume —');
             }
             setLetterStatus('success');
             setGenerateEnabled(true);
@@ -969,8 +983,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.4.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.4.0';
+  const ANNOUNCEMENT_VERSION = '10.5.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.5.0';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
@@ -1949,6 +1963,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (area !== 'local') return;
     if (changes.universalCoverLetter) {
       universalCoverLetter = changes.universalCoverLetter.newValue || null;
+    }
+    if (changes.resumes) {
+      loadedResumes = Array.isArray(changes.resumes.newValue) ? changes.resumes.newValue : [];
+      if (!loadedResumes.some((resume) => resume.id === selectedResumeId)) {
+        selectedResumeId = loadedResumes[0]?.id || null;
+      }
+      renderResumeSelector();
     }
     if (changes.resumes || changes.selectedResumeId || changes.proAccessCache) {
       if (changes.proAccessCache) {

@@ -12,7 +12,7 @@
 - **On-device resume engine** — deterministic job-description alignment: JD title/company/location filled in, skills ranked by relevance, strongest bullets selected, banned openers fixed. Wording is never rewritten, and a verifier reverts any number that is not in your profile
 - **Paste once, edit a form** — the local parser turns resume text into a structured, editable profile. No API key, no cloud round-trip
 - **4 Resume Layouts** — Professional, FAANG, Deedy (double-sided, dense two-column), Academic CV
-- **Separate cover letter** — one universal letter with `{{company}}`, `{{role}}`, and `{{recipient}}` filled from the posting; Settings includes a sample and a copyable prompt for any assistant you already use
+- **A cover letter per resume** — each saved resume keeps its own letter with `{{company}}`, `{{role}}`, and `{{recipient}}` filled from the posting. Write it yourself, click **Generate letter** for a short general draft, or copy the prompt into any assistant
 - **Job Tracker** — every generation drops a card with the job URL, company, and role. Pipeline board + analytics, no extra calls
 - **Quick Download** — re-download your saved resume as a professional PDF without reading the page
 - **PDF Export** — clean, print-ready PDFs via jsPDF for every layout
@@ -49,14 +49,14 @@ npm install
 2. Create a free account (required to generate; free until Dec 31, 2026)
 3. Paste your resume text into **Paste an existing resume** → **Parse resume**
 4. Fix anything the parser missed in the form → **Looks right — confirm** → **Save Settings**
-5. Optional: add a universal cover letter under **Cover letter**
+5. Optional: add a cover letter under **Cover letter** — it saves with the resume you are editing
 
 ## Usage
 
 1. Navigate to any job posting (LinkedIn, Indeed, company pages)
 2. Click PocketResume icon → choose resume style
 3. Click **Generate Resume** — the PDF downloads and a Job Tracker card is created
-4. Click **Generate Cover Letter** for the matching letter (needs a saved universal letter)
+4. Click **Generate Cover Letter** for the matching letter (uses the selected resume's saved letter)
 
 If generation fails, the popup stays red — click the **?** button (top right) for a readable message plus copyable raw details. The error clears when you close the popup or retry.
 

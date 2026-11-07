@@ -57,8 +57,11 @@ document.addEventListener('DOMContentLoaded', () => {
       boardView.style.display = currentView === 'board' ? 'grid' : 'none';
       graphView.style.display = currentView === 'graph' ? 'grid' : 'none';
       if (currentView === 'graph') renderGraph();
+      else updateBoardColumnHeight();
     });
   });
+
+  window.addEventListener('resize', updateBoardColumnHeight);
 
   addBtn.addEventListener('click', () => openModal(null));
 
@@ -252,6 +255,14 @@ function render() {
   if (currentView === 'graph') renderGraph();
 }
 
+function updateBoardColumnHeight() {
+  const header = document.querySelector('header.app-header');
+  const banner = document.getElementById('lockBanner');
+  const chromeHeight = (header?.offsetHeight || 0) + (banner?.offsetHeight || 0);
+  const max = Math.max(220, window.innerHeight - chromeHeight - 56);
+  document.documentElement.style.setProperty('--board-column-max', `${max}px`);
+}
+
 function renderBoard() {
   const board = document.getElementById('boardView');
   board.innerHTML = '';
@@ -325,6 +336,8 @@ function renderBoard() {
 
     board.appendChild(col);
   });
+
+  updateBoardColumnHeight();
 }
 
 function createCard(app) {

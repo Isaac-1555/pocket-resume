@@ -20,6 +20,7 @@ const RUNTIME_FILES = [
   'resume-align.js',
   'resume-parse.js',
   'resume-health.js',
+  'resume-letter.js',
   'skill-lexicon.js',
   'feature-video.js',
   'feature-video.css',

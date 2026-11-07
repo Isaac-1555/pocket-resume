@@ -19,6 +19,7 @@ import {
 } from './skill-lexicon.js';
 import { SKILL_LEXICON_BASE } from './libs/skills-lexicon.js';
 import { checkResumeHealth } from './resume-health.js';
+import { generateCoverLetterBody } from './resume-letter.js';
 
 // --- Pipeline Utilities ---
 function normalizeResumeStyle(selectedStyle) {
@@ -407,7 +408,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 let coverLetterStatus = 'disabled';
                 const wantsCoverLetter = payload.output === 'cover-letter' || payload.output === 'both' || payload.includeCoverLetter === true;
                 if (wantsCoverLetter) {
-                    const letter = buildCoverLetterPayload(settings.universalCoverLetter, resume, jobMeta);
+                    const letterTemplate = entry.coverLetter || settings.universalCoverLetter;
+                    const letter = buildCoverLetterPayload(letterTemplate, resume, jobMeta);
                     coverLetterData = letter.data;
                     coverLetterStatus = letter.status;
                 }
@@ -439,13 +441,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
                 const payload = message.payload || {};
                 const data = await chrome.storage.local.get(['universalCoverLetter', 'resumes']);
-                const template = data.universalCoverLetter;
-                if (!template || !String(template.body || '').trim()) {
-                    sendResponse({ status: 'no_template', message: 'Add a universal cover letter in Settings first.' });
-                    return;
-                }
                 const entries = Array.isArray(data.resumes) ? data.resumes : [];
                 const entry = entries.find((item) => item && item.id === payload.resumeId) || entries[0] || null;
+                const template = entry?.coverLetter || data.universalCoverLetter;
+                if (!template || !String(template.body || '').trim()) {
+                    sendResponse({ status: 'no_template', message: 'Add a cover letter in Settings first.' });
+                    return;
+                }
                 let profile = null;
                 if (entry && entry.jsonContent) {
                     try {
@@ -463,12 +465,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     recruiterName: payload.recipientName || ''
                 });
                 if (!letter.data) {
-                    sendResponse({ status: letter.status, message: letter.status === 'empty' ? 'The cover letter is empty.' : 'Add a universal cover letter in Settings first.' });
+                    sendResponse({ status: letter.status, message: letter.status === 'empty' ? 'The cover letter is empty.' : 'Add a cover letter in Settings first.' });
                     return;
                 }
                 sendResponse({ status: 'success', data: letter.data });
             } catch (error) {
                 console.error('[CoverLetter] Build failed:', error);
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+
+        return true;
+    }
+
+    if (message.type === 'BUILD_AI_COVER_LETTER') {
+        (async () => {
+            try {
+                const payload = message.payload || {};
+                const data = await chrome.storage.local.get(['resumes']);
+                const entries = Array.isArray(data.resumes) ? data.resumes : [];
+                const entry = entries.find((item) => item && item.id === payload.resumeId) || entries[0] || null;
+                if (!entry) {
+                    sendResponse({ status: 'needs_resume', message: 'Add your resume in Settings first.' });
+                    return;
+                }
+                const storedJson = typeof entry.jsonContent === 'string' ? entry.jsonContent.trim() : '';
+                if (!storedJson) {
+                    sendResponse({ status: 'needs_json', message: 'Build and save this resume first.' });
+                    return;
+                }
+                const letter = await generateCoverLetterBody(storedJson);
+                sendResponse({ status: 'success', ...letter });
+            } catch (error) {
+                console.error('[CoverLetter] AI write failed:', error);
                 sendResponse({ status: 'error', message: error.message });
             }
         })();
