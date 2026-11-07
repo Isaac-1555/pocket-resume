@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const cloudAuthStatus = document.getElementById('cloudAuthStatus');
   const cloudManagePlanBtn = document.getElementById('cloudManagePlanBtn');
   const cloudSignOutBtn = document.getElementById('cloudSignOutBtn');
+  const cloudSyncNote = document.getElementById('cloudSyncNote');
   const cloudPricingPanel = document.getElementById('cloudPricingPanel');
   const cloudPricingTable = document.getElementById('cloudPricingTable');
   const cloudPricingFallback = document.getElementById('cloudPricingFallback');
@@ -47,6 +48,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const skillLexiconStatus = document.getElementById('skillLexiconStatus');
   const skillLexiconPill = document.getElementById('skillLexiconPill');
   const allowUnverifiedSkillsToggle = document.getElementById('allowUnverifiedSkillsToggle');
+  const animationsToggle = document.getElementById('animationsToggle');
+  const animationsPill = document.getElementById('animationsPill');
 
   let resumes = [];
   let activeTabIndex = 0;
@@ -62,38 +65,71 @@ document.addEventListener('DOMContentLoaded', async () => {
     return 'r_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
   }
 
+  function applyMotionPreference(enabled) {
+    document.documentElement.classList.toggle('no-motion', enabled === false);
+    if (animationsPill) animationsPill.textContent = enabled === false ? 'Animations off' : 'Animations on';
+  }
+
+  chrome.storage.local.get('animationsEnabled', (stored) => applyMotionPreference(stored.animationsEnabled !== false));
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.animationsEnabled) {
+      applyMotionPreference(changes.animationsEnabled.newValue !== false);
+      if (animationsToggle) animationsToggle.checked = changes.animationsEnabled.newValue !== false;
+    }
+  });
+
   if (window.location.hash === '#cloud-pricing') {
     setTimeout(showCloudPricingPanel, 300);
   }
 
-  async function showCloudPricingPanel() {
-    try {
-      if (!window.CloudSync || !window.CloudSync.mountPricingTable || !cloudPricingPanel || !cloudPricingTable) {
-        showStatus('Pricing is not available in this extension build yet.', 'error', 5000);
-        return;
-      }
-      if (accountCard) accountCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      cloudPricingPanel.style.display = 'block';
-      if (cloudPricingFallback) {
-        cloudPricingFallback.textContent = '';
-        cloudPricingFallback.style.display = 'none';
-      }
-      cloudPricingTable.innerHTML = '';
-      await window.CloudSync.mountPricingTable(cloudPricingTable);
-    } catch (error) {
-      if (cloudPricingFallback) {
-        cloudPricingFallback.textContent = `Could not load the Pro pricing table. Details: ${error.message} If it keeps failing, check the Settings page console (F12), then confirm Billing is enabled in Clerk with at least one public user plan.`;
-        cloudPricingFallback.style.display = 'block';
-      }
-      showStatus('Could not load pricing. Check the message in the Pro panel.', 'error', 7000);
+  // Clerk's pricing table is a React tree. Mounting it twice, or clearing its
+  // container while it is mounted, makes React call removeChild on nodes whose
+  // parent is already gone (NotFoundError). The table is mounted once per page
+  // and closing the panel only hides it; Clerk owns its DOM.
+  let pricingMountState = 'idle';
+  let pricingMountPromise = null;
+
+  function showCloudPricingPanel() {
+    if (!window.CloudSync || !window.CloudSync.mountPricingTable || !cloudPricingPanel || !cloudPricingTable) {
+      showStatus('Pricing is not available in this extension build yet.', 'error', 5000);
+      return Promise.resolve();
     }
+    if (accountCard) accountCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    cloudPricingPanel.style.display = 'block';
+    if (pricingMountState === 'mounting' || pricingMountState === 'mounted') {
+      return pricingMountPromise || Promise.resolve();
+    }
+
+    pricingMountState = 'mounting';
+    if (cloudPricingFallback) {
+      cloudPricingFallback.textContent = '';
+      cloudPricingFallback.style.display = 'none';
+    }
+    pricingMountPromise = (async () => {
+      try {
+        await window.CloudSync.mountPricingTable(cloudPricingTable);
+        pricingMountState = 'mounted';
+      } catch (error) {
+        if (window.CloudSync && typeof window.CloudSync.unmountPricingTable === 'function' && cloudPricingTable) {
+          try {
+            window.CloudSync.unmountPricingTable(cloudPricingTable);
+          } catch (unmountError) {
+            console.warn('[Pricing] Unmount failed:', unmountError);
+          }
+        }
+        pricingMountState = 'idle';
+        pricingMountPromise = null;
+        if (cloudPricingFallback) {
+          cloudPricingFallback.textContent = `Could not load the Pro pricing table. Details: ${error.message} If it keeps failing, check the Settings page console (F12), then confirm Billing is enabled in Clerk with at least one public user plan.`;
+          cloudPricingFallback.style.display = 'block';
+        }
+        showStatus('Could not load pricing. Check the message in the Pro panel.', 'error', 7000);
+      }
+    })();
+    return pricingMountPromise;
   }
   if (cloudClosePricingBtn) {
     cloudClosePricingBtn.addEventListener('click', () => {
-      if (window.CloudSync && window.CloudSync.unmountPricingTable && cloudPricingTable) {
-        window.CloudSync.unmountPricingTable(cloudPricingTable);
-      }
-      if (cloudPricingTable) cloudPricingTable.innerHTML = '';
       if (cloudPricingPanel) cloudPricingPanel.style.display = 'none';
     });
   }
@@ -409,6 +445,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderCoverLetterPreview();
     if (skillLexiconAutoToggle) skillLexiconAutoToggle.checked = data.skillLexiconAutoUpdate !== false;
     if (allowUnverifiedSkillsToggle) allowUnverifiedSkillsToggle.checked = data.allowUnverifiedSkills !== false;
+    if (animationsToggle) animationsToggle.checked = data.animationsEnabled !== false;
     refreshSkillLexiconStatus();
   }
 
@@ -535,6 +572,13 @@ My background:
     });
   }
 
+  if (animationsToggle) {
+    animationsToggle.addEventListener('change', () => {
+      chrome.storage.local.set({ animationsEnabled: animationsToggle.checked });
+      applyMotionPreference(animationsToggle.checked);
+    });
+  }
+
   function requestEndpointPermission(origin) {
     return chrome.permissions.request({ origins: [origin] }).catch(() => false);
   }
@@ -622,14 +666,17 @@ My background:
   }
 
   function renderAccountOffer(promo) {
-    if (accountOfferBadge) accountOfferBadge.style.display = promo ? 'inline-block' : 'none';
+    if (accountOfferBadge) {
+      accountOfferBadge.textContent = promo ? 'Free to try' : 'Pro';
+      accountOfferBadge.style.display = 'inline-block';
+    }
     if (accountOfferTitle) {
-      accountOfferTitle.textContent = promo ? 'Everything free until Dec 31' : 'Keep your resumes in sync';
+      accountOfferTitle.textContent = promo ? 'Free to try until Dec 31' : 'Keep generating after Dec 31';
     }
     if (accountOfferSub) {
       accountOfferSub.textContent = promo
-        ? 'Create a free account — no card required. The resume engine, cover letters, and Job Tracker are all unlocked during the free period.'
-        : 'Create a free account to sync across devices, or upgrade any time to keep generating after Dec 31.';
+        ? 'Create an account — no card required. Then $4/month (about $1/week) or $47/year, cancel anytime.'
+        : 'Create an account and start a 7-day free trial. Monthly $4 (about $1/week), yearly $47, cancel anytime.';
     }
     if (accountFeatureList) {
       const items = promo
@@ -639,9 +686,9 @@ My background:
             ['Job Tracker', 'pipeline board + analytics'],
           ]
         : [
-            ['Cloud sync', 'resumes on every device'],
-            ['Job Tracker', 'pipeline board + analytics'],
             ['Resume engine', 'tailored PDFs, no API key'],
+            ['Cover letters', 'one template, every job'],
+            ['Cloud sync', 'resumes on every device'],
           ];
       accountFeatureList.innerHTML = items
         .map(([label, desc]) => `<li><span class="pfl-check" aria-hidden="true">&#10003;</span><span class="pfl-text"><strong>${label}</strong> — ${desc}</span></li>`)
@@ -670,20 +717,25 @@ My background:
         if (cloudAccountName) cloudAccountName.textContent = profile?.name || profile?.email || 'Signed in';
         setCloudAvatar(profile);
         const canSync = !!access.cloudSyncAccess;
-        if (canSync && access.isPro) {
-          cloudAuthStatus.textContent = 'Pro active';
+        if (access.isPro && access.trialDaysLeft > 0) {
+          cloudAuthStatus.textContent = `Trial · ${access.trialDaysLeft} day${access.trialDaysLeft === 1 ? '' : 's'} left`;
+          cloudAuthStatus.className = 'cloud-status-pill synced';
+        } else if (access.isPro) {
+          cloudAuthStatus.textContent = access.planPeriod === 'year' ? 'Pro · Yearly' : 'Pro';
           cloudAuthStatus.className = 'cloud-status-pill synced';
         } else if (access.withinWindow || access.proAccess) {
           cloudAuthStatus.textContent = 'Free until Dec 31';
           cloudAuthStatus.className = 'cloud-status-pill synced';
-        } else if (canSync) {
-          cloudAuthStatus.textContent = 'Free plan';
-          cloudAuthStatus.className = 'cloud-status-pill';
         } else {
-          cloudAuthStatus.textContent = 'Free account required';
+          cloudAuthStatus.textContent = 'No plan';
           cloudAuthStatus.className = 'cloud-status-pill error';
         }
-        if (cloudManagePlanBtn) cloudManagePlanBtn.textContent = access.isPro ? 'Manage plan' : 'Upgrade to Pro';
+        if (cloudManagePlanBtn) cloudManagePlanBtn.textContent = access.isPro ? 'Manage plan' : 'Start free trial';
+        if (cloudSyncNote) {
+          cloudSyncNote.textContent = canSync
+            ? 'Resumes sync automatically to the cloud.'
+            : 'Sync is paused. Your cloud resumes are kept — subscribe to sync again.';
+        }
         if (canSync) runAutoSync();
       } else {
         if (accountSignedIn) accountSignedIn.style.display = 'none';
@@ -813,6 +865,14 @@ My background:
 
   updateCloudStatus();
 
+  let cloudStatusRefreshAt = 0;
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !changes.proAccessCache) return;
+    if (Date.now() - cloudStatusRefreshAt < 2000) return;
+    cloudStatusRefreshAt = Date.now();
+    updateCloudStatus();
+  });
+
   async function startAuth(mode) {
     try {
       if (!window.CloudSync) throw new Error('Account service failed to load.');
@@ -862,7 +922,7 @@ My background:
   const data = await chrome.storage.local.get([
     'resumes', 'userProfile', 'resumeType', 'resumeLayout', 'selectedResumeId', 'onboarding',
     'onboardingCompleted', 'universalCoverLetter', 'applicationProfile', 'skillLexiconAutoUpdate',
-    'pendingExtract', 'openCoverLetterSection', 'allowUnverifiedSkills'
+    'pendingExtract', 'openCoverLetterSection', 'allowUnverifiedSkills', 'animationsEnabled'
   ]);
   universalCoverLetter = data.universalCoverLetter || null;
 
@@ -932,6 +992,30 @@ My background:
       if (uclBody) uclBody.focus();
     }, 400);
   }
+
+  let openAuthConsuming = false;
+
+  async function consumeOpenAuthIntent() {
+    if (openAuthConsuming) return;
+    openAuthConsuming = true;
+    try {
+      const stored = await chrome.storage.local.get('openAuth');
+      const mode = stored.openAuth === 'signUp' ? 'signUp' : stored.openAuth === 'signIn' ? 'signIn' : '';
+      if (!mode) return;
+      await chrome.storage.local.remove('openAuth');
+      if (accountCard) accountCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      startAuth(mode);
+    } finally {
+      setTimeout(() => { openAuthConsuming = false; }, 1500);
+    }
+  }
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.openAuth && changes.openAuth.newValue) {
+      consumeOpenAuthIntent();
+    }
+  });
+  consumeOpenAuthIntent();
 
   if (apEeoToggle) {
     apEeoToggle.addEventListener('change', () => {
@@ -1759,7 +1843,7 @@ My background:
     {
       target: '#accountCard',
       title: 'One account, every device',
-      body: 'Create a free account to sync resumes and keep the Job Tracker on every device. Everything is free until Dec 31.'
+      body: 'Create an account to sync resumes and keep the Job Tracker on every device. Free to try until Dec 31, then $4/month (about $1/week) or $47/year.'
     },
     {
       target: '#rfPasteInput',

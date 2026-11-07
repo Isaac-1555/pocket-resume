@@ -1187,6 +1187,13 @@
       color: var(--text);
     }
 
+    .setup-plan-note {
+      margin: 10px 0 0;
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--text-faint);
+    }
+
     .plan-feature-list {
       list-style: none;
       margin: 0 0 12px;
@@ -1602,6 +1609,10 @@
       min-height: 56px;
       padding: var(--space-4);
       border-radius: var(--radius-card);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
       font-size: 15.5px;
       font-weight: 600;
       color: #7cc0ff;
@@ -1631,16 +1642,68 @@
       transform: none;
     }
 
-    body[data-status="idle"] .cover-letter-generate:disabled {
+    body:not([data-letter-status="generating"]):not([data-letter-status="success"]):not([data-letter-status="failure"]) .cover-letter-generate:disabled {
       background: var(--glass-fill);
       border-color: var(--glass-border);
       box-shadow: inset 0 1px 0 var(--glass-highlight), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
       color: var(--text-faint);
     }
 
-    body[data-status="generating"] .cover-letter-generate {
+    body[data-letter-status="generating"] #coverLetterBtn {
       cursor: progress;
       transform: none;
+      border-color: rgba(56, 132, 255, 0.60);
+      box-shadow: inset 0 1px 0 rgba(170, 205, 255, 0.35),
+                  0 0 34px rgba(56, 132, 255, 0.40),
+                  0 10px 26px rgba(0, 0, 0, 0.4);
+    }
+
+    body[data-letter-status="generating"] #coverLetterBtn:hover {
+      transform: none;
+    }
+
+    body[data-letter-status="success"] #coverLetterBtn {
+      border-color: rgba(43, 214, 132, 0.5);
+    }
+
+    body[data-letter-status="failure"] #coverLetterBtn {
+      border-color: rgba(255, 86, 86, 0.55);
+    }
+
+    .letter-icon {
+      display: none;
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      place-items: center;
+    }
+
+    .letter-icon svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    body:not([data-letter-status="generating"]):not([data-letter-status="success"]):not([data-letter-status="failure"]) .letter-idle,
+    body[data-letter-status="success"] .letter-success,
+    body[data-letter-status="failure"] .letter-failure {
+      display: grid;
+    }
+
+    #coverLetterLabel {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      line-height: 1;
+    }
+
+    html.no-motion *,
+    html.no-motion *::before,
+    html.no-motion *::after {
+      animation: none !important;
+      transition: none !important;
+      scroll-behavior: auto !important;
     }
 
     .list-row:disabled {
@@ -1669,7 +1732,7 @@
   </header>
 
   <div id="accessReminder" class="access-reminder" style="display: none;">
-    <span id="accessReminderText">Everything is free until Dec 31.</span>
+    <span id="accessReminderText">Free until Dec 31 — then $4/month.</span>
     <div class="access-reminder-actions">
       <button type="button" id="reminderPlansBtn">See plans</button>
       <button type="button" id="reminderDismissBtn" aria-label="Dismiss">&#215;</button>
@@ -1678,11 +1741,11 @@
 
   <div id="signinCard" class="setup-card glass" style="display: none;">
     <div class="setup-head">
-      <p class="setup-title">Sign in to generate</p>
+      <p class="setup-title">Create an account to generate</p>
     </div>
-    <p class="setup-done-text">Your resume engine runs in this browser, but the account keeps it unlocked and synced. Free until Dec 31, no card required.</p>
+    <p class="setup-done-text">Your resume engine runs in this browser, but the account keeps it unlocked and synced. Free to try until Dec 31 — then $4/month (about $1/week) or $47/year.</p>
     <div style="display: grid; gap: 8px;">
-      <button type="button" id="popupSignUpBtn" class="setup-goto setup-goto-wide">Create free account</button>
+      <button type="button" id="popupSignUpBtn" class="setup-goto setup-goto-wide">Create account</button>
       <button type="button" id="popupSignInBtn" class="setup-goto setup-goto-wide ghost">Sign in</button>
     </div>
   </div>
@@ -1697,11 +1760,11 @@
 
   <div id="planLockCard" class="setup-card glass" style="display: none;">
     <div class="setup-head">
-      <p class="setup-title">Your free period ended</p>
+      <p class="setup-title">Start your 7-day free trial</p>
     </div>
-    <p class="setup-done-text">Generation and the Job Tracker need a Pro plan now. Your resume, tracker data, and JSON export stay available.</p>
+    <p class="setup-done-text">The free period ended Dec 31. A Pro plan is $4/month (about $1/week) or $47/year, cancels anytime, and keeps the resume engine, cover letters, and Job Tracker unlocked. Your resume, tracker data, and JSON export stay available.</p>
     <div style="display: grid; gap: 8px;">
-      <button type="button" id="planUnlockBtn" class="setup-goto setup-goto-wide">See plans</button>
+      <button type="button" id="planUnlockBtn" class="setup-goto setup-goto-wide">Start free trial</button>
       <button type="button" id="planExportBtn" class="setup-goto setup-goto-wide ghost">Export my resume JSON</button>
     </div>
   </div>
@@ -1715,8 +1778,8 @@
       <div class="setup-step" id="setupStepAccount">
         <span class="setup-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
         <div class="setup-step-text">
-          <p class="setup-step-label">Create your free account</p>
-          <p class="setup-step-desc">Keeps your resume synced</p>
+          <p class="setup-step-label">Create your account</p>
+          <p class="setup-step-desc">Free until Dec 31, then $4/month</p>
         </div>
         <button type="button" class="setup-goto" id="setupAccountBtn">Do it</button>
       </div>
@@ -1749,6 +1812,7 @@
       <p class="setup-done-text" id="setupDoneText">You're all set. Visit a job posting and click <strong>Generate Resume</strong>.</p>
       <button type="button" id="setupDoneBtn" class="setup-goto setup-goto-wide">Let's go</button>
     </div>
+    <p class="setup-plan-note" id="setupPlanNote">Try everything free until Dec 31 — then $4/month (about $1/week) or $47/year, cancel anytime.</p>
   </div>
 
   <div id="setupCompact" class="setup-card glass setup-compact" style="display: none;">
@@ -1804,7 +1868,18 @@
     <span id="generateLabel">Generate Resume</span>
   </button>
 
-  <button id="coverLetterBtn" type="button" class="setup-goto setup-goto-wide accent cover-letter-generate" disabled>Generate Cover Letter</button>
+  <button id="coverLetterBtn" type="button" class="setup-goto setup-goto-wide accent cover-letter-generate" disabled>
+    <span class="letter-icon letter-idle" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/><path d="M18.4 2.6a2 2 0 0 1 2.8 2.8L13.6 13 10 14l1-3.6z"/></svg>
+    </span>
+    <span class="letter-icon letter-success" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </span>
+    <span class="letter-icon letter-failure" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </span>
+    <span id="coverLetterLabel">Generate Cover Letter</span>
+  </button>
 
   <p class="offline-notice" id="offlineNotice">On-device engine: your saved profile is matched to this posting. No API key, no upload, wording never rewritten.</p>
   <p class="offline-report" id="offlineReport"></p>
@@ -1902,14 +1977,15 @@
       <div class="onboarding-icon" aria-hidden="true">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m5.6 5.6 2.8 2.8"/><path d="m15.6 15.6 2.8 2.8"/><path d="m18.4 5.6-2.8 2.8"/><path d="m8.4 15.6-2.8 2.8"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> — Resume Health Check</h2>
+      <h2>New in <span id="whatsNewVersion"></span> — Plans &amp; instant mode</h2>
       <p class="error-message">
-        Get rule-based feedback on your master resume with an opt-in check that sends redacted data to pollinations.ai. ATS Score and Refine Resume have been removed.
+        PocketResume stays free to try until Dec 31. After that, generation, the Job Tracker, and cloud sync need a Pro plan.
       </p>
       <ul class="whatsnew-collected">
-        <li><strong>Resume Health Check (beta)</strong> — flags action verbs, quantification, tense, contact completeness, skills, education, and more.</li>
-        <li><strong>Redacted &amp; local tracking</strong> — contact details redacted before sending; mark issues fixed for a local score bump and re-check only once everything is fixed. One check per minute.</li>
-        <li><strong>Never a dead end</strong> — if Pollinations is busy, the check falls back to your local Ollama model.</li>
+        <li><strong>Simple plans</strong> — $4/month (about $1/week) or $47/year, both with a 7-day free trial. Subscribe before Dec 31 and your trial runs to Jan 7.</li>
+        <li><strong>Cover letter button</strong> — its own pencil-on-paper icon and progress animation, separate from Generate Resume.</li>
+        <li><strong>Animations toggle</strong> — Settings → Interface. Turn it off for instant generation and no glow effects.</li>
+        <li><strong>Working sign-in</strong> — the popup account buttons now open the full sign-in window in Settings.</li>
       </ul>
       <div class="onboarding-actions">
         <button id="whatsNewPlansBtn" class="cloud-primary-btn">Open Settings</button>

@@ -31,7 +31,7 @@ const COLUMN_COLORS = {
 };
 
 let applications = [];
-let accessInfo = { proAccess: false, isPro: false, promoActive: false, signedIn: false, unconfigured: false, dismissed: false };
+let accessInfo = { proAccess: false, isPro: false, promoActive: false, signedIn: false, unconfigured: false, dismissed: false, trialDaysLeft: 0, planPeriod: '' };
 let locked = false;
 let currentView = 'board';
 let selectedAppId = null;
@@ -67,11 +67,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   upgradeBtn.addEventListener('click', () => {
-    const needsAccount = accessInfo.promoActive && !accessInfo.signedIn;
-    const url = needsAccount
-      ? chrome.runtime.getURL('options.html')
-      : chrome.runtime.getURL('options.html#cloud-pricing');
-    chrome.tabs.create({ url });
+    if (!accessInfo.signedIn) {
+      chrome.storage.local.set({ openAuth: 'signUp' }, () => {
+        chrome.tabs.create({ url: chrome.runtime.getURL('options.html') });
+      });
+      return;
+    }
+    chrome.tabs.create({ url: chrome.runtime.getURL('options.html#cloud-pricing') });
   });
 
   dismissLockBtn.addEventListener('click', () => {
@@ -86,6 +88,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   initTourControls();
+  chrome.storage.local.get('animationsEnabled', (stored) => {
+    document.documentElement.classList.toggle('no-motion', stored.animationsEnabled === false);
+  });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.animationsEnabled) {
+      document.documentElement.classList.toggle('no-motion', changes.animationsEnabled.newValue === false);
+    }
+  });
   init();
 });
 
@@ -132,13 +142,13 @@ function applyLockCopy() {
   const upgradeBtn = document.getElementById('upgradeBtn');
   if (!accessInfo.signedIn) {
     if (title) title.textContent = 'Sign in to use the Job Tracker';
-    if (text) text.textContent = 'Create a free account to capture every job you apply to. Everything is free until Dec 31.';
-    if (upgradeBtn) upgradeBtn.textContent = 'Create free account';
+    if (text) text.textContent = 'Create an account to capture every job you apply to. Free to try until Dec 31.';
+    if (upgradeBtn) upgradeBtn.textContent = 'Create account';
     return;
   }
-  if (title) title.textContent = 'Your free period ended';
-  if (text) text.textContent = 'The tracker is read-only now. Your saved applications stay here, and Export JSON still works. Upgrade to keep editing.';
-  if (upgradeBtn) upgradeBtn.textContent = 'See plans';
+  if (title) title.textContent = 'Start your 7-day free trial';
+  if (text) text.textContent = 'The tracker is read-only now. Your saved applications stay here, and Export JSON still works. Pro is $4/month (about $1/week) or $47/year.';
+  if (upgradeBtn) upgradeBtn.textContent = 'Start free trial';
 }
 
 async function init() {
@@ -154,6 +164,8 @@ async function init() {
     accessInfo.isPro = !!cached.isPro;
     accessInfo.promoActive = !!cached.promoActive;
     accessInfo.signedIn = !!cached.signedIn;
+    accessInfo.trialDaysLeft = cached.trialDaysLeft || 0;
+    accessInfo.planPeriod = cached.planPeriod || '';
     locked = !accessInfo.proAccess;
   }
 
@@ -168,6 +180,8 @@ async function init() {
       accessInfo.isPro = access.isPro;
       accessInfo.promoActive = access.promoActive;
       accessInfo.signedIn = access.signedIn;
+      accessInfo.trialDaysLeft = access.trialDaysLeft || 0;
+      accessInfo.planPeriod = access.planPeriod || '';
       accessInfo.unconfigured = !!access.unconfigured;
       locked = !access.proAccess;
       chrome.storage.local.set({
@@ -176,6 +190,8 @@ async function init() {
           isPro: access.isPro,
           promoActive: access.promoActive,
           signedIn: access.signedIn,
+          trialDaysLeft: access.trialDaysLeft || 0,
+          planPeriod: access.planPeriod || '',
           checkedAt: Date.now(),
         },
       });
@@ -205,12 +221,15 @@ function updatePlanBadge() {
   if (!badge) return;
   document.getElementById('planLoader')?.remove();
   badge.hidden = false;
-  if (accessInfo.proAccess && !accessInfo.isPro) {
+  if (accessInfo.isPro && accessInfo.trialDaysLeft > 0) {
+    badge.textContent = `Trial · ${accessInfo.trialDaysLeft}d`;
+    badge.className = 'plan-badge trial';
+  } else if (accessInfo.isPro) {
+    badge.textContent = accessInfo.planPeriod === 'year' ? 'Pro · Yearly' : 'Pro';
+    badge.className = 'plan-badge pro';
+  } else if (accessInfo.proAccess) {
     badge.textContent = 'Free until Dec 31';
     badge.className = 'plan-badge trial';
-  } else if (accessInfo.proAccess) {
-    badge.textContent = 'Pro';
-    badge.className = 'plan-badge pro';
   } else if (locked) {
     badge.textContent = accessInfo.signedIn ? 'Locked' : 'Free';
     badge.className = 'plan-badge locked';
@@ -241,7 +260,7 @@ function renderBoard() {
     const empty = document.createElement('div');
     empty.className = 'empty-board-note';
     empty.innerHTML = locked
-      ? `<h2>Locked</h2><p>Your tracker is read-only. ${accessInfo.promoActive && !accessInfo.signedIn ? 'Create a free account to start your trial.' : 'Upgrade to Pro to keep editing.'}</p>`
+      ? `<h2>Locked</h2><p>Your tracker is read-only. ${accessInfo.signedIn ? 'Start a 7-day free trial to keep editing.' : 'Create an account, free to try until Dec 31.'}</p>`
       : `<h2>No applications yet</h2>
       <p>Generate a resume from a job posting to auto-capture it here, or add one manually.</p>
       <button class="btn btn-primary" id="emptyAddBtn">+ Add your first job</button>`;
@@ -501,7 +520,7 @@ function openModal(app) {
       <label for="m_notes">Notes</label>
       <textarea id="m_notes" ${isReadonly ? 'readonly' : ''} placeholder="Anything worth remembering…">${escapeTextarea(app?.notes || '')}</textarea>
     </div>
-    ${isReadonly ? `<p class="readonly-note">Read-only — ${accessInfo.promoActive && !accessInfo.signedIn ? 'create a free account to start your free Pro trial.' : 'upgrade to Pro to edit applications.'}</p>` : ''}
+    ${isReadonly ? `<p class="readonly-note">Read-only — ${accessInfo.signedIn ? 'start a 7-day free trial to edit applications.' : 'create an account, free to try until Dec 31.'}</p>` : ''}
   `;
 
   populateInterviewEditor(body, app, isReadonly);
@@ -1394,10 +1413,12 @@ function buildTourSteps() {
             placement: 'bottom',
             title: 'Your plan',
             body: accessInfo.proAccess
-                ? (accessInfo.isPro ? 'Pro is active — the Job Tracker, Form Filler, and Cloud Sync are all unlocked.' : 'Your free Pro trial is active. Job Tracker, Form Filler, and Cloud Sync are unlocked until Oct 31.')
-                : (accessInfo.promoActive && !accessInfo.signedIn
-                    ? 'Create a free account to unlock the Job Tracker, Form Filler, and Cloud Sync until Oct 31 — no card required.'
-                    : 'The Job Tracker is a Pro feature. Upgrade to Pro to keep editing applications after your trial.'),
+                ? (accessInfo.isPro
+                    ? `Pro is active${accessInfo.trialDaysLeft > 0 ? ` — ${accessInfo.trialDaysLeft} trial day${accessInfo.trialDaysLeft === 1 ? '' : 's'} left` : ''}. Job Tracker, Form Filler, and Cloud Sync are unlocked.`
+                    : 'Your free period is active. Job Tracker, Form Filler, and Cloud Sync are unlocked until Dec 31.')
+                : (accessInfo.signedIn
+                    ? 'The Job Tracker needs Pro. Start a 7-day free trial — $4/month (about $1/week) or $47/year.'
+                    : 'Create an account to unlock the Job Tracker, Form Filler, and Cloud Sync. Free to try until Dec 31.'),
         },
         {
             id: 'add',
@@ -1449,10 +1470,10 @@ function buildTourSteps() {
             id: 'lock',
             target: () => banner,
             placement: 'bottom',
-            title: accessInfo.promoActive && !accessInfo.signedIn ? 'Start your free trial' : 'Pro trial ended',
-            body: accessInfo.promoActive && !accessInfo.signedIn
-                ? 'Create a free account to unlock the Job Tracker, Form Filler, and Cloud Sync until Oct 31.'
-                : 'Your tracker is now read-only. Upgrade to Pro to keep adding applications and dragging cards.',
+            title: accessInfo.signedIn ? 'Pro trial ended' : 'Start your free trial',
+            body: accessInfo.signedIn
+                ? 'Your tracker is now read-only. Start a 7-day free trial — $4/month (about $1/week) or $47/year — to keep adding applications and dragging cards.'
+                : 'Create an account to unlock the Job Tracker, Form Filler, and Cloud Sync. Free to try until Dec 31.',
         });
     }
     return steps;

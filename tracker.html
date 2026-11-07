@@ -765,6 +765,14 @@
       }
     }
 
+    html.no-motion *,
+    html.no-motion *::before,
+    html.no-motion *::after {
+      animation: none !important;
+      transition: none !important;
+      scroll-behavior: auto !important;
+    }
+
     @media (max-width: 720px) {
       header.app-header { flex-wrap: wrap; }
       .brand h1 span { display: none; }
@@ -816,7 +824,7 @@
   <div class="lock-banner" id="lockBanner">
     <div class="lock-copy">
       <p class="lock-title" id="lockTitle">Sign in to use the Job Tracker</p>
-      <p class="lock-text" id="lockText">Create a free account to capture every job you apply to. Everything is free until Dec 31.</p>
+      <p class="lock-text" id="lockText">Create an account to capture every job you apply to. Free to try until Dec 31.</p>
       <ul class="lock-list">
         <li>Job Tracker</li>
         <li>Form Filler</li>
@@ -824,7 +832,7 @@
       </ul>
     </div>
     <div class="lock-actions">
-      <button class="btn btn-primary" id="upgradeBtn">Create free account</button>
+      <button class="btn btn-primary" id="upgradeBtn">Create account</button>
       <button class="btn" id="dismissLockBtn">Not now</button>
     </div>
   </div>

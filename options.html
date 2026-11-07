@@ -2018,6 +2018,14 @@
       }
     }
 
+    html.no-motion *,
+    html.no-motion *::before,
+    html.no-motion *::after {
+      animation: none !important;
+      transition: none !important;
+      scroll-behavior: auto !important;
+    }
+
     /* ============================
        Resume form editor
        ============================ */
@@ -2286,9 +2294,9 @@
       <div id="accountCard" class="account-card" style="display: none;">
         <div id="accountSignedOut" class="account-signed-out">
           <div class="account-offer-head">
-            <span class="account-offer-badge" id="accountOfferBadge">Free period</span>
-            <p class="account-offer-title" id="accountOfferTitle">Everything free until Dec 31</p>
-            <p class="account-offer-sub" id="accountOfferSub">Create a free account — no card required.</p>
+            <span class="account-offer-badge" id="accountOfferBadge">Free to try</span>
+            <p class="account-offer-title" id="accountOfferTitle">Free to try until Dec 31</p>
+            <p class="account-offer-sub" id="accountOfferSub">Create an account — no card required. Then $4/month (about $1/week) or $47/year, cancel anytime.</p>
           </div>
           <ul class="plan-feature-list" id="accountFeatureList">
             <li><span class="pfl-check" aria-hidden="true">&#10003;</span><span class="pfl-text"><strong>Resume engine</strong> — tailored PDFs, no API key</span></li>
@@ -2296,7 +2304,7 @@
             <li><span class="pfl-check" aria-hidden="true">&#10003;</span><span class="pfl-text"><strong>Job Tracker</strong> — pipeline board + analytics</span></li>
           </ul>
           <div class="account-cta-row">
-            <button type="button" id="cloudCreateAccountBtn" class="secondary-action-btn account-cta">Create free account</button>
+            <button type="button" id="cloudCreateAccountBtn" class="secondary-action-btn account-cta">Create account</button>
             <button type="button" id="cloudSeePlansBtn" class="accent-btn account-cta">See Pro plans</button>
           </div>
           <p class="account-footnote">Already have an account? <button type="button" id="cloudSignInLink" class="link-btn">Sign in</button></p>
@@ -2324,7 +2332,7 @@
           <div class="cloud-pricing-panel-header">
             <div>
               <h3>Choose your plan</h3>
-              <p>All features are free until Dec 31. After that, a Pro plan keeps the resume engine, cover letters, and Job Tracker unlocked.</p>
+              <p>Free to try until Dec 31. Then $4/month (about $1/week) or $47/year — monthly and yearly billing both start with a 7-day free trial. Subscribe before Dec 31 and your trial runs to Jan 7.</p>
             </div>
             <button type="button" id="cloudClosePricingBtn" class="ghost-btn">Close</button>
           </div>
@@ -2332,6 +2340,22 @@
           <div id="cloudPricingTable" class="cloud-pricing-table"></div>
         </div>
       </div>
+
+      <details class="cloud-sync-details" id="interfaceDetails">
+        <summary>Interface <span id="animationsPill" class="cloud-status-pill">Animations on</span></summary>
+        <div class="app-profile-body">
+          <small class="resume-help">Turn this off for instant generation: no scramble text, glow, or hover motion. The Resume health check keeps its progress animation because it waits on a remote model.</small>
+          <div class="tracker-toggle-row">
+            <div class="tracker-toggle-text">
+              <p>Animations and glow effects</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="animationsToggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </details>
 
       <details class="cloud-sync-details" id="skillMatchingDetails">
         <summary>Skills on generated resumes <span class="cloud-status-pill">On by default</span></summary>
@@ -2446,7 +2470,7 @@
       <p class="tour-step-label" id="tourStepLabel"></p>
       <h3 id="tourTitle"></h3>
       <p class="tour-body" id="tourBody"></p>
-      <p class="tour-hint" id="tourHint">Create a free account to continue &mdash; or click Next anyway.</p>
+      <p class="tour-hint" id="tourHint">Create an account to continue &mdash; or click Next anyway.</p>
       <div class="tour-actions">
         <button type="button" id="tourSkipBtn" class="ghost-btn">Skip tour</button>
         <div class="tour-actions-right">
