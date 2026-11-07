@@ -7,16 +7,16 @@
        Design Tokens — Glass
        ============================ */
     :root {
-      --bg: #050506;
+      --bg: transparent;
 
-      --glass-fill: rgba(255, 255, 255, 0.055);
-      --glass-fill-strong: rgba(255, 255, 255, 0.09);
-      --glass-border: rgba(255, 255, 255, 0.14);
-      --glass-highlight: rgba(255, 255, 255, 0.35);
+      --glass-fill: rgba(26, 26, 31, 0.88);
+      --glass-fill-strong: rgba(38, 38, 46, 0.92);
+      --glass-border: rgba(255, 255, 255, 0.20);
+      --glass-highlight: rgba(255, 255, 255, 0.42);
 
       --text: #ffffff;
-      --text-dim: rgba(255, 255, 255, 0.52);
-      --text-faint: rgba(255, 255, 255, 0.32);
+      --text-dim: rgba(255, 255, 255, 0.86);
+      --text-faint: rgba(255, 255, 255, 0.72);
 
       --orange: #f4933b;
       --orange-strong: #ff7a1a;
@@ -62,7 +62,7 @@
     html, body {
       margin: 0;
       padding: 0;
-      background: var(--bg);
+      background: transparent;
     }
 
     html {
@@ -72,13 +72,22 @@
     body {
       width: 380px;
       min-height: 120px;
-      padding: 26px 20px 20px;
+      padding: 18px 14px 14px;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, Helvetica, Arial, sans-serif;
       color: var(--text);
       -webkit-font-smoothing: antialiased;
       overflow-x: hidden;
       position: relative;
-      border-radius: 28px;
+      border-radius: 24px;
+      background:
+        radial-gradient(120% 60% at 50% -12%, rgba(255, 255, 255, 0.09), transparent 55%),
+        radial-gradient(80% 50% at 12% 0%, rgba(244, 147, 59, 0.12), transparent 60%),
+        radial-gradient(80% 50% at 88% 100%, rgba(74, 158, 255, 0.10), transparent 60%),
+        rgba(12, 12, 15, 0.86);
+      backdrop-filter: blur(28px) saturate(160%);
+      -webkit-backdrop-filter: blur(28px) saturate(160%);
+      border: 1px solid var(--glass-border);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 24px 60px rgba(0, 0, 0, 0.55);
     }
 
     button {
@@ -149,8 +158,8 @@
         rgba(var(--glow-c), var(--glow-o)),
         rgba(var(--glow-c), calc(var(--glow-o) * 0.35)) 45%,
         rgba(var(--glow-c), 0) 75%);
-      filter: blur(40px);
-      opacity: 0.75;
+      filter: blur(34px);
+      opacity: 0.32;
       pointer-events: none;
       z-index: 0;
     }
@@ -400,13 +409,16 @@
     }
 
     .account-btn {
-      padding: 6px 10px;
-      font-size: 11.5px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 11px;
+      font-size: 12.5px;
       font-weight: 600;
       border-radius: var(--radius-ctl);
       background: var(--orange-fill);
       border: 1px solid var(--orange-border);
-      color: var(--orange);
+      color: #ffb06b;
       cursor: pointer;
       transition: all var(--ease);
     }
@@ -626,9 +638,9 @@
     }
 
     .rs-label {
-      font-size: 11px;
-      font-weight: 400;
-      color: var(--text-faint);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-dim);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -682,18 +694,18 @@
 
     .toggle-label-desc {
       margin: 2px 0 0;
-      font-size: 12px;
+      font-size: 12.5px;
       color: var(--text-dim);
     }
 
     .toggle-switch {
       position: relative;
-      width: 46px;
-      height: 27px;
+      width: 60px;
+      height: 32px;
       flex-shrink: 0;
-      margin-left: 12px;
+      margin-left: 8px;
       cursor: pointer;
-      display: inline-block;
+      display: inline-flex;
     }
 
     .toggle-switch input {
@@ -704,36 +716,55 @@
     }
 
     .toggle-slider {
-      position: absolute;
-      inset: 0;
-      background: var(--glass-fill);
+      position: relative;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      background: rgba(255, 255, 255, 0.08);
       border: 1px solid var(--glass-border);
       border-radius: 999px;
-      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35), inset 0 1px 0 var(--glass-highlight);
       transition: all var(--ease);
     }
 
     .toggle-slider::before {
       content: "";
       position: absolute;
-      top: 2px;
-      left: 2px;
-      width: 21px;
-      height: 21px;
+      top: 3px;
+      left: 3px;
+      width: 24px;
+      height: 24px;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.7);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+      background: linear-gradient(180deg, #fff, #e8e8ea);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+      transition: all var(--ease);
+    }
+
+    .toggle-slider .toggle-state {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+      margin-left: auto;
       transition: all var(--ease);
     }
 
     .toggle-switch input:checked + .toggle-slider {
-      background: var(--orange-fill-strong);
+      background: linear-gradient(160deg, rgba(255, 150, 60, 0.45), rgba(244, 110, 30, 0.28));
       border-color: var(--orange-border);
+      box-shadow: inset 0 1px 0 rgba(255, 210, 160, 0.45), 0 0 18px rgba(244, 147, 59, 0.28);
     }
 
     .toggle-switch input:checked + .toggle-slider::before {
-      transform: translateX(19px);
+      transform: translateX(28px);
       background: #fff;
+    }
+
+    .toggle-switch input:checked + .toggle-slider .toggle-state {
+      color: #fff;
+      margin-left: 0;
+      margin-right: auto;
     }
 
     /* ============================
@@ -907,7 +938,7 @@
       min-width: 0;
       min-height: var(--row-h);
       padding: var(--space-3);
-      font-size: 13px;
+      font-size: 13.5px;
       gap: var(--space-2);
     }
 
@@ -928,34 +959,21 @@
     }
 
     .list-row-pair .tracker-new-badge {
-      padding: 2px 7px;
-      font-size: 8.5px;
-    }
-
-    /* "Quick Download" cannot fit next to the NEW badge at full size, so it shrinks
-       only while the badge is on screen and snaps back the moment it is dismissed. */
-    #quickDownloadBtn.has-badge {
-      gap: 4px;
-    }
-
-    #quickDownloadBtn.has-badge .list-row-left {
-      gap: 6px;
-    }
-
-    #quickDownloadBtn.has-badge .row-icon {
-      width: 15px;
-      height: 15px;
-    }
-
-    #quickDownloadBtn.has-badge .list-row-label {
+      padding: 3px 8px;
       font-size: 10px;
     }
 
+    /* Premium fix: badge floats top-right, label never shrinks */
+    #quickDownloadBtn { position: relative; }
+    #quickDownloadBtn.has-badge .list-row-label { font-size: 13px; }
     #quickDownloadNewBadge {
+      position: absolute;
+      top: 5px;
+      right: 6px;
       margin-left: 0;
-      padding: 1px 5px;
-      font-size: 7.5px;
-      letter-spacing: 0;
+      padding: 2px 6px;
+      font-size: 9px;
+      letter-spacing: 0.04em;
     }
 
     .list-row-left {
@@ -985,8 +1003,8 @@
       border-radius: 999px;
       background: var(--orange-fill-strong);
       border: 1px solid var(--orange-border);
-      color: var(--orange);
-      font-size: 9.5px;
+      color: #ffb06b;
+      font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.5px;
       text-transform: uppercase;
@@ -1045,8 +1063,12 @@
     }
 
     .setup-skip {
-      font-size: 11.5px;
-      color: var(--text-faint);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-dim);
       cursor: pointer;
       transition: color var(--ease);
     }
@@ -1077,21 +1099,32 @@
 
     .setup-step-desc {
       margin: 1px 0 0;
-      font-size: 11px;
+      font-size: 12.5px;
       color: var(--text-dim);
     }
 
     .setup-goto {
       flex-shrink: 0;
-      padding: 6px 12px;
-      font-size: 12px;
-      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 9px 13px;
+      min-height: 38px;
+      font-size: 13px;
+      font-weight: 600;
       border-radius: var(--radius-ctl);
       cursor: pointer;
       background: var(--orange-fill);
       border: 1px solid var(--orange-border);
-      color: var(--orange);
+      color: #ffb06b;
       transition: all var(--ease);
+    }
+
+    .setup-goto svg {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
     }
 
     .setup-goto:hover {
@@ -1189,9 +1222,9 @@
 
     .setup-plan-note {
       margin: 10px 0 0;
-      font-size: 11.5px;
-      line-height: 1.45;
-      color: var(--text-faint);
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--text-dim);
     }
 
     .plan-feature-list {
@@ -1363,10 +1396,15 @@
     }
 
     .cloud-primary-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
       background: linear-gradient(160deg, rgba(255, 150, 60, 0.32), rgba(244, 110, 30, 0.18));
       color: var(--text);
       border: 1px solid var(--orange-border);
       padding: 12px 16px;
+      min-height: 44px;
       border-radius: 13px;
       font-size: 13.5px;
       font-weight: 600;
@@ -1375,6 +1413,8 @@
       transition: all var(--ease);
       box-shadow: inset 0 1px 0 rgba(255, 210, 160, 0.4), 0 6px 18px rgba(0, 0, 0, 0.35);
     }
+
+    .cloud-primary-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
 
     .cloud-primary-btn:hover {
       transform: translateY(-1px);
@@ -1385,17 +1425,24 @@
     }
 
     .cloud-secondary-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
       background: var(--glass-fill);
-      color: var(--text-dim);
+      color: var(--text);
       border: 1px solid var(--glass-border);
       padding: 11px 16px;
+      min-height: 44px;
       border-radius: 13px;
       font-size: 13px;
-      font-weight: 500;
+      font-weight: 600;
       cursor: pointer;
       width: 100%;
       transition: all var(--ease);
     }
+
+    .cloud-secondary-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
 
     .cloud-secondary-btn:hover {
       background: var(--glass-fill-strong);
@@ -1458,7 +1505,7 @@
     }
 
     .mode-lock {
-      font-size: 9px;
+      font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.06em;
       text-transform: uppercase;
@@ -1471,11 +1518,11 @@
     .offline-notice {
       display: none;
       margin: 10px 0 0;
-      padding: 9px 11px;
+      padding: 10px 12px;
       border-radius: 12px;
-      border: 1px dashed rgba(139, 92, 246, 0.45);
-      background: rgba(139, 92, 246, 0.10);
-      font-size: 11px;
+      border: 1px dashed rgba(139, 92, 246, 0.55);
+      background: rgba(139, 92, 246, 0.14);
+      font-size: 12.5px;
       line-height: 1.45;
       color: rgba(233, 222, 255, 0.82);
     }
@@ -1485,8 +1532,8 @@
     .offline-report {
       display: none;
       margin-top: 8px;
-      font-size: 10.5px;
-      line-height: 1.4;
+      font-size: 12px;
+      line-height: 1.45;
       color: var(--text-dim);
       text-align: center;
     }
@@ -1495,22 +1542,22 @@
 
     .offline-warning {
       margin: 8px 0 0;
-      font-size: 10.5px;
-      line-height: 1.4;
-      color: rgba(255, 196, 120, 0.82);
+      font-size: 12px;
+      line-height: 1.45;
+      color: rgba(255, 196, 120, 0.95);
     }
 
     .offline-letter-note {
       margin: 8px 0 0;
-      font-size: 10.5px;
-      line-height: 1.45;
+      font-size: 12px;
+      line-height: 1.5;
       text-align: center;
-      color: rgba(255, 196, 120, 0.9);
+      color: rgba(255, 196, 120, 0.95);
     }
 
     .offline-letter-link {
       color: #cbaaff;
-      font-size: 10.5px;
+      font-size: 12px;
       text-decoration: underline;
       text-underline-offset: 2px;
       cursor: pointer;
@@ -1569,12 +1616,12 @@
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      padding: 7px 10px;
+      padding: 9px 11px;
       margin-bottom: 10px;
-      border-radius: 10px;
+      border-radius: 12px;
       border: 1px solid var(--orange-border);
       background: var(--orange-fill);
-      font-size: 11px;
+      font-size: 12.5px;
       color: #ffd3aa;
     }
 
@@ -1717,7 +1764,7 @@
   <div class="glow-line" aria-hidden="true"></div>
   <header class="app-header">
     <div class="header-side header-left">
-      <button id="accountBtn" class="account-btn" type="button" style="display: none;">Sign in</button>
+      <button id="accountBtn" class="account-btn" type="button" style="display: none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span>Sign in</span></button>
     </div>
     <div class="header-brand">
       <button class="logo-mark" id="logoLink" type="button" title="pocket-resume.xyz" aria-label="Visit pocket-resume.xyz">
@@ -1727,15 +1774,15 @@
       <p class="tagline" id="websiteLink" role="link" tabindex="0" title="pocket-resume.xyz">One Click. One Tailored Resume.</p>
     </div>
     <div class="header-side header-right">
-      <button id="errorInfoBtn" class="error-info-btn" type="button" aria-label="Show error details">?</button>
+      <button id="errorInfoBtn" class="error-info-btn" type="button" aria-label="Show error details"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
     </div>
   </header>
 
   <div id="accessReminder" class="access-reminder" style="display: none;">
     <span id="accessReminderText">Free until Dec 31 — then $4/month.</span>
     <div class="access-reminder-actions">
-      <button type="button" id="reminderPlansBtn">See plans</button>
-      <button type="button" id="reminderDismissBtn" aria-label="Dismiss">&#215;</button>
+      <button type="button" id="reminderPlansBtn"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span>See plans</span></button>
+      <button type="button" id="reminderDismissBtn" aria-label="Dismiss"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     </div>
   </div>
 
@@ -1745,8 +1792,8 @@
     </div>
     <p class="setup-done-text">Your resume engine runs in this browser, but the account keeps it unlocked and synced. Free to try until Dec 31 — then $4/month (about $1/week) or $47/year.</p>
     <div style="display: grid; gap: 8px;">
-      <button type="button" id="popupSignUpBtn" class="setup-goto setup-goto-wide">Create account</button>
-      <button type="button" id="popupSignInBtn" class="setup-goto setup-goto-wide ghost">Sign in</button>
+      <button type="button" id="popupSignUpBtn" class="setup-goto setup-goto-wide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg><span>Create account</span></button>
+      <button type="button" id="popupSignInBtn" class="setup-goto setup-goto-wide ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><path d="M15 12H3"/></svg><span>Sign in</span></button>
     </div>
   </div>
 
@@ -1755,7 +1802,7 @@
       <p class="setup-title">Confirm your resume</p>
     </div>
     <p class="setup-done-text">We rebuilt your resume from the text you pasted. Check the parsed fields once, then generation unlocks.</p>
-    <button type="button" id="reviewOpenSettingsBtn" class="setup-goto setup-goto-wide">Review in Settings</button>
+    <button type="button" id="reviewOpenSettingsBtn" class="setup-goto setup-goto-wide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Review in Settings</span></button>
   </div>
 
   <div id="planLockCard" class="setup-card glass" style="display: none;">
@@ -1764,15 +1811,15 @@
     </div>
     <p class="setup-done-text">The free period ended Dec 31. A Pro plan is $4/month (about $1/week) or $47/year, cancels anytime, and keeps the resume engine, cover letters, and Job Tracker unlocked. Your resume, tracker data, and JSON export stay available.</p>
     <div style="display: grid; gap: 8px;">
-      <button type="button" id="planUnlockBtn" class="setup-goto setup-goto-wide">Start free trial</button>
-      <button type="button" id="planExportBtn" class="setup-goto setup-goto-wide ghost">Export my resume JSON</button>
+      <button type="button" id="planUnlockBtn" class="setup-goto setup-goto-wide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span>Start free trial</span></button>
+      <button type="button" id="planExportBtn" class="setup-goto setup-goto-wide ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg><span>Export my resume JSON</span></button>
     </div>
   </div>
 
   <div id="setupCard" class="setup-card glass" style="display: none;">
     <div class="setup-head">
       <p class="setup-title" id="setupTitle">Set up PocketResume</p>
-      <button type="button" id="setupSkipBtn" class="setup-skip">Skip setup</button>
+      <button type="button" id="setupSkipBtn" class="setup-skip"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span>Skip setup</span></button>
     </div>
     <div id="setupSteps">
       <div class="setup-step" id="setupStepAccount">
@@ -1781,7 +1828,7 @@
           <p class="setup-step-label">Create your account</p>
           <p class="setup-step-desc">Free until Dec 31, then $4/month</p>
         </div>
-        <button type="button" class="setup-goto" id="setupAccountBtn">Do it</button>
+        <button type="button" class="setup-goto" id="setupAccountBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg><span>Do it</span></button>
       </div>
       <div class="setup-step" id="setupStepResume">
         <span class="setup-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
@@ -1789,7 +1836,7 @@
           <p class="setup-step-label">Build your resume</p>
           <p class="setup-step-desc">Paste once, correct anything</p>
         </div>
-        <button type="button" class="setup-goto" data-tour-step="2">Do it</button>
+        <button type="button" class="setup-goto" data-tour-step="2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/><path d="M18.4 2.6a2 2 0 0 1 2.8 2.8L13.6 13 10 14l1-3.6z"/></svg><span>Do it</span></button>
       </div>
       <div class="setup-step" id="setupStepCover">
         <span class="setup-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
@@ -1797,7 +1844,7 @@
           <p class="setup-step-label">Add a cover letter</p>
           <p class="setup-step-desc">One template, every job</p>
         </div>
-        <button type="button" class="setup-goto" data-tour-step="4">Do it</button>
+        <button type="button" class="setup-goto" data-tour-step="4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg><span>Do it</span></button>
       </div>
       <div class="setup-step" id="setupStepSave">
         <span class="setup-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
@@ -1805,12 +1852,12 @@
           <p class="setup-step-label">Save settings</p>
           <p class="setup-step-desc">Then generate on any job page</p>
         </div>
-        <button type="button" class="setup-goto" data-tour-step="5">Do it</button>
+        <button type="button" class="setup-goto" data-tour-step="5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg><span>Do it</span></button>
       </div>
     </div>
     <div id="setupDoneState" style="display: none;">
       <p class="setup-done-text" id="setupDoneText">You're all set. Visit a job posting and click <strong>Generate Resume</strong>.</p>
-      <button type="button" id="setupDoneBtn" class="setup-goto setup-goto-wide">Let's go</button>
+      <button type="button" id="setupDoneBtn" class="setup-goto setup-goto-wide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.6L13.5 10.5L19.4 12L13.5 13.5L12 19.4L10.5 13.5L4.6 12L10.5 10.5Z"/></svg><span>Let's go</span></button>
     </div>
     <p class="setup-plan-note" id="setupPlanNote">Try everything free until Dec 31 — then $4/month (about $1/week) or $47/year, cancel anytime.</p>
   </div>
@@ -1819,7 +1866,7 @@
     <div class="setup-head">
       <p class="setup-title">Finish setup to start generating</p>
     </div>
-    <button type="button" id="setupResumeBtn" class="setup-goto setup-goto-wide">Resume setup</button>
+    <button type="button" id="setupResumeBtn" class="setup-goto setup-goto-wide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg><span>Resume setup</span></button>
   </div>
 
   <div class="control-group">
@@ -1931,9 +1978,9 @@
       <h2>Something went wrong</h2>
       <p id="errorMessageText" class="error-message"></p>
       <div class="onboarding-actions">
-        <button id="errorOpenSettingsBtn" class="cloud-secondary-btn" style="display: none;">Open Settings</button>
-        <button id="errorCopyBtn" class="cloud-secondary-btn">Copy Details</button>
-        <button id="errorCloseBtn" class="cloud-primary-btn">Got it</button>
+        <button id="errorOpenSettingsBtn" class="cloud-secondary-btn" style="display: none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Open Settings</span></button>
+        <button id="errorCopyBtn" class="cloud-secondary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>Copy Details</span></button>
+        <button id="errorCloseBtn" class="cloud-primary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Got it</span></button>
       </div>
     </div>
   </div>
@@ -1948,8 +1995,8 @@
       <h2>Thanks for using PocketResume!</h2>
       <p>I'm a solo developer, and every review helps. A rating and a quick comment on the Chrome Web Store would mean a lot and keeps this extension free.</p>
       <div class="onboarding-actions">
-        <button id="ratingActionBtn" class="cloud-primary-btn">Rate &amp; Review on Web Store</button>
-        <button id="ratingCloseBtn" class="cloud-secondary-btn">Close</button>
+        <button id="ratingActionBtn" class="cloud-primary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span>Rate &amp; Review on Web Store</span></button>
+        <button id="ratingCloseBtn" class="cloud-secondary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span>Close</span></button>
       </div>
     </div>
   </div>
@@ -1964,8 +2011,8 @@
       <h2>Help friends land their next job</h2>
       <p>Share this app with your friends who are job hunting too. It's free and one click to tailor a resume.</p>
       <div class="onboarding-actions">
-        <button id="shareActionBtn" class="cloud-primary-btn">Share with friends</button>
-        <button id="shareCloseBtn" class="cloud-secondary-btn">Close</button>
+        <button id="shareActionBtn" class="cloud-primary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/></svg><span>Share with friends</span></button>
+        <button id="shareCloseBtn" class="cloud-secondary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span>Close</span></button>
       </div>
     </div>
   </div>
@@ -1977,19 +2024,20 @@
       <div class="onboarding-icon" aria-hidden="true">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m5.6 5.6 2.8 2.8"/><path d="m15.6 15.6 2.8 2.8"/><path d="m18.4 5.6-2.8 2.8"/><path d="m8.4 15.6-2.8 2.8"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> — Plans &amp; instant mode</h2>
+      <h2>New in <span id="whatsNewVersion"></span> — A cleaner, brighter app</h2>
       <p class="error-message">
-        PocketResume stays free to try until Dec 31. After that, generation, the Job Tracker, and cloud sync need a Pro plan.
+        The whole interface got a premium pass: no more flat black backdrop, icon + label on every button, and text you can actually read.
       </p>
       <ul class="whatsnew-collected">
-        <li><strong>Simple plans</strong> — $4/month (about $1/week) or $47/year, both with a 7-day free trial. Subscribe before Dec 31 and your trial runs to Jan 7.</li>
-        <li><strong>Cover letter button</strong> — its own pencil-on-paper icon and progress animation, separate from Generate Resume.</li>
-        <li><strong>Animations toggle</strong> — Settings → Interface. Turn it off for instant generation and no glow effects.</li>
-        <li><strong>Working sign-in</strong> — the popup account buttons now open the full sign-in window in Settings.</li>
+        <li><strong>Frosted glass, no black screen</strong> — the popup floats over a soft ambient glow, and Settings plus the Job Tracker share the same warm wash.</li>
+        <li><strong>Icon + label everywhere</strong> — Create account, Save Settings, Add job, Skip, Next, and the rest now carry a matching icon.</li>
+        <li><strong>New toggle switches</strong> — bigger, orange when on, with an ON/OFF label inside the track.</li>
+        <li><strong>Readable text</strong> — dimmed copy is 86% white instead of 52%, and nothing renders below 11px.</li>
+        <li><strong>Fixed toggle labels</strong> — switches that are on no longer claim to be off.</li>
       </ul>
       <div class="onboarding-actions">
-        <button id="whatsNewPlansBtn" class="cloud-primary-btn">Open Settings</button>
-        <button id="whatsNewGotBtn" class="cloud-secondary-btn">Got it</button>
+        <button id="whatsNewPlansBtn" class="cloud-primary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Open Settings</span></button>
+        <button id="whatsNewGotBtn" class="cloud-secondary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Got it</span></button>
       </div>
     </div>
   </div>

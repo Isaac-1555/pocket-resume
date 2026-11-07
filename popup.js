@@ -564,26 +564,28 @@ document.addEventListener('DOMContentLoaded', () => {
       allowed: !!access.allowed,
       error: !!access.error,
     });
+    const ACCOUNT_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>';
+    const setAccountLabel = (label) => { accountBtn.innerHTML = ACCOUNT_ICON + '<span>' + label + '</span>'; };
     if (access.allowed) {
-      accountBtn.style.display = 'inline-block';
+      accountBtn.style.display = 'inline-flex';
       accountBtn.classList.add('pro');
       if (access.isPro && access.trialDaysLeft > 0) {
-        accountBtn.textContent = `Trial · ${access.trialDaysLeft}d`;
+        setAccountLabel(`Trial · ${access.trialDaysLeft}d`);
       } else if (access.isPro) {
-        accountBtn.textContent = access.planPeriod === 'year' ? 'Pro · Yearly' : 'Pro';
+        setAccountLabel(access.planPeriod === 'year' ? 'Pro · Yearly' : 'Pro');
       } else {
-        accountBtn.textContent = 'Free until Dec 31';
+        setAccountLabel('Free until Dec 31');
       }
       accountBtn.dataset.target = access.isPro ? 'options' : 'pricing';
       return;
     }
-    accountBtn.style.display = 'inline-block';
+    accountBtn.style.display = 'inline-flex';
     accountBtn.classList.remove('pro');
     if (access.signedIn) {
-      accountBtn.textContent = 'Start free trial';
+      setAccountLabel('Start free trial');
       accountBtn.dataset.target = 'pricing';
     } else {
-      accountBtn.textContent = 'Sign in';
+      setAccountLabel('Sign in');
       accountBtn.dataset.target = 'auth';
     }
   }
@@ -967,8 +969,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.3.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.3.0';
+  const ANNOUNCEMENT_VERSION = '10.4.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.4.0';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
@@ -1372,9 +1374,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = lastErrorRaw || lastError;
         try {
           await navigator.clipboard.writeText(text);
-          const original = errorCopyBtn.textContent;
-          errorCopyBtn.textContent = 'Copied!';
-          setTimeout(() => { errorCopyBtn.textContent = original; }, 1500);
+          const COPY_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+          const CHECK_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
+          const original = errorCopyBtn.innerHTML;
+          errorCopyBtn.innerHTML = CHECK_ICON + '<span>Copied!</span>';
+          setTimeout(() => { errorCopyBtn.innerHTML = original; }, 1500);
         } catch (e) {
           console.error('Copy failed:', e);
         }
@@ -1898,9 +1902,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     try {
       await navigator.clipboard.writeText(shareData.text + ' ' + WEBSITE_URL);
-      const original = shareActionBtn.textContent;
-      shareActionBtn.textContent = 'Link Copied!';
-      setTimeout(() => { shareActionBtn.textContent = original; }, 2000);
+      const original = shareActionBtn.innerHTML;
+      const CHECK_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
+      shareActionBtn.innerHTML = CHECK_SVG + '<span>Link Copied!</span>';
+      setTimeout(() => { shareActionBtn.innerHTML = original; }, 2000);
     } catch (clipError) {
       chrome.tabs.create({ url: WEBSITE_URL });
     }
