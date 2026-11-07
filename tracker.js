@@ -263,7 +263,7 @@ function renderBoard() {
       ? `<h2>Locked</h2><p>Your tracker is read-only. ${accessInfo.signedIn ? 'Start a 7-day free trial to keep editing.' : 'Create an account, free to try until Dec 31.'}</p>`
       : `<h2>No applications yet</h2>
       <p>Generate a resume from a job posting to auto-capture it here, or add one manually.</p>
-      <button class="btn btn-primary" id="emptyAddBtn">+ Add your first job</button>`;
+      <button class="btn btn-primary" id="emptyAddBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Add your first job</span></button>`;
     board.appendChild(empty);
     const emptyAddBtn = empty.querySelector('#emptyAddBtn');
     if (emptyAddBtn) {
@@ -494,7 +494,7 @@ function openModal(app) {
       <label>Interview rounds</label>
       <p class="field-hint">Completed rounds drive the funnel. Use Board's Round control for a quick update.</p>
       <div id="m_interviews"></div>
-      <button type="button" class="btn btn-ghost add-round-btn" id="m_addRound" ${isReadonly ? 'disabled' : ''}>+ Add round</button>
+      <button type="button" class="btn btn-ghost add-round-btn" id="m_addRound" ${isReadonly ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Add round</span></button>
     </div>
     <div class="field flags">
       <label>Flags</label>
@@ -533,7 +533,7 @@ function openModal(app) {
   if (app) {
     const delBtn = document.createElement('button');
     delBtn.className = 'btn btn-danger';
-    delBtn.textContent = 'Delete';
+    delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg><span>Delete</span>';
     delBtn.disabled = isReadonly;
     delBtn.addEventListener('click', () => {
       if (!confirm('Delete this application?')) return;
@@ -547,13 +547,14 @@ function openModal(app) {
 
   const cancelBtn = document.createElement('button');
   cancelBtn.className = 'btn btn-ghost';
-  cancelBtn.textContent = 'Cancel';
+  cancelBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span>Cancel</span>';
   cancelBtn.addEventListener('click', closeModal);
   right.appendChild(cancelBtn);
 
   const saveBtn = document.createElement('button');
   saveBtn.className = 'btn btn-primary';
-  saveBtn.textContent = isNew ? 'Add job' : 'Save';
+  saveBtn.innerHTML = (isNew ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Add job</span>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/></svg><span>Save</span>');
+  saveBtn.disabled = isReadonly;
   saveBtn.disabled = isReadonly;
   saveBtn.addEventListener('click', () => saveModal(isNew));
   right.appendChild(saveBtn);
@@ -610,7 +611,7 @@ function populateInterviewEditor(body, app, isReadonly) {
         row.innerHTML = `
             <span class="round-num"></span>
             <input type="date" class="round-date" value="${iv && iv.date ? toDateInput(iv.date) : ''}" ${isReadonly ? 'readonly' : ''} aria-label="Interview round date">
-            <button type="button" class="round-rm" ${isReadonly ? 'disabled' : ''} aria-label="Remove round">&times;</button>
+            <button type="button" class="round-rm" ${isReadonly ? 'disabled' : ''} aria-label="Remove round"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
         `;
         if (!isReadonly) {
             row.querySelector('.round-rm').addEventListener('click', () => {
@@ -734,7 +735,7 @@ function renderGraph() {
       <h2>Application pipeline</h2>
       <p class="sub">Applications &rarr; outcomes &rarr; interview progression</p>
     </div>
-    <button class="btn btn-ghost" id="sankyReset">Reset filters</button>
+    <button class="btn btn-ghost" id="sankyReset"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg><span>Reset filters</span></button>
   `;
   sankeyCard.appendChild(head);
   sankeyCard.appendChild(buildFilterBar());

@@ -70,11 +70,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (animationsPill) animationsPill.textContent = enabled === false ? 'Animations off' : 'Animations on';
   }
 
+  function syncToggleState(toggle) {
+    if (!toggle) return;
+    const slider = toggle.nextElementSibling;
+    if (!slider) return;
+    const state = slider.querySelector('.toggle-state');
+    if (state) state.textContent = toggle.checked ? 'ON' : 'OFF';
+  }
+
   chrome.storage.local.get('animationsEnabled', (stored) => applyMotionPreference(stored.animationsEnabled !== false));
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.animationsEnabled) {
       applyMotionPreference(changes.animationsEnabled.newValue !== false);
-      if (animationsToggle) animationsToggle.checked = changes.animationsEnabled.newValue !== false;
+      if (animationsToggle) {
+        animationsToggle.checked = changes.animationsEnabled.newValue !== false;
+        syncToggleState(animationsToggle);
+      }
     }
   });
 
@@ -443,9 +454,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       : '';
     updateCoverLetterFallbackPill();
     renderCoverLetterPreview();
-    if (skillLexiconAutoToggle) skillLexiconAutoToggle.checked = data.skillLexiconAutoUpdate !== false;
-    if (allowUnverifiedSkillsToggle) allowUnverifiedSkillsToggle.checked = data.allowUnverifiedSkills !== false;
-    if (animationsToggle) animationsToggle.checked = data.animationsEnabled !== false;
+    if (skillLexiconAutoToggle) {
+      skillLexiconAutoToggle.checked = data.skillLexiconAutoUpdate !== false;
+      syncToggleState(skillLexiconAutoToggle);
+    }
+    if (allowUnverifiedSkillsToggle) {
+      allowUnverifiedSkillsToggle.checked = data.allowUnverifiedSkills !== false;
+      syncToggleState(allowUnverifiedSkillsToggle);
+    }
+    if (animationsToggle) {
+      animationsToggle.checked = data.animationsEnabled !== false;
+      syncToggleState(animationsToggle);
+    }
     refreshSkillLexiconStatus();
   }
 
@@ -561,19 +581,25 @@ My background:
   });
 
   if (skillLexiconAutoToggle) {
+    syncToggleState(skillLexiconAutoToggle);
     skillLexiconAutoToggle.addEventListener('change', () => {
+      syncToggleState(skillLexiconAutoToggle);
       chrome.storage.local.set({ skillLexiconAutoUpdate: skillLexiconAutoToggle.checked });
     });
   }
 
   if (allowUnverifiedSkillsToggle) {
+    syncToggleState(allowUnverifiedSkillsToggle);
     allowUnverifiedSkillsToggle.addEventListener('change', () => {
+      syncToggleState(allowUnverifiedSkillsToggle);
       chrome.storage.local.set({ allowUnverifiedSkills: allowUnverifiedSkillsToggle.checked });
     });
   }
 
   if (animationsToggle) {
+    syncToggleState(animationsToggle);
     animationsToggle.addEventListener('change', () => {
+      syncToggleState(animationsToggle);
       chrome.storage.local.set({ animationsEnabled: animationsToggle.checked });
       applyMotionPreference(animationsToggle.checked);
     });
@@ -591,8 +617,9 @@ My background:
         return;
       }
       skillLexiconUpdateBtn.disabled = true;
-      const original = skillLexiconUpdateBtn.textContent;
-      skillLexiconUpdateBtn.textContent = 'Updating…';
+      const original = skillLexiconUpdateBtn.innerHTML;
+      const UPDATE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg>';
+      skillLexiconUpdateBtn.innerHTML = UPDATE_ICON + '<span>Updating…</span>';
       try {
         const response = await sendRuntimeMessage({ type: 'UPDATE_SKILL_LEXICON' });
         if (response && response.status === 'success') {
@@ -609,7 +636,7 @@ My background:
       } finally {
         if (skillLexiconUpdateBtn) {
           skillLexiconUpdateBtn.disabled = false;
-          skillLexiconUpdateBtn.textContent = original;
+          skillLexiconUpdateBtn.innerHTML = original;
         }
       }
     });
@@ -625,7 +652,7 @@ My background:
         <input type="text" maxlength="200" placeholder="Question" value="${escapeAttr(row.question)}" data-qa-field="question">
         <textarea rows="2" placeholder="Answer" data-qa-field="answer">${escapeHtml(row.answer)}</textarea>
         <div class="custom-qa-row-actions">
-          <button type="button" class="ghost-btn" data-qa-remove="${index}">Remove</button>
+          <button type="button" class="ghost-btn" data-qa-remove="${index}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg><span>Remove</span></button>
         </div>
       `;
       wrap.querySelectorAll('[data-qa-field]').forEach((el) => {
@@ -1187,7 +1214,7 @@ My background:
         <p class="health-panel-state">Checks the rules recruiters scan for: action-verb openers, measurable impact, tense, contact details, skills, and filler. Off by default — nothing is sent until you enable it.</p>
         <div class="tracker-toggle-row">
           <div class="tracker-toggle-text"><p>Enable online health check</p></div>
-          <label class="toggle-switch"><input type="checkbox" id="healthEnableToggle"><span class="toggle-slider"></span></label>
+          <label class="toggle-switch"><input type="checkbox" id="healthEnableToggle"><span class="toggle-slider"><span class="toggle-state">OFF</span></span></label>
         </div>
         <small class="resume-help">Contact details are redacted before sending. Pollinations runs first, local Ollama is the fallback.</small>
       `;
@@ -1228,7 +1255,7 @@ My background:
     parts.push(`
       <div class="tracker-toggle-row">
         <div class="tracker-toggle-text"><p>Enable online health check</p></div>
-        <label class="toggle-switch"><input type="checkbox" id="healthEnableToggle" checked><span class="toggle-slider"></span></label>
+        <label class="toggle-switch"><input type="checkbox" id="healthEnableToggle" checked><span class="toggle-slider"><span class="toggle-state">ON</span></span></label>
       </div>
     `);
 
@@ -1260,7 +1287,7 @@ My background:
                   </div>
                   <p class="health-problem">${escapeHtml(issue.problem || '')}</p>
                   ${issue.fix ? `<p class="health-fix"><em>Fix:</em> ${escapeHtml(issue.fix)}</p>` : ''}
-                  <button type="button" class="ghost-btn health-fix-btn" data-fix-idx="${idx}">Mark fixed</button>
+                  <button type="button" class="ghost-btn health-fix-btn" data-fix-idx="${idx}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Mark fixed</span></button>
                 </div>
               `;
             }).join('')}
@@ -1271,7 +1298,7 @@ My background:
 
     parts.push(`
       <div class="health-actions">
-        <button type="button" class="secondary-action-btn" id="healthCheckBtn" ${canCheck ? '' : 'disabled'}>${buttonLabel}</button>
+        <button type="button" class="secondary-action-btn" id="healthCheckBtn" ${canCheck ? '' : 'disabled'}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>${buttonLabel}</span></button>
       </div>
       ${blockedByOpenIssues ? '<p class="health-note">Mark the remaining issues fixed before running another check.</p>' : ''}
       ${!resume.jsonContent ? '<p class="health-note">Parse and save this resume first — the check reads the structured profile.</p>' : ''}
@@ -1435,7 +1462,7 @@ My background:
     return points.map((point, pointIndex) => `
       <div class="rf-point">
         <textarea rows="2" data-rf-point="${group}" data-idx="${index}" data-pidx="${pointIndex}" placeholder="What you did and the result">${escapeHtml(point)}</textarea>
-        <button type="button" class="rf-icon-btn" data-rf-delpoint="${group}" data-idx="${index}" data-pidx="${pointIndex}" title="Remove bullet">&#215;</button>
+        <button type="button" class="rf-icon-btn" data-rf-delpoint="${group}" data-idx="${index}" data-pidx="${pointIndex}" title="Remove bullet" aria-label="Remove bullet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>`).join('');
   }
 
@@ -1446,7 +1473,7 @@ My background:
       <div class="rf-entry">
         <div class="rf-entry-head">
           <span>${escapeHtml(entry.title || entry.degree || entry.company || entry.school || `Entry ${index + 1}`)}</span>
-          <button type="button" class="rf-icon-btn" data-rf-del="${group}" data-idx="${index}" title="Remove entry">&#215;</button>
+          <button type="button" class="rf-icon-btn" data-rf-del="${group}" data-idx="${index}" title="Remove entry" aria-label="Remove entry"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
         </div>
         <div class="rf-grid">
           ${config.fields.map(([key, label]) => `
@@ -1456,7 +1483,7 @@ My background:
             </div>`).join('')}
         </div>
         ${entryPoints(entry, group, index)}
-        <button type="button" class="rf-add" data-rf-addpoint="${group}" data-idx="${index}">+ Add bullet</button>
+        <button type="button" class="rf-add" data-rf-addpoint="${group}" data-idx="${index}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Add bullet</span></button>
       </div>`).join('');
     return `
       <div class="rf-card">
@@ -1465,7 +1492,7 @@ My background:
           <span class="resume-help">${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}</span>
         </div>
         ${cards || '<small class="resume-help">Nothing here yet.</small>'}
-        <button type="button" class="rf-add" data-rf-add="${group}">+ Add ${config.addLabel}</button>
+        <button type="button" class="rf-add" data-rf-add="${group}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Add ${config.addLabel}</span></button>
       </div>`;
   }
 
@@ -1505,7 +1532,7 @@ My background:
         </div>
         <input type="text" id="resumeLabelInput" class="resume-label-input"
                placeholder="Label (e.g. Project Manager)" value="${escapeAttr(resume.label)}" maxlength="40">
-        ${resumes.length > 1 ? '<button type="button" class="delete-tab-btn" id="deleteTabBtn">Delete</button>' : ''}
+        ${resumes.length > 1 ? '<button type="button" class="delete-tab-btn" id="deleteTabBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg><span>Delete</span></button>' : ''}
       </div>
     `;
 
@@ -1516,7 +1543,7 @@ My background:
           ${review ? `
             <p class="resume-help" style="margin:6px 0 0" data-rf-review-copy></p>
             <div class="paste-card-actions" style="margin-top:8px">
-              <button type="button" class="success-btn" id="rfConfirmResume">Looks right — confirm</button>
+              <button type="button" class="success-btn" id="rfConfirmResume"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Looks right — confirm</span></button>
             </div>
           ` : ''}
         </div>
@@ -1528,7 +1555,7 @@ My background:
           </div>
           <textarea id="rfPasteInput" placeholder="Paste your resume text here. Headings like EXPERIENCE, SKILLS, EDUCATION help the parser."></textarea>
           <div class="paste-card-actions">
-            <button type="button" class="secondary-action-btn" id="rfParseBtn">Parse resume</button>
+            <button type="button" class="secondary-action-btn" id="rfParseBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.6L13.5 10.5L19.4 12L13.5 13.5L12 19.4L10.5 13.5L4.6 12L10.5 10.5Z"/></svg><span>Parse resume</span></button>
             <small class="resume-help" id="rfParseStatus"></small>
           </div>
         </div>
@@ -1598,9 +1625,9 @@ My background:
               <textarea id="rfJson" class="rf-json" spellcheck="false">${escapeHtml(serializeProfile(draft))}</textarea>
             </div>
             <div class="rf-json-actions">
-              <button type="button" class="ghost-btn" id="rfCopyJsonBtn">Copy JSON</button>
-              <button type="button" class="ghost-btn" id="rfApplyJsonBtn">Apply JSON</button>
-              <button type="button" class="ghost-btn" id="rfRefreshJsonBtn">Refresh preview</button>
+              <button type="button" class="ghost-btn" id="rfCopyJsonBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>Copy JSON</span></button>
+              <button type="button" class="ghost-btn" id="rfApplyJsonBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Apply JSON</span></button>
+              <button type="button" class="ghost-btn" id="rfRefreshJsonBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg><span>Refresh preview</span></button>
             </div>
           </details>
         </div>

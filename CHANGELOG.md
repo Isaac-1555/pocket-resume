@@ -1,5 +1,15 @@
 # Changelog
 
+## [10.4.0] — 2026-11-07
+### Changed
+- **Premium interface pass across the popup, Settings, and Job Tracker.** The solid black backdrop is gone: the popup is now a translucent frosted card over a soft ambient mesh, and Settings and the Job Tracker use the same warm-orange/cool-blue gradient wash instead of a flat `#050506` page.
+- **Every control is icon + label.** Buttons that were text-only (Create account, Sign in, Do it, Let's go, Save Settings, Parse resume, Copy prompt, Mark fixed, Add job, Skip, Next, Reset filters, and the rest) now carry a matching inline SVG icon. Icon-only controls (error details, modal close, remove round) got proper labels and hit targets.
+- **Redesigned toggle switches.** The small grey pill is replaced by a 60×32 switch with an orange gradient when on, a larger knob, and an ON/OFF label inside the track. Applies to Animations, unverified JD keywords, weekly skill update, and the Resume health check.
+- **Text legibility raised everywhere.** Dimmed copy went from 52% to 86% white, faint copy from 32% to 72%, and nothing renders below 11px. Badges, offline notes, plan pills, and the Quick Download "New" badge all got bigger and higher contrast. The Quick Download label no longer shrinks to fit its badge — the badge floats in the corner instead.
+
+### Fixed
+- **Toggle state labels showed the wrong word.** Animations, unverified JD keywords, and weekly auto-update are on by default but their switches read "OFF" until clicked, because the label was hardcoded in the markup. The label now follows the real checkbox state on load, on every change, and when storage changes in another tab.
+
 ## [10.3.0] — 2026-11-07
 ### Added
 - **Pro plans with a free trial.** Monthly billing at $4/month (about $1/week) and yearly billing at $47/year, both with a 7-day trial. Everything stays free to try until Dec 31; subscribing before then extends the trial to Jan 7, 2027. Cloud sync now requires Pro after the free period (existing cloud resumes are kept, not deleted) and free sign-ups no longer imply lasting access.
