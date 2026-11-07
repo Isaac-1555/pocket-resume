@@ -345,9 +345,11 @@
       border: 1px solid var(--glass-border);
       border-radius: var(--radius);
       min-height: 160px;
+      max-height: var(--board-column-max, calc(100vh - 120px));
       display: flex;
       flex-direction: column;
       padding: 10px;
+      overflow: hidden;
       box-shadow: inset 0 1px 0 var(--glass-highlight), inset 0 -1px 0 rgba(0, 0, 0, 0.25), 0 10px 24px rgba(0, 0, 0, 0.3);
       transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
     }
@@ -362,6 +364,9 @@
       align-items: center;
       gap: 8px;
       padding: 2px 4px 10px;
+      flex-shrink: 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      margin-bottom: 2px;
     }
 
     .column-dot {
@@ -393,9 +398,24 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-      min-height: 20px;
       flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+      padding-bottom: 2px;
     }
+
+    .column-cards::-webkit-scrollbar { width: 8px; }
+    .column-cards::-webkit-scrollbar-track { background: transparent; }
+    .column-cards::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+      border: 2px solid transparent;
+      background-clip: content-box;
+    }
+    .column-cards::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.28); background-clip: content-box; }
 
     .card {
       background: rgba(255, 255, 255, 0.07);

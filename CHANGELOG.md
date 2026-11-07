@@ -1,5 +1,19 @@
 # Changelog
 
+## [10.5.0] — 2026-11-07
+### Added
+- **A cover letter per resume.** Every resume tab keeps its own greeting, body, and sign-off, saved with that resume and synced to your account. Generate Cover Letter now uses the selected resume's letter instead of one global template.
+- **Generate letter.** Inside Settings → Cover letter, one click writes a short general letter (~150 words) from the active resume using the same provider chain as the Resume health check — Pollinations first, local Ollama as the fallback. Contact details are redacted; the previous letter is kept if writing fails.
+- **Sticky Job Tracker columns.** Long columns now scroll inside their own card while the column heading and job count stay visible at the top.
+- **Cover letters in cloud sync.** The Convex resume schema now stores each resume's cover letter, so it follows you across devices.
+
+### Changed
+- **Copy prompt returns the body only.** The assistant prompt now asks for 120–160 words, no greeting, date, or sign-off, and keeps `{{company}}` / `{{role}}` for PocketResume to fill in.
+- Cover letter actions live in one place: Generate letter (writes it for you), Copy prompt (for an assistant), and Show sample.
+
+### Fixed
+- **Cover letter no longer rides on one global setting.** Editing one resume's letter never changes another's, and the popup matches the letter to the resume it is generating from.
+
 ## [10.4.0] — 2026-11-07
 ### Changed
 - **Premium interface pass across the popup, Settings, and Job Tracker.** The solid black backdrop is gone: the popup is now a translucent frosted card over a soft ambient mesh, and Settings and the Job Tracker use the same warm-orange/cool-blue gradient wash instead of a flat `#050506` page.

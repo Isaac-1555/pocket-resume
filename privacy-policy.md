@@ -2,7 +2,7 @@
 
 **Last updated:** November 2026
 
-Pocket Resume is a Chrome extension designed to help users create, store, and view resumes and cover letters directly within their browser, using an on-device resume engine. Pocket Resume makes no third-party AI requests.
+Pocket Resume is a Chrome extension designed to help users create, store, and view resumes and cover letters directly within their browser, using an on-device resume engine. Optional features you start — the Resume health check and Generate letter — use a third-party AI provider; nothing is sent unless you click their buttons.
 
 Your privacy is important. This policy explains what data Pocket Resume collects, how it is used, and how it is transmitted.
 
@@ -22,7 +22,14 @@ This data is used solely to generate tailored resumes and cover letters based on
 
 ## Data Transmission
 
-**Generation is local.** Resume and cover letter generation run inside the extension: your saved resume and the job posting text stay in the browser, and the resume is aligned to the posting with deterministic rules. No resume content, job text, or identifiers are sent to any AI provider. The extension does not ask for or store API keys.
+**Resume generation is local.** Resume generation runs inside the extension: your saved resume and the job posting text stay in the browser, and the resume is aligned to the posting with deterministic rules. The extension does not ask for or store API keys.
+
+**Optional AI features.** Two features can send data to an AI provider, and only after you start them:
+
+- **Resume health check** — sends a redacted copy of the selected resume to [Pollinations](https://pollinations.ai); if that fails, it falls back to a local Ollama server at `http://localhost:11434` on your machine.
+- **Generate letter** (Settings → Cover letter) — sends a redacted copy of the selected resume to the same Pollinations endpoint, with the same local Ollama fallback, to write a general cover letter body.
+
+Before sending, name, email, phone, location, and link URLs are replaced with redaction markers. No job-posting text, page content, or browsing history is included, and no identifiers are stored by the extension after the reply is returned.
 
 ### Accounts and Cloud Sync (optional)
 
@@ -45,8 +52,7 @@ To recognise skills in job descriptions, the extension can download a public ski
 
 Pocket Resume stores the following data locally on your device using Chrome's built-in storage APIs:
 
-* Your resume profiles (structured JSON form data)
-* Your universal cover letter template
+* Your resume profiles (structured JSON form data), each with its own cover letter
 * Your preferences (selected resume style, tracker capture toggle)
 * Generated resumes, cover letters, and captured job applications
 

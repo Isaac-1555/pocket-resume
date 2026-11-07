@@ -2329,7 +2329,7 @@
           </div>
           <ul class="plan-feature-list" id="accountFeatureList">
             <li><span class="pfl-check" aria-hidden="true">&#10003;</span><span class="pfl-text"><strong>Resume engine</strong> — tailored PDFs, no API key</span></li>
-            <li><span class="pfl-check" aria-hidden="true">&#10003;</span><span class="pfl-text"><strong>Cover letters</strong> — one template, every job</span></li>
+            <li><span class="pfl-check" aria-hidden="true">&#10003;</span><span class="pfl-text"><strong>Cover letters</strong> — one per resume</span></li>
             <li><span class="pfl-check" aria-hidden="true">&#10003;</span><span class="pfl-text"><strong>Job Tracker</strong> — pipeline board + analytics</span></li>
           </ul>
           <div class="account-cta-row">
@@ -2426,9 +2426,16 @@
       <details class="cloud-sync-details" id="coverLetterDetails">
         <summary>Cover letter <span id="coverLetterFallbackPill" class="cloud-status-pill">Not set</span></summary>
         <div class="app-profile-body">
-          <small class="resume-help">One letter for every job. Keep <code>{{company}}</code>, <code>{{role}}</code>, and <code>{{recipient}}</code> where the job details go — PocketResume fills them in when you generate.</small>
+          <small class="resume-help">One letter per resume. Keep <code>{{company}}</code>, <code>{{role}}</code>, and <code>{{recipient}}</code> where the job details go — PocketResume fills them in when you generate.</small>
+          <small class="resume-help" id="coverLetterResumeNote"></small>
 
-          <p class="app-profile-group-label">Write it with an assistant (optional)</p>
+          <p class="app-profile-group-label">Write it here</p>
+          <div class="app-profile-actions">
+            <button type="button" id="generateCoverLetterBtn" class="secondary-action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.6L13.5 10.5L19.4 12L13.5 13.5L12 19.4L10.5 13.5L4.6 12L10.5 10.5Z"/></svg><span>Generate letter</span></button>
+          </div>
+          <small class="resume-help">Writes a short general letter from this resume. Contact details are redacted. Pollinations runs first, local Ollama is the fallback.</small>
+
+          <p class="app-profile-group-label">Or write it with an assistant (optional)</p>
           <ol class="cover-letter-steps">
             <li>Open ChatGPT, Claude, or any assistant you already use.</li>
             <li>Click <strong>Copy prompt</strong> and paste it in.</li>

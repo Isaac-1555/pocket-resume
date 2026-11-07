@@ -43,6 +43,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const uclBody = document.getElementById('uclBody');
   const uclStatus = document.getElementById('uclStatus');
   const coverLetterFallbackPill = document.getElementById('coverLetterFallbackPill');
+  const coverLetterResumeNote = document.getElementById('coverLetterResumeNote');
+  const generateCoverLetterBtn = document.getElementById('generateCoverLetterBtn');
+  const coverLetterCopyStatus = document.getElementById('coverLetterCopyStatus');
   const skillLexiconUpdateBtn = document.getElementById('skillLexiconUpdateBtn');
   const skillLexiconAutoToggle = document.getElementById('skillLexiconAutoToggle');
   const skillLexiconStatus = document.getElementById('skillLexiconStatus');
@@ -57,7 +60,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   let healthChecking = false;
   let appProfileCustomQa = [];
   let appProfileAutofilling = false;
-  let universalCoverLetter = null;
   let skillLexiconMeta = null;
   let healthError = '';
 
@@ -145,6 +147,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  function normalizeCoverLetter(letter) {
+    if (!letter || typeof letter !== 'object') return null;
+    const body = typeof letter.body === 'string' ? letter.body : '';
+    if (!body.trim()) return null;
+    return {
+      greeting: typeof letter.greeting === 'string' ? letter.greeting : '',
+      body,
+      signOff: typeof letter.signOff === 'string' ? letter.signOff : '',
+      updatedAt: Number(letter.updatedAt) || 0
+    };
+  }
+
   function createResumeEntry(label, content, icon = '') {
     return {
       id: generateId(),
@@ -157,7 +171,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       parseConfirmedAt: 0,
       updatedAt: Date.now(),
       _lastSavedContent: content || '',
-      healthReport: null
+      healthReport: null,
+      coverLetter: null
     };
   }
 
@@ -180,7 +195,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       _lastSavedContent: content,
       healthReport: resume?.healthReport && typeof resume.healthReport === 'object' ? resume.healthReport : null,
       healthEnabledLocal: !!resume?.healthEnabledLocal,
-      healthCooldownUntil: Number(resume?.healthCooldownUntil) || 0
+      healthCooldownUntil: Number(resume?.healthCooldownUntil) || 0,
+      coverLetter: normalizeCoverLetter(resume?.coverLetter)
     };
   }
 
@@ -197,7 +213,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       updatedAt: Number(resume.updatedAt) || 0,
       healthReport: resume.healthReport || null,
       healthEnabledLocal: !!resume.healthEnabledLocal,
-      healthCooldownUntil: Number(resume.healthCooldownUntil) || 0
+      healthCooldownUntil: Number(resume.healthCooldownUntil) || 0,
+      coverLetter: normalizeCoverLetter(resume.coverLetter)
     };
   }
 
@@ -395,7 +412,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     coverLetterFallbackPill.className = hasBody ? 'cloud-status-pill synced' : 'cloud-status-pill';
   }
 
-  function readUniversalCoverLetter() {
+  function readCoverLetterFromForm() {
     const body = uclBody ? uclBody.value.trim() : '';
     if (!body) return null;
     return {
@@ -445,15 +462,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function fillSettings(data) {
-    universalCoverLetter = data.universalCoverLetter || null;
-    if (uclGreeting) uclGreeting.value = universalCoverLetter?.greeting || '';
-    if (uclSignOff) uclSignOff.value = universalCoverLetter?.signOff || '';
-    if (uclBody) uclBody.value = universalCoverLetter?.body || '';
-    if (uclStatus) uclStatus.textContent = universalCoverLetter?.updatedAt
-      ? `Saved ${formatLexiconTimestamp(universalCoverLetter.updatedAt)}.`
-      : '';
-    updateCoverLetterFallbackPill();
-    renderCoverLetterPreview();
+    loadCoverLetterEditor();
     if (skillLexiconAutoToggle) {
       skillLexiconAutoToggle.checked = data.skillLexiconAutoUpdate !== false;
       syncToggleState(skillLexiconAutoToggle);
@@ -470,17 +479,45 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   let coverLetterSaveTimer = null;
+  let coverLetterWriting = false;
 
-  function persistUniversalCoverLetter() {
-    const letter = readUniversalCoverLetter();
-    universalCoverLetter = letter;
-    chrome.storage.local.set({ universalCoverLetter: letter }, () => {
+  function activeResumeCoverLetter() {
+    return getActiveResume()?.coverLetter || null;
+  }
+
+  function updateCoverLetterResumeNote() {
+    if (!coverLetterResumeNote) return;
+    const resume = getActiveResume();
+    coverLetterResumeNote.textContent = resume
+      ? `Saved with ${resume.label || 'this resume'}.`
+      : '';
+  }
+
+  function persistCoverLetterToResume() {
+    const resume = getActiveResume();
+    if (!resume) return;
+    const letter = readCoverLetterFromForm();
+    const prev = resume.coverLetter;
+    const changed = !letter !== !prev || (letter && (
+      letter.body !== (prev?.body || '') ||
+      letter.greeting !== (prev?.greeting || '') ||
+      letter.signOff !== (prev?.signOff || '')
+    ));
+    if (!changed) return;
+    const now = Date.now();
+    if (letter) letter.updatedAt = now;
+    resume.coverLetter = letter;
+    resume.updatedAt = now;
+    saveCurrentTabToState();
+    chrome.storage.local.set({ resumes: getPersistedResumes() }, () => {
       updateCoverLetterFallbackPill();
+      updateCoverLetterResumeNote();
       if (uclStatus) {
         uclStatus.textContent = letter?.body
-          ? `Saved automatically · ${letter.body.length} characters`
+          ? `Saved with this resume · ${letter.body.length} characters`
           : '';
       }
+      runAutoSync();
     });
   }
 
@@ -489,38 +526,116 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (coverLetterSaveTimer) clearTimeout(coverLetterSaveTimer);
     coverLetterSaveTimer = setTimeout(() => {
       coverLetterSaveTimer = null;
-      persistUniversalCoverLetter();
+      persistCoverLetterToResume();
     }, 700);
+  }
+
+  function flushCoverLetterSave() {
+    if (!coverLetterSaveTimer) return;
+    clearTimeout(coverLetterSaveTimer);
+    coverLetterSaveTimer = null;
+    persistCoverLetterToResume();
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) flushCoverLetterSave();
+  });
+  window.addEventListener('pagehide', flushCoverLetterSave);
+
+  function loadCoverLetterEditor() {
+    const letter = activeResumeCoverLetter();
+    if (uclGreeting) uclGreeting.value = letter?.greeting || '';
+    if (uclSignOff) uclSignOff.value = letter?.signOff || '';
+    if (uclBody) uclBody.value = letter?.body || '';
+    if (uclStatus) {
+      uclStatus.textContent = letter?.updatedAt
+        ? `Saved ${formatLexiconTimestamp(letter.updatedAt)}.`
+        : '';
+    }
+    updateCoverLetterFallbackPill();
+    updateCoverLetterResumeNote();
+    renderCoverLetterPreview();
+    setGenerateLetterBusy(coverLetterWriting);
+  }
+
+  function setGenerateLetterBusy(busy) {
+    coverLetterWriting = busy;
+    if (!generateCoverLetterBtn) return;
+    const label = generateCoverLetterBtn.querySelector('span');
+    if (label) label.textContent = busy ? 'Writing…' : 'Generate letter';
+    generateCoverLetterBtn.disabled = busy || !getActiveResume()?.jsonContent;
   }
 
   if (uclBody) uclBody.addEventListener('input', scheduleCoverLetterSave);
   if (uclGreeting) uclGreeting.addEventListener('input', scheduleCoverLetterSave);
   if (uclSignOff) uclSignOff.addEventListener('input', scheduleCoverLetterSave);
-  if (uclBody) uclBody.addEventListener('blur', () => {
-    if (coverLetterSaveTimer) {
-      clearTimeout(coverLetterSaveTimer);
-      coverLetterSaveTimer = null;
-      persistUniversalCoverLetter();
-    }
-  });
+  if (uclBody) uclBody.addEventListener('blur', flushCoverLetterSave);
 
   if (uclBody) {
     uclBody.addEventListener('input', updateCoverLetterFallbackPill);
   }
 
-  const COVER_LETTER_PROMPT = `Write me a universal cover letter I can reuse for every job application.
+  const COVER_LETTER_PROMPT = `Write the body of a general cover letter I can reuse for every job application.
 
 Rules:
-- 250-350 words, first person, specific and concrete.
-- Keep these placeholders exactly as written: {{company}}, {{role}}, {{recipient}}.
+- 120-160 words, first person, specific and concrete.
+- Keep {{company}} and {{role}} exactly as written. Use both once in the opening paragraph.
+- Keep {{recipient}} only in the greeting, never in the body.
 - Do not invent employers, metrics, certifications, or credentials. Only use the facts I give you below.
-- Opening paragraph: name the {{role}} role and one concrete reason this kind of company interests me.
-- Two body paragraphs: one proof paragraph with my strongest result, one fit paragraph mapping my skills to the kind of work in a typical posting for this role.
-- Close with a short paragraph and a sign-off.
-- Plain text only. No markdown, no headings, no placeholders other than the three above.
+- Opening paragraph: name the {{role}} role at {{company}} and one concrete reason this kind of work interests me.
+- Body paragraph: my strongest result, then my fit for the kind of work in a typical posting for this role.
+- Do not include a greeting, date, sign-off, signature, subject line, headings, markdown, or bullet points.
+- Plain text only, blank line between paragraphs.
 
-My background:
-[Paste your master resume text here.]`;
+My resume:
+[Paste your resume here.]`;
+
+  async function runGenerateCoverLetter() {
+    const resume = getActiveResume();
+    if (!resume || coverLetterWriting) return;
+    if (!resume.jsonContent) {
+      showStatus('Build and save this resume first.', 'info', 4000);
+      return;
+    }
+    setGenerateLetterBusy(true);
+    if (coverLetterCopyStatus) coverLetterCopyStatus.textContent = 'Writing a letter from this resume…';
+    try {
+      flushCoverLetterSave();
+      saveCurrentTabToState();
+      await setLocalStorage({ resumes: getPersistedResumes() });
+      const response = await sendRuntimeMessage({
+        type: 'BUILD_AI_COVER_LETTER',
+        payload: { resumeId: resume.id }
+      });
+      if (!response || response.status !== 'success' || !response.body) {
+        throw new Error(response?.message || 'Letter generation failed');
+      }
+      if (uclBody) uclBody.value = response.body;
+      if (uclGreeting && !uclGreeting.value.trim()) uclGreeting.value = 'Dear {{recipient}},';
+      if (uclSignOff && !uclSignOff.value.trim()) uclSignOff.value = 'Sincerely,';
+      if (coverLetterSaveTimer) {
+        clearTimeout(coverLetterSaveTimer);
+        coverLetterSaveTimer = null;
+      }
+      persistCoverLetterToResume();
+      renderCoverLetterPreview();
+      if (coverLetterCopyStatus) {
+        coverLetterCopyStatus.textContent = response.provider === 'ollama'
+          ? `Letter added with local Ollama (${response.model}) — nothing left this machine.`
+          : `Letter added with ${response.providerLabel || 'Pollinations'}. Review it before generating.`;
+      }
+      showStatus('General cover letter added.', 'success', 3000);
+    } catch (error) {
+      if (coverLetterCopyStatus) coverLetterCopyStatus.textContent = `Could not write a letter: ${error.message}`;
+      showStatus('Could not write a letter. Your existing letter was kept.', 'error', 6000);
+    } finally {
+      setGenerateLetterBusy(false);
+    }
+  }
+
+  if (generateCoverLetterBtn) {
+    generateCoverLetterBtn.addEventListener('click', runGenerateCoverLetter);
+  }
 
   function coverLetterPreviewMarkup() {
     const greeting = (uclGreeting?.value.trim()) || 'Dear {{recipient}},';
@@ -549,7 +664,7 @@ My background:
       const status = document.getElementById('coverLetterCopyStatus');
       try {
         await navigator.clipboard.writeText(COVER_LETTER_PROMPT);
-        if (status) status.textContent = 'Prompt copied. Paste it into your assistant with your resume below it.';
+        if (status) status.textContent = 'Prompt copied. Paste it into your assistant with your resume below it — it returns the body only.';
       } catch {
         if (status) status.textContent = 'Copy failed — select the sample prompt manually.';
       }
@@ -563,7 +678,9 @@ My background:
       if (!sample) return;
       const visible = sample.style.display !== 'none';
       sample.style.display = visible ? 'none' : 'block';
-      sampleToggleBtn.textContent = visible ? 'Show sample' : 'Hide sample';
+      const label = sampleToggleBtn.querySelector('span');
+      if (label) label.textContent = visible ? 'Show sample' : 'Hide sample';
+      else sampleToggleBtn.textContent = visible ? 'Show sample' : 'Hide sample';
     });
   }
 
@@ -672,8 +789,7 @@ My background:
   function getSettingsPayload() {
     return {
       applicationProfile: readAppProfileFromForm(),
-      resumes: getPersistedResumes(),
-      universalCoverLetter: readUniversalCoverLetter()
+      resumes: getPersistedResumes()
     };
   }
 
@@ -709,12 +825,12 @@ My background:
       const items = promo
         ? [
             ['Resume engine', 'tailored PDFs, no API key'],
-            ['Cover letters', 'one template, every job'],
+            ['Cover letters', 'one per resume'],
             ['Job Tracker', 'pipeline board + analytics'],
           ]
         : [
             ['Resume engine', 'tailored PDFs, no API key'],
-            ['Cover letters', 'one template, every job'],
+            ['Cover letters', 'one per resume'],
             ['Cloud sync', 'resumes on every device'],
           ];
       accountFeatureList.innerHTML = items
@@ -951,7 +1067,6 @@ My background:
     'onboardingCompleted', 'universalCoverLetter', 'applicationProfile', 'skillLexiconAutoUpdate',
     'pendingExtract', 'openCoverLetterSection', 'allowUnverifiedSkills', 'animationsEnabled'
   ]);
-  universalCoverLetter = data.universalCoverLetter || null;
 
   if (data.resumes && data.resumes.length > 0) {
     resumes = data.resumes.map((resume, index) => normalizeResumeEntry(resume, index));
@@ -975,7 +1090,19 @@ My background:
       migrated = true;
     }
   });
-  if (migrated) await setLocalStorage({ resumes: getPersistedResumes() });
+
+  const legacyLetter = normalizeCoverLetter(data.universalCoverLetter);
+  let letterMigrated = false;
+  if (legacyLetter) {
+    resumes.forEach((resume) => {
+      if (resume.coverLetter) return;
+      resume.coverLetter = { ...legacyLetter, updatedAt: legacyLetter.updatedAt || Date.now() };
+      letterMigrated = true;
+    });
+    await chrome.storage.local.remove('universalCoverLetter');
+  }
+
+  if (migrated || letterMigrated) await setLocalStorage({ resumes: getPersistedResumes() });
 
   const hasResumes = resumes.some((resume) => (resume.jsonContent || resume.content || '').trim());
   if (hasResumes && !data.onboardingCompleted) renderSetupCompleteCard();
@@ -1009,8 +1136,21 @@ My background:
   }
 
   if (data.openCoverLetterSection) {
+    const intent = data.openCoverLetterSection;
+    const targetId = intent && typeof intent === 'object' ? intent.resumeId : '';
     chrome.storage.local.remove('openCoverLetterSection');
     setTimeout(() => {
+      if (targetId) {
+        const index = resumes.findIndex((resume) => resume.id === targetId);
+        if (index >= 0 && index !== activeTabIndex) {
+          flushCoverLetterSave();
+          saveCurrentTabToState();
+          activeTabIndex = index;
+          renderTabBar();
+          renderTabContent();
+          loadCoverLetterEditor();
+        }
+      }
       const details = document.getElementById('coverLetterDetails');
       if (details) {
         details.open = true;
@@ -1406,10 +1546,12 @@ My background:
       btn.className = 'tab-btn' + (index === activeTabIndex ? ' active' : '');
       btn.innerHTML = `${resumeIconSvg(resume.icon)}<span>${escapeHtml(resume.label || `Resume ${index + 1}`)}</span>`;
       btn.addEventListener('click', () => {
+        flushCoverLetterSave();
         saveCurrentTabToState();
         activeTabIndex = index;
         renderTabBar();
         renderTabContent();
+        loadCoverLetterEditor();
       });
       tabBar.appendChild(btn);
     });
@@ -1421,12 +1563,14 @@ My background:
       addBtn.textContent = '+';
       addBtn.title = 'Add a new resume (max 3)';
       addBtn.addEventListener('click', async () => {
+        flushCoverLetterSave();
         saveCurrentTabToState();
         resumes.push(createResumeEntry(`Resume ${resumes.length + 1}`, ''));
         activeTabIndex = resumes.length - 1;
         await setLocalStorage({ resumes: getPersistedResumes() });
         renderTabBar();
         renderTabContent();
+        loadCoverLetterEditor();
         runAutoSync();
       });
       tabBar.appendChild(addBtn);
@@ -1673,12 +1817,17 @@ My background:
         const target = resumes[activeTabIndex];
         const label = target.label || `Resume ${activeTabIndex + 1}`;
         if (!confirm(`Delete "${label}"? This cannot be undone.`)) return;
+        if (coverLetterSaveTimer) {
+          clearTimeout(coverLetterSaveTimer);
+          coverLetterSaveTimer = null;
+        }
         await recordDeletedResume(target.id);
         resumes.splice(activeTabIndex, 1);
         if (activeTabIndex >= resumes.length) activeTabIndex = resumes.length - 1;
         await setLocalStorage({ resumes: getPersistedResumes() });
         renderTabBar();
         renderTabContent();
+        loadCoverLetterEditor();
         runAutoSync();
       });
     }
@@ -1760,6 +1909,7 @@ My background:
       document.getElementById('rfWarn').classList.add('visible');
     }
     refreshDraftWarnings();
+    setGenerateLetterBusy(coverLetterWriting);
   }
 
   tabContentArea.addEventListener('input', (event) => {
@@ -1884,8 +2034,8 @@ My background:
     },
     {
       target: '#coverLetterDetails',
-      title: 'One cover letter, every job',
-      body: 'Copy the prompt into your favourite assistant, paste the reply here, and every application gets a letter with the company and role filled in.'
+      title: 'A letter per resume',
+      body: 'Generate a short general letter from this resume, or copy the prompt into your favourite assistant. Every application gets a letter with the company and role filled in.'
     },
     {
       target: '#save',
@@ -2097,6 +2247,7 @@ My background:
 
 
   saveButton.addEventListener('click', async () => {
+    flushCoverLetterSave();
     saveCurrentTabToState();
     const resume = getActiveResume();
     const warnings = resume ? resumeProfileWarningsFor(resume) : [];
@@ -2104,10 +2255,10 @@ My background:
 
     try {
       await setLocalStorage(getSettingsPayload());
-      universalCoverLetter = readUniversalCoverLetter();
+      const letter = activeResumeCoverLetter();
       if (uclStatus) {
-        uclStatus.textContent = universalCoverLetter?.body
-          ? `Saved ${formatLexiconTimestamp(universalCoverLetter.updatedAt)}.`
+        uclStatus.textContent = letter?.body
+          ? `Saved ${formatLexiconTimestamp(letter.updatedAt)}.`
           : '';
       }
       updateCoverLetterFallbackPill();
@@ -2126,6 +2277,7 @@ My background:
       showStatus(`Error: ${error.message}`, 'error', 4500);
     } finally {
       saveButton.disabled = false;
+      setGenerateLetterBusy(coverLetterWriting);
     }
   });
 });

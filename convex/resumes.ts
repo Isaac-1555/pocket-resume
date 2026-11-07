@@ -25,6 +25,7 @@ export const upsert = mutation({
     label: v.string(),
     content: v.string(),
     jsonContent: v.string(),
+    coverLetter: v.optional(v.string()),
     updatedAt: v.number(),
   },
   handler: async (ctx, args) => {
@@ -46,6 +47,7 @@ export const upsert = mutation({
           label: args.label,
           content: args.content,
           jsonContent: args.jsonContent,
+          coverLetter: args.coverLetter || '',
           updatedAt: args.updatedAt,
         });
         return existing._id;
@@ -61,6 +63,7 @@ export const upsert = mutation({
         label: args.label,
         content: args.content,
         jsonContent: args.jsonContent,
+        coverLetter: args.coverLetter || '',
         updatedAt: args.updatedAt,
       });
       return id;

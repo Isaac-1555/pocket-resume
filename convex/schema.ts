@@ -8,6 +8,7 @@ export default defineSchema({
     label: v.string(),
     content: v.string(),
     jsonContent: v.string(),
+    coverLetter: v.optional(v.string()),
     updatedAt: v.number(),
   })
     .index('by_userId', ['userId'])
