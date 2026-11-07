@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PocketResume",
-  "version": "10.2.0",
+  "version": "10.3.0",
   "description": "Tailor your resume to any job posting on-device. No API key, no quota, no rate limit.",
   "permissions": [
     "storage",

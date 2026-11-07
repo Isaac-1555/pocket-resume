@@ -5,6 +5,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const fillFormLabel = document.getElementById('fillFormLabel');
   let statusTimer = null;
   let scrambleTimer = null;
+  let letterScrambleTimer = null;
+  let letterStatusTimer = null;
+  let motionPreference = true;
   let fillStatusTimer = null;
   let lastError = '';
   let lastErrorRaw = '';
@@ -13,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const resumeType = document.getElementById('resumeType');
   const resumeSelectorDiv = document.getElementById('resumeSelector');
   const coverLetterBtn = document.getElementById('coverLetterBtn');
+  const coverLetterLabel = document.getElementById('coverLetterLabel');
   const generateLabel = document.getElementById('generateLabel');
   const errorInfoBtn = document.getElementById('errorInfoBtn');
   const errorModal = document.getElementById('errorModal');
@@ -47,6 +51,26 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastJobMeta = null;
   let generationActive = false;
   let gate = { state: 'signin' };
+
+  function prefersReducedMotion() {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  function motionOn() {
+    return motionPreference && !prefersReducedMotion();
+  }
+
+  function applyMotionPreference(enabled) {
+    motionPreference = enabled !== false;
+    document.documentElement.classList.toggle('no-motion', !motionPreference);
+  }
+
+  chrome.storage.local.get('animationsEnabled', (data) => applyMotionPreference(data.animationsEnabled !== false));
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.animationsEnabled) {
+      applyMotionPreference(changes.animationsEnabled.newValue !== false);
+    }
+  });
 
   function savePdfDocument(doc, filename) {
     const anchorFallback = () => {
@@ -519,6 +543,10 @@ document.addEventListener('DOMContentLoaded', () => {
         promoActive: !!local.promoActive,
         signedIn: !!local.signedIn,
         isPro: !!local.isPro,
+        withinWindow: !!local.withinWindow,
+        trialEndsAt: local.trialEndsAt || 0,
+        trialDaysLeft: local.trialDaysLeft || 0,
+        planPeriod: local.planPeriod || '',
         source: 'page',
       };
     }
@@ -539,23 +567,33 @@ document.addEventListener('DOMContentLoaded', () => {
     if (access.allowed) {
       accountBtn.style.display = 'inline-block';
       accountBtn.classList.add('pro');
-      accountBtn.textContent = access.isPro ? 'Pro' : 'Free until Dec 31';
-      accountBtn.dataset.target = 'options';
+      if (access.isPro && access.trialDaysLeft > 0) {
+        accountBtn.textContent = `Trial · ${access.trialDaysLeft}d`;
+      } else if (access.isPro) {
+        accountBtn.textContent = access.planPeriod === 'year' ? 'Pro · Yearly' : 'Pro';
+      } else {
+        accountBtn.textContent = 'Free until Dec 31';
+      }
+      accountBtn.dataset.target = access.isPro ? 'options' : 'pricing';
       return;
     }
     accountBtn.style.display = 'inline-block';
     accountBtn.classList.remove('pro');
     if (access.signedIn) {
-      accountBtn.textContent = 'Upgrade';
+      accountBtn.textContent = 'Start free trial';
       accountBtn.dataset.target = 'pricing';
     } else {
       accountBtn.textContent = 'Sign in';
-      accountBtn.dataset.target = 'options';
+      accountBtn.dataset.target = 'auth';
     }
   }
 
   if (accountBtn) {
     accountBtn.addEventListener('click', () => {
+      if (accountBtn.dataset.target === 'auth') {
+        openAccountAuth('signIn');
+        return;
+      }
       const target = accountBtn.dataset.target === 'pricing' ? 'options.html#cloud-pricing' : 'options.html';
       chrome.tabs.create({ url: chrome.runtime.getURL(target) });
     });
@@ -635,7 +673,18 @@ document.addEventListener('DOMContentLoaded', () => {
       setGenerateEnabled(false);
       return;
     }
-    setGenerateEnabled(!generationActive);
+    const busy = generationActive
+      || document.body.dataset.status === 'generating'
+      || document.body.dataset.letterStatus === 'generating';
+    setGenerateEnabled(!busy);
+  }
+
+  // Signing in happens in the Settings tab (the popup bundle has no Clerk UI).
+  function openAccountAuth(mode) {
+    const next = mode === 'signUp' ? 'signUp' : 'signIn';
+    chrome.storage.local.set({ openAuth: next }, () => {
+      chrome.runtime.openOptionsPage();
+    });
   }
 
   function openSettings(hash = '') {
@@ -691,26 +740,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const setupAccountBtn = document.getElementById('setupAccountBtn');
 
   if (popupSignInBtn) {
-    popupSignInBtn.addEventListener('click', async () => {
-      try {
-        if (!window.CloudSync) throw new Error('Account service failed to load.');
-        await window.CloudSync.signIn();
-        setTimeout(refreshGate, 800);
-      } catch (error) {
-        setError(error.message || 'Could not open sign-in.');
-      }
-    });
+    popupSignInBtn.addEventListener('click', () => openAccountAuth('signIn'));
   }
   if (popupSignUpBtn) {
-    popupSignUpBtn.addEventListener('click', async () => {
-      try {
-        if (!window.CloudSync) throw new Error('Account service failed to load.');
-        await window.CloudSync.signUp();
-        setTimeout(refreshGate, 800);
-      } catch (error) {
-        setError(error.message || 'Could not open sign-up.');
-      }
-    });
+    popupSignUpBtn.addEventListener('click', () => openAccountAuth('signUp'));
   }
   if (setupAccountBtn) setupAccountBtn.addEventListener('click', () => { if (popupSignUpBtn) popupSignUpBtn.click(); });
   if (reviewOpenSettingsBtn) reviewOpenSettingsBtn.addEventListener('click', () => openSettings());
@@ -738,12 +771,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const checked = await refreshGate();
     if (checked.state !== 'ready') return;
 
+    const letterRun = output === 'cover-letter';
+    const errorTarget = letterRun ? 'letter' : 'resume';
+
     const selectedStyle = normalizeResumeStyle(resumeType.value || 'professional');
     const styleConfig = getResumeStyleConfig(selectedStyle);
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.id) {
-      setError('No active tab found. Open the job posting and try again.');
+      setError('No active tab found. Open the job posting and try again.', errorTarget);
       return;
     }
 
@@ -754,9 +790,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (errorInfoBtn) errorInfoBtn.style.display = 'none';
     closeErrorModal();
     setFillStatus(null);
-    setStatus('generating');
-    if (generateLabel) {
-      generateLabel.textContent = output === 'cover-letter' ? 'Building cover letter\u2026' : 'Matching job description\u2026';
+    if (letterRun) {
+      setLetterStatus('generating');
+    } else {
+      setStatus('generating');
+      if (generateLabel) generateLabel.textContent = 'Matching job description\u2026';
     }
 
     chrome.runtime.sendMessage({
@@ -771,24 +809,24 @@ document.addEventListener('DOMContentLoaded', () => {
       generationActive = false;
 
       if (chrome.runtime.lastError) {
-        setError(chrome.runtime.lastError.message || 'Could not reach the background service. Please try again.');
+        setError(chrome.runtime.lastError.message || 'Could not reach the background service. Please try again.', errorTarget);
         setGenerateEnabled(true);
         return;
       }
 
       if (response && (response.status === 'signin_required' || response.status === 'plan_required' || response.status === 'review_required')) {
-        setStatus('idle');
+        if (letterRun) setLetterStatus('idle'); else setStatus('idle');
         await refreshGate();
         return;
       }
       if (response && (response.status === 'needs_resume' || response.status === 'needs_json')) {
-        setStatus('idle');
+        if (letterRun) setLetterStatus('idle'); else setStatus('idle');
         await refreshGate();
-        setError(response.message || 'Build your resume in Settings first.');
+        setError(response.message || 'Build your resume in Settings first.', errorTarget);
         return;
       }
       if (!response || response.status !== 'success') {
-        setError(response?.message || 'Generation failed. Please try again.');
+        setError(response?.message || 'Generation failed. Please try again.', errorTarget);
         setGenerateEnabled(true);
         return;
       }
@@ -801,7 +839,7 @@ document.addEventListener('DOMContentLoaded', () => {
           saveApplicationToTracker(resumeData, tab, selectedResumeId, selectedStyle);
         }
 
-        if (output !== 'cover-letter') {
+        if (!letterRun) {
           if (response.coverLetterData) {
             const coverParsed = JSON.parse(sanitizeJsonControlChars(String(response.coverLetterData)));
             generateCoverLetterPDF(coverParsed);
@@ -826,24 +864,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
         setMatchReport(response.report || null, !!response.coverLetterData);
 
-        if (response.coverLetterData) {
-          const coverParsed = JSON.parse(sanitizeJsonControlChars(String(response.coverLetterData)));
-          generateCoverLetterPDF(coverParsed);
-          setOfflineLetterNote(false);
-        } else if (output === 'cover-letter') {
-          const data = await chrome.storage.local.get('universalCoverLetter');
-          universalCoverLetter = data.universalCoverLetter || null;
-          setOfflineLetterNote(true, response.coverLetterStatus === 'empty'
-            ? 'Cover letter is empty —'
-            : 'No cover letter saved —');
-        }
-
-        setStatus('success');
-        if (generateLabel) generateLabel.textContent = 'Generate Resume';
-        setGenerateEnabled(true);
+        playCoverLetterLoop(async () => {
+          try {
+            if (response.coverLetterData) {
+              const coverParsed = JSON.parse(sanitizeJsonControlChars(String(response.coverLetterData)));
+              generateCoverLetterPDF(coverParsed);
+              setOfflineLetterNote(false);
+            } else {
+              const data = await chrome.storage.local.get('universalCoverLetter');
+              universalCoverLetter = data.universalCoverLetter || null;
+              setOfflineLetterNote(true, response.coverLetterStatus === 'empty'
+                ? 'Cover letter is empty —'
+                : 'No cover letter saved —');
+            }
+            setLetterStatus('success');
+            setGenerateEnabled(true);
+          } catch (error) {
+            console.error('Cover letter error:', error);
+            setError(error.message || 'Could not build the cover letter. Please try again.', 'letter');
+            setGenerateEnabled(true);
+          }
+        });
       } catch (error) {
         console.error('Generation parse error:', error);
-        setError(error.message || 'Could not read the generated resume. Please try again.');
+        setError(error.message || 'Could not read the generated resume. Please try again.', errorTarget);
         if (generateLabel) generateLabel.textContent = 'Generate Resume';
         setGenerateEnabled(true);
       }
@@ -923,8 +967,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.2.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.2.0';
+  const ANNOUNCEMENT_VERSION = '10.3.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.3.0';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
@@ -1019,6 +1063,7 @@ document.addEventListener('DOMContentLoaded', () => {
   generateBtn.addEventListener('click', () => runGeneration('resume'));
 
   const BUSY_LABELS = ['Reading job page…', 'Matching keywords…', 'Tailoring bullets…', 'Polishing layout…', 'Almost there…'];
+  const BUSY_LETTER_LABELS = ['Reading job page…', 'Filling company and role…', 'Matching your template…', 'Typesetting the letter…'];
   const SCRAMBLE_CHARS = 'ABCDEFGHKMNPRSTUVWXYZ23456789#/<>*+';
 
   function stopScramble() {
@@ -1031,7 +1076,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function startScramble() {
     if (!generateLabel) return;
     stopScramble();
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (!motionOn()) {
       generateLabel.textContent = 'Generating…';
       return;
     }
@@ -1078,7 +1123,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     stopScramble();
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (!motionOn()) {
       generateLabel.textContent = 'Generating…';
       done();
       return;
@@ -1103,6 +1148,112 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       renderScrambleFrame(target, Math.floor((frame / settleFrames) * target.length));
     }, 32);
+  }
+
+  function stopLetterScramble() {
+    if (letterScrambleTimer) {
+      clearInterval(letterScrambleTimer);
+      letterScrambleTimer = null;
+    }
+  }
+
+  function renderLetterFrame(target, settledCount) {
+    if (!coverLetterLabel) return;
+    let out = '';
+    for (let i = 0; i < target.length; i++) {
+      if (i < settledCount || target[i] === ' ' || target[i] === '\u2026') {
+        out += target[i];
+      } else {
+        out += SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
+      }
+    }
+    coverLetterLabel.textContent = out;
+  }
+
+  function startLetterScramble() {
+    if (!coverLetterLabel) return;
+    stopLetterScramble();
+    if (!motionOn()) {
+      coverLetterLabel.textContent = 'Building cover letter…';
+      return;
+    }
+    let labelIdx = 0;
+    let frame = 0;
+    const settleFrames = 13;
+    const holdFrames = 30;
+    letterScrambleTimer = setInterval(() => {
+      frame++;
+      const target = BUSY_LETTER_LABELS[labelIdx % BUSY_LETTER_LABELS.length];
+      if (frame > settleFrames + holdFrames) {
+        labelIdx++;
+        frame = 0;
+        return;
+      }
+      renderLetterFrame(target, Math.floor((frame / settleFrames) * target.length));
+    }, 34);
+  }
+
+  function playCoverLetterLoop(done) {
+    if (!coverLetterLabel) {
+      done();
+      return;
+    }
+    stopLetterScramble();
+    if (!motionOn()) {
+      coverLetterLabel.textContent = 'Building cover letter…';
+      done();
+      return;
+    }
+    let labelIdx = 0;
+    let frame = 0;
+    const settleFrames = 9;
+    const holdFrames = 15;
+    letterScrambleTimer = setInterval(() => {
+      frame++;
+      const target = BUSY_LETTER_LABELS[labelIdx % BUSY_LETTER_LABELS.length];
+      if (frame > settleFrames + holdFrames) {
+        labelIdx++;
+        frame = 0;
+        if (labelIdx >= BUSY_LETTER_LABELS.length) {
+          stopLetterScramble();
+          coverLetterLabel.textContent = BUSY_LETTER_LABELS[BUSY_LETTER_LABELS.length - 1];
+          done();
+          return;
+        }
+        return;
+      }
+      renderLetterFrame(target, Math.floor((frame / settleFrames) * target.length));
+    }, 32);
+  }
+
+  function setLetterStatus(state) {
+    if (letterStatusTimer) {
+      clearTimeout(letterStatusTimer);
+      letterStatusTimer = null;
+    }
+    const uiState = state === 'error' ? 'failure' : state;
+    if (!uiState || uiState === 'idle') {
+      delete document.body.dataset.letterStatus;
+      stopLetterScramble();
+      if (coverLetterLabel) coverLetterLabel.textContent = 'Generate Cover Letter';
+      return;
+    }
+    document.body.dataset.letterStatus = uiState;
+    if (uiState === 'generating') {
+      startLetterScramble();
+      return;
+    }
+    stopLetterScramble();
+    if (coverLetterLabel) {
+      coverLetterLabel.textContent =
+        uiState === 'success' ? 'Cover letter ready'
+          : 'Failed \u2014 try again';
+    }
+    if (uiState === 'failure') return;
+    letterStatusTimer = setTimeout(() => {
+      setLetterStatus('idle');
+      letterStatusTimer = null;
+    }, 4000);
   }
 
   function setFillStatus(state, persist = false) {
@@ -1157,8 +1308,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (/sign in|signed out|session/i.test(lower)) {
       return 'Sign in to keep generating. Open the account card to continue.';
     }
-    if (/pro plan|free period|subscription|upgrade/i.test(lower)) {
-      return 'Your free period ended. See plans to keep generating.';
+    if (/pro plan|free period|subscription|upgrade|trial/i.test(lower)) {
+      return 'Your free period ended. Start a Pro plan to keep generating.';
     }
     if (/confirm your|parsed resume/i.test(lower)) {
       return 'Confirm your parsed resume in Settings first.';
@@ -1184,11 +1335,12 @@ document.addEventListener('DOMContentLoaded', () => {
     return msg;
   }
 
-  function setError(message) {
+  function setError(message, target = 'resume') {
     lastErrorRaw = message || '';
     lastError = mapErrorMessage(message);
     if (errorInfoBtn) errorInfoBtn.style.display = 'flex';
-    setStatus('error');
+    if (target === 'letter') setLetterStatus('failure');
+    else setStatus('error');
   }
 
   function openErrorModal() {
@@ -1787,13 +1939,19 @@ document.addEventListener('DOMContentLoaded', () => {
     logoLink.addEventListener('click', openWebsite);
   }
 
+  let gateRefreshAt = 0;
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
     if (changes.universalCoverLetter) {
       universalCoverLetter = changes.universalCoverLetter.newValue || null;
     }
     if (changes.resumes || changes.selectedResumeId || changes.proAccessCache) {
-      refreshGate();
+      if (changes.proAccessCache) {
+        if (Date.now() - gateRefreshAt < 1500) return;
+        gateRefreshAt = Date.now();
+      }
+      refreshGate().catch(() => {});
+      updateAccountButton();
     }
   });
 

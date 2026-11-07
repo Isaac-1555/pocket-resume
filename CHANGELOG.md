@@ -1,5 +1,17 @@
 # Changelog
 
+## [10.3.0] — 2026-11-07
+### Added
+- **Pro plans with a free trial.** Monthly billing at $4/month (about $1/week) and yearly billing at $47/year, both with a 7-day trial. Everything stays free to try until Dec 31; subscribing before then extends the trial to Jan 7, 2027. Cloud sync now requires Pro after the free period (existing cloud resumes are kept, not deleted) and free sign-ups no longer imply lasting access.
+- **Animations toggle** (Settings → Interface). Turns off the scramble text, glows, and hover motion everywhere and makes generation instant. The Resume health check keeps its progress animation.
+- **Cover letter progress state.** Generate Cover Letter now has a pencil-on-paper icon and its own blue progress animation, separate from Generate Resume.
+
+### Fixed
+- **Popup sign-in and sign-up buttons.** They called Clerk from the popup bundle, which has no Clerk UI, so they only produced a red error glow. They now open Settings and launch the full sign-in/sign-up window.
+- **Free plan counted as Pro.** Clerk assigns the hidden `free_user` plan as an active subscription item; the subscription fallback treated it as Pro and then tried to extend its (disabled) trial, producing `plan_free_trials_disabled` 403s. Only items whose plan slug is a Pro/legacy plan now count, and the early-trial action fails soft (`not_pro_plan`, `trials_disabled`) instead of throwing.
+- **Pricing table double-mount and close crash.** Opening the Pro panel twice (deep link plus See Pro plans, or a double click) cleared Clerk's live React tree, and closing it unmounted then cleared the same tree — both threw `removeChild` `NotFoundError` and left the table blank on reopen. The table now mounts once per page, close only hides the panel, and `cloud-sync.js` guards mounts with a mounted-node set.
+- **Popup gate refresh.** The popup re-resolves sign-in and plan state when the access snapshot or resumes change in another tab.
+
 ## [10.2.0] — 2026-11-02
 ### Added
 - **Resume Health Check** (beta) — opt-in rule-based review that sends a redacted copy of your resume to Pollinations and flags action verbs, quantification, tense, contact completeness, skills/education, and more. If Pollinations fails, it falls back to a local Ollama server at `http://localhost:11434` — no provider setup, nothing to configure. Mark issues as fixed locally for a score bump; an open issue blocks a re-check until it is fixed, and checks are rate-limited to one per minute per resume. Re-checks go stale when you edit the resume.
