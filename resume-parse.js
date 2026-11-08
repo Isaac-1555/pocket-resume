@@ -265,6 +265,14 @@ function parseEntryBlocks(lines) {
 
         if (isDateRange(line)) {
             const period = normalizePeriod(line);
+            const headerPart = normalizeSpace(line.replace(DATE_RE, ''))
+                .replace(/^[\s|—–,;·/]+|[\s|—–,;·/]+$/g, '');
+            if (headerPart && /[a-z]/i.test(headerPart) && !LOCATION_RE.test(headerPart)) {
+                if (current && (current.title || current.company || current.points.length)) finalize();
+                startEntry(headerPart, period);
+                pendingHeader = '';
+                continue;
+            }
             if (current) {
                 if (!current.period) {
                     current.period = period;
@@ -384,18 +392,31 @@ function parseEducation(lines) {
         const yearMatch = line.match(SINGLE_DATE_RE);
         if (DEGREE_RE.test(line)) {
             finalize();
-            const parts = line.split(/\s*[|—–]\s*|\s*,\s*/).map(normalizeSpace).filter(Boolean);
-            const degree = parts.shift() || line;
-            const school = parts.shift() || '';
-            const rest = parts.join(', ');
+            let segments = line.split(/\s*[|—–]\s*/).map(normalizeSpace).filter(Boolean);
+            if (segments.length === 1) segments = segments[0].split(/\s*,\s*/).map(normalizeSpace).filter(Boolean);
+            const degreeParts = [];
+            let school = '';
+            let location = '';
+            segments.forEach((segment) => {
+                if (/(university|college|institute|school|academy|polytechnic)/i.test(segment)) {
+                    if (!school) school = segment;
+                    else degreeParts.push(segment);
+                    return;
+                }
+                if (/^(19|20)\d{2}$/.test(segment) || /^(present|current)$/i.test(segment)) return;
+                if (LOCATION_RE.test(segment) && !DEGREE_RE.test(segment) && degreeParts.length) {
+                    if (!location) location = segment;
+                    return;
+                }
+                degreeParts.push(segment);
+            });
             current = {
-                degree,
-                school: school && !LOCATION_RE.test(school) ? school : '',
+                degree: degreeParts.join(', ') || line,
+                school,
                 year: yearMatch ? yearMatch[0] : '',
-                location: '',
-                details: rest ? [rest] : [],
+                location,
+                details: [],
             };
-            if (school && LOCATION_RE.test(school)) current.location = school;
             continue;
         }
         if (!current) {

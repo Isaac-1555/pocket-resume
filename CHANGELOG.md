@@ -1,5 +1,22 @@
 # Changelog
 
+## [10.7.0] — 2026-11-08
+### Changed
+- **Double Sided is now a one-page layout that never clips.** Before rendering, the layout measures every block, then tries progressively tighter spacing, then shortens per-entry bullets, then trims the least important sections (Open Source → Awards → Publications → Certifications → Links → Projects → oldest roles). The match line in the popup reports what was trimmed, so nothing silently disappears off the page edge.
+- **Academic CV paginates cleanly.** Paragraphs and entry headers check for space before drawing, an entry header never separates from its first bullet, and long titles reserve room for the right-aligned date instead of overlapping it. Multi-page CVs get a `Name - page` footer on every page.
+- **Bullets and separators render again.** The shared PDF sanitizer no longer strips `•`, so Double Sided bullets, skill-group separators, and Research Interests read correctly. Accented Latin characters (`é`, `ñ`, `ü`) are kept instead of being blanked.
+- **No duplicated content.** Projects are listed once (Open Source only appears for explicitly saved open-source entries), and LinkedIn/GitHub links no longer repeat the contact line.
+
+### Removed
+- **FAANG layout.** Professional already rendered that layout. Saved `faang` selections move to Professional automatically.
+
+### Added
+- `npm run test:render` — renders fixture resumes through `resume-renderers.js` and asserts one-page Double Sided fit, no text below the page margin, Academic CV pagination and footer, and no duplicated projects.
+
+### Fixed
+- **Headers typed on one line keep their title and company.** A line such as `Senior Data Scientist | Acme | Mar 2021 - Present` used to be swallowed as a date range, leaving the entry with no title or employer. The parser now splits the header from the dates.
+- **Education lines parse degree and school correctly.** `MSc, Statistics — University of Toronto — 2015 — Toronto, ON` now yields degree `MSc, Statistics`, school `University of Toronto`, year and location, instead of treating the field of study as the school.
+
 ## [10.6.0] — 2026-11-08
 ### Added
 - **Cover letter gate.** Generate letter in Settings now waits 60 seconds per resume between attempts and shows the remaining time on the button, so repeated clicks cannot drain the free Pollinations quota (or keep hammering the local Ollama fallback). The wait survives a reload because it is stored with the resume.

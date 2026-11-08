@@ -183,12 +183,12 @@ async function main() {
         await popupPage.waitForTimeout(250);
         await snap(popupPage, 'styleOpen', '.custom-options', {
             h: 280,
-            spots: { faangOption: '.custom-option[data-value="faang"]', acOption: '.custom-option[data-value="academic-cv"]', deedyOption: '.custom-option[data-value="deedy"]' },
+            spots: { acOption: '.custom-option[data-value="academic-cv"]', deedyOption: '.custom-option[data-value="deedy"]' },
         });
 
-        await popupPage.click('.custom-option[data-value="faang"]');
+        await popupPage.click('.custom-option[data-value="deedy"]');
         await popupPage.waitForTimeout(250);
-        await snap(popupPage, 'styleFaang', '.custom-select__trigger', { h: 300, spots: { styleTrigger: '.custom-select__trigger' } });
+        await snap(popupPage, 'styleDeedy', '.custom-select__trigger', { h: 300, spots: { styleTrigger: '.custom-select__trigger' } });
 
         await popupPage.evaluate(() => { document.getElementById('coverLetterToggle').click(); });
         await popupPage.waitForTimeout(200);

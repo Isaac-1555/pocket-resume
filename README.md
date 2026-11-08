@@ -11,7 +11,7 @@
 
 - **On-device resume engine** — deterministic job-description alignment: JD title/company/location filled in, skills ranked by relevance, strongest bullets selected, banned openers fixed. Wording is never rewritten, and a verifier reverts any number that is not in your profile
 - **Paste once, edit a form** — the local parser turns resume text into a structured, editable profile. No API key, no cloud round-trip
-- **4 Resume Layouts** — Professional, FAANG, Deedy (double-sided, dense two-column), Academic CV
+- **3 Resume Layouts** — Professional, Double Sided (dense two-column, always one page), Academic CV (multi-page)
 - **A cover letter per resume** — each saved resume keeps its own letter with `{{company}}`, `{{role}}`, and `{{recipient}}` filled from the posting. Write it yourself, click **Generate letter** for a short general draft, or copy the prompt into any assistant
 - **Job Tracker** — every generation drops a card with the job URL, company, and role. Pipeline board + analytics, no extra calls
 - **Quick Download** — re-download your saved resume as a professional PDF without reading the page

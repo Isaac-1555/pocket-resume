@@ -13,7 +13,7 @@ Key runtime entrypoints (declared in `manifest.json`):
 - **Popup UI**: `popup.html` + `popup.js` — user actions + PDF generation for PocketResume layouts
 - **Feature tour video**: `feature-video.js` / `feature-video.css` (player) + `scripts/capture-tour.mjs` / `assets/tour/` (frames) — scripted cursor-follow walkthrough, popup-only
 - **Options page**: `options.html` + `options.js` — resume form + cover letter + account + toggles
-- **Resume renderers**: `resume-renderers.js` — Jake, Deedy, Academic CV PDF layouts
+- **Resume renderers**: `resume-renderers.js` — Double Sided and Academic CV PDF layouts
 - **Pro (optional)**: `src/cloud-sync.js` (source) → `cloud-sync.js` (options page, with Clerk UI) + `cloud-sync-core.js` (popup / tracker / worker, no UI) — both bundles gitignored — auth, plan gating, pricing, resume sync
 - **Convex backend (optional)**: `convex/` — auth config + resume schema/functions
 
@@ -94,7 +94,7 @@ Requires `CONVEX_DEPLOYMENT` in `.env.local`. Generated code goes to `convex/_ge
 
 ### Tests / lint
 
-`npm run test:align` is the only automated check (determinism, no-invented-numbers, parser fixtures, normalization). No linter. Otherwise: load unpacked, generate with a real account, inspect the PDF + the service worker console.
+`npm run test:align` (determinism, no-invented-numbers, parser fixtures, normalization) and `npm run test:render` (Double Sided one-page fit, no text below the page margin, Academic CV pagination + footer, no duplicated projects) are the automated checks. No linter. Otherwise: load unpacked, generate with a real account, inspect the PDF + the service worker console.
 
 ### Versioning & changelog
 
@@ -219,14 +219,15 @@ Safety rules (enforced in `form-filler.js` + prompt): never submits the form, ne
 
 Configured by `getResumeStyleConfig(...)` in `background.js`:
 
-| UI Style     | promptStyle  | layout       | PDF Renderer                                                       |
-| ------------ | ------------ | ------------ | ------------------------------------------------------------------ |
-| professional | professional | pocketresume | `popup.js` → `generatePDF`                                         |
-| faang        | faang        | pocketresume | `popup.js` → `generatePDF`                                         |
-| deedy        | faang        | deedy        | `resume-renderers.js` → `renderDeedyLayout`                        |
-| academic-cv  | academic-cv  | academic-cv  | `resume-renderers.js` → `renderAcademicCvLayout`                   |
+| UI Style     | layout       | PDF Renderer                                     |
+| ------------ | ------------ | ------------------------------------------------ |
+| professional | pocketresume | `popup.js` → `generatePDF`                       |
+| deedy        | deedy        | `resume-renderers.js` → `renderDeedyLayout`      |
+| academic-cv  | academic-cv  | `resume-renderers.js` → `renderAcademicCvLayout` |
 
-Bullet selection is deterministic in `alignResumeJson(...)` (`resume-align.js`): per entry it keeps the strongest 2–3 bullets (metric presence + JD keyword hits + strong action-verb opener + length), rewrites banned openers from a fixed table (`fixBulletOpener`), and trims long bullets at clause boundaries without dropping numbers (`trimBullet`). It never authors new text. `professional`/`deedy`/`academic-cv` share the same selector; `faang` gets the same selection with tighter limits.
+There are three layouts. The old `faang` id was removed in 10.7.0; a stored `resumeType: "faang"` normalizes to `professional` (same `pocketresume` renderer) and is rewritten on the next popup load.
+
+Bullet selection is deterministic in `alignResumeJson(...)` (`resume-align.js`): per entry it keeps the strongest 2–3 bullets (metric presence + JD keyword hits + strong action-verb opener + length), rewrites banned openers from a fixed table (`fixBulletOpener`), and trims long bullets at clause boundaries without dropping numbers (`trimBullet`). It never authors new text. `professional`/`deedy` keep up to 3 bullets per entry (120 / 130 chars); `academic-cv` keeps up to 5 (170 chars). The limits are keyed on `styleConfig.layout`, not a prompt style.
 
 `alignSkills(...)` merges the JD's skill terms (any zone, including a plain `Skills:` / `Tech Stack:` / `Core Competencies` block) into `resume.skills`, but only terms the master resume already evidences (canonical name or alias, word-boundary matched). The list is deduped on lexical identity (`React`/`React.js`, `javascript`/`JAVASCRIPT`, `Apache Spark`/`Spark`), displays the lexicon canonical name for JD matches, caps at 10 additions / 30 total, and rewrites `skillGroups` (kept verbatim by the Deedy / Academic renderers) so the groups carry the same deduped set plus any JD addition. `verifyAlignedResume(...)` re-checks skills against canonical names and aliases, so an alias spelling (`k8s` → `Kubernetes`) survives verification while an invented skill still drops. `allowUnverifiedSkills` (Settings toggle, **on by default** since 10.1.1) lifts the evidence gate: unevidenced JD keywords are added anyway, exempted from the verifier's skill filter, and reported separately as `skillsAddedUnverified`.
 
@@ -244,10 +245,10 @@ Important keys:
 - `deletedResumeIds`: `[{ id, deletedAt }]` — delete tombstones so automatic cloud restore doesn't resurrect a locally deleted resume
 - `selectedResumeId`: which resume is active in the popup
 - `cloudSyncStatus`: `"idle" | "syncing" | "synced" | "error"` (cloud sync indicator, written by `src/cloud-sync.js`)
-- `resumeType`: `"professional" | "faang" | "deedy" | "academic-cv"`
+- `resumeType`: `"professional" | "deedy" | "academic-cv"` (legacy `"faang"` is normalized to `"professional"`)
 - `applicationProfile`: Form Filler answers — `{ firstName, lastName, email, phone, streetAddress, addressLine2, city, state, postalCode, country, salaryAmount, salaryCurrency, salaryPeriod, startDate, yearsExperience, workAuthorized, needsSponsorship, over18, willingToRelocate, remotePreference, linkedin, website, github, eeoOptIn, eeo: { gender, race, hispanicLatino, veteran, disability }, customQA: [{ id, question, answer }], updatedAt }`
 - `appProfileOnboarding`: `{ active: boolean }` — trigger for the Form Filler setup spotlight tour (set by the popup, consumed by the options page)
-- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'10.6.0'` current)
+- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'10.7.0'` current)
 - `parseConfirmedAt`: ms timestamp of the last parsed-resume confirmation
 - `accessReminderLastShown`: `YYYY-MM-DD` — daily "free until Dec 31" reminder dismissal
 - `featureVideoDeclined`: boolean — legacy flag (tour entry points are hidden in v10.0)
@@ -319,7 +320,7 @@ PocketResume/
 ├── feature-video.js / feature-video.css  # Cursor-follow feature tour over real screenshots (popup-only)
 ├── scripts/capture-tour.mjs # Generates assets/tour/*.webp + frames.js (npm run build:tour)
 ├── options.html / options.js# Settings: resume form, cover letter, account, toggles
-├── resume-renderers.js      # Jake / Deedy / Academic CV PDF layouts
+├── resume-renderers.js      # Double Sided / Academic CV PDF layouts
 ├── resume-parse.js          # Resume text -> structured profile + normalization (pure, no network)
 ├── resume-align.js          # Deterministic JD alignment + verifier + cover-letter template (pure)
 ├── resume-health.js         # Opt-in health check: redaction, prompt, JSON salvage, Pollinations→Ollama chain

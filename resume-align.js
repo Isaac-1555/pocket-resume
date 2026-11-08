@@ -668,8 +668,8 @@ function alignResumeJson(profile, jd, options = {}) {
     const source = profile && typeof profile === 'object' ? profile : {};
     const resume = JSON.parse(JSON.stringify(source));
     const lexicon = options.lexicon || { terms: [] };
-    const styleConfig = options.styleConfig || { layout: 'pocketresume', promptStyle: 'professional' };
-    const maxBullets = styleConfig.promptStyle === 'faang' ? 3 : (styleConfig.promptStyle === 'academic-cv' ? 5 : 3);
+    const styleConfig = options.styleConfig || { layout: 'pocketresume' };
+    const maxBullets = styleConfig.layout === 'academic-cv' ? 5 : 3;
     const limit = styleConfig.layout === 'academic-cv' ? 170 : (styleConfig.layout === 'deedy' ? 130 : 120);
 
     const model = buildKeywordModel(jd, lexicon);

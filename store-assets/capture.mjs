@@ -203,15 +203,6 @@ async function main() {
         }
         console.log('captured popup-success + professional pdf + cover letter');
 
-        // faang
-        await selectStyle(page, 'faang');
-        await runGenerate(page);
-        outputs = await drainPdfs(page);
-        for (const o of outputs) {
-            if (o.name.startsWith('Resume')) saveDataUri(o.data, path.join(CAPTURES, 'resume-faang.pdf'));
-        }
-        console.log('captured faang pdf');
-
         // deedy
         await selectStyle(page, 'deedy');
         await runGenerate(page);
@@ -236,7 +227,7 @@ async function main() {
     }
 
     // ============ 2. PDF -> PNG previews ============
-    for (const style of ['professional', 'faang', 'deedy', 'academic-cv']) {
+    for (const style of ['professional', 'deedy', 'academic-cv']) {
         const pdf = path.join(CAPTURES, `resume-${style}.pdf`);
         if (fs.existsSync(pdf)) {
             await pdfToPng(pdf, path.join(CAPTURES, `resume-${style}.png`));

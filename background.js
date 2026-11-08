@@ -40,7 +40,6 @@ function normalizeResumeStyle(selectedStyle) {
         case "deedy":
         case "academic-cv":
         case "professional":
-        case "faang":
             return selectedStyle;
         default:
             return "professional";
@@ -50,14 +49,12 @@ function normalizeResumeStyle(selectedStyle) {
 function getResumeStyleConfig(selectedStyle) {
     switch (normalizeResumeStyle(selectedStyle)) {
         case "deedy":
-            return { promptStyle: "faang", layout: "deedy" };
+            return { layout: "deedy" };
         case "academic-cv":
-            return { promptStyle: "academic-cv", layout: "academic-cv" };
-        case "faang":
-            return { promptStyle: "faang", layout: "pocketresume" };
+            return { layout: "academic-cv" };
         case "professional":
         default:
-            return { promptStyle: "professional", layout: "pocketresume" };
+            return { layout: "pocketresume" };
     }
 }
 

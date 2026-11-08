@@ -47,7 +47,7 @@ PocketResume/
 ├── content.js               # Content script: page text extraction
 ├── popup.html / popup.js    # Popup UI + PDF generation
 ├── options.html / options.js# Settings: API keys, resumes, toggles
-├── resume-renderers.js      # Jake / Deedy / Academic CV PDF layouts
+├── resume-renderers.js      # Double Sided / Academic CV PDF layouts
 ├── src/cloud-sync.js        # Pro auth/plan/pricing source (bundled → cloud-sync.js)
 ├── cloud-sync.js            # [generated] esbuild bundle of src/cloud-sync.js
 ├── convex/                  # Convex backend (resumes schema)
