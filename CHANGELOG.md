@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.6.0] — 2026-11-08
+### Added
+- **Cover letter gate.** Generate letter in Settings now waits 60 seconds per resume between attempts and shows the remaining time on the button, so repeated clicks cannot drain the free Pollinations quota (or keep hammering the local Ollama fallback). The wait survives a reload because it is stored with the resume.
+- **Overwrite confirmation.** If the active resume already has a letter body, Generate letter asks before replacing it. Copy prompt and manual paste stay ungated.
+
+### Fixed
+- **Provider limits now drive the gate.** A 402 with `Retry-After` or a 429 from either provider extends the cooldown to the wait it asked for (capped at 15 minutes) instead of surfacing a generic failure, and the button counts down that wait.
+
 ## [10.5.0] — 2026-11-07
 ### Added
 - **A cover letter per resume.** Every resume tab keeps its own greeting, body, and sign-off, saved with that resume and synced to your account. Generate Cover Letter now uses the selected resume's letter instead of one global template.

@@ -983,8 +983,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.5.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.5.0';
+  const ANNOUNCEMENT_VERSION = '10.6.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.6.0';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {

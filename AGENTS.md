@@ -166,16 +166,18 @@ Opt-in rule-based checker in the Settings sidebar (`#resumeHealthDetails` → `#
 - Baseline snapshot: `libs/skills-lexicon.js` (`npm run build:lexicon`, ~8k terms, committed). Runtime updates go to `chrome.storage.local` as compact rows (`skillLexicon`) + `skillLexiconMeta`.
 - Updates: `chrome.alarms` (`skillLexiconWeekly`, 7 days) plus `onStartup`/`onInstalled`; runs when `skillLexiconAutoUpdate !== false`, data older than 7 days, and the optional `https://www.onetcenter.org/*` permission is granted. No plan check. Settings → Skill directory has **Update now**, which requests that permission first. Failures keep the last good copy and record `lastError`.
 
-### Cover letter per resume (v10.5)
+### Cover letter per resume (v10.5, gated in v10.6)
 
 Settings → **Cover letter** edits the **active resume tab's** letter (`resume.coverLetter = { greeting, body, signOff, updatedAt }`). The editor lives in the left panel, so switching resume tabs reloads it; pending edits flush before the switch. Under the hood, the dropdown writes to `resumes[activeTabIndex]`, bumps `updatedAt`, and auto-syncs.
 
 Two write paths:
 
 - **Generate letter** — sends `BUILD_AI_COVER_LETTER` (`{ resumeId }`) to the background, which calls `generateCoverLetterBody(jsonContent)` in `resume-letter.js`. Same provider chain as Resume Health: Pollinations (`https://text.pollinations.ai/openai`, no key, `reasoning_effort: low`) first, local Ollama (`http://localhost:11434/v1/chat/completions`, `llama3.2`) as the fallback. Contact details are redacted with `redactProfile`. Prompt asks for a general body only: 120–160 words, 3 short paragraphs, no greeting/date/sign-off, `{{company}}` and `{{role}}` kept for generation-time fill, no invented facts. The previous letter is kept if every provider fails.
-- **Copy prompt** — copies the same body-only authoring prompt for an external assistant.
+- **Copy prompt** — copies the same body-only authoring prompt for an external assistant. Never gated.
 
-The popup's **Generate Cover Letter** sends `GENERATE` with `output: 'cover-letter'`; background renders the selected resume's letter through `buildCoverLetterFromTemplate(...)` into the shape `generateCoverLetterPDF` expects. A generated resume is never discarded because the letter failed. `openCoverLetterSection: { resumeId }` deep-links Settings to that resume's editor.
+**The gate (v10.6).** The background is the only writer of `resume.coverLetterCooldownUntil` (`COVER_LETTER_COOLDOWN_MS` = 60 s, exported from `resume-letter.js`). It refuses a request while the field is in the future (`{ status: 'rate_limited', retryAfterMs, cooldownUntil }`), sets it before calling a provider, and extends it to the provider's `Retry-After` on 402 or 60 s on 429 (capped at 15 min). Every reply carries `cooldownUntil`, so the options page just mirrors it — it never writes the cooldown before sending, or the worker could not tell a spam click from the in-flight request. The button shows `Wait Ns` with a 1 s countdown and a note; the value persists across reloads because it is stored with the resume. It is **local-only** — the Convex payload is explicit (`label`/`content`/`jsonContent`/`coverLetter`), so it never syncs. `runGenerateCoverLetter` also asks for `confirm()` before replacing a non-empty body.
+
+The popup's **Generate Cover Letter** sends `GENERATE` with `output: 'cover-letter'`; background renders the selected resume's letter through `buildCoverLetterFromTemplate(...)` into the shape `generateCoverLetterPDF` expects. That path is template-only, so it is not gated and makes no network call. A generated resume is never discarded because the letter failed. `openCoverLetterSection: { resumeId }` deep-links Settings to that resume's editor.
 
 ### Form filler setup (Application Questions — Soon in v10.0)
 
@@ -238,14 +240,14 @@ Settings are stored in `chrome.storage.local`, managed in `options.js`.
 
 Important keys:
 
-- `resumes`: array of `{ id, label, icon, content, jsonContent, legacyContent, parseReview, parseConfirmedAt, lastRefineBackup, lastRefineAppliedAt, refineAnswers, updatedAt, coverLetter }` (up to 3). `icon` is a local-only field (`''` = doc glyph) shown on the resume tabs and the popup resume selector; it is not sent to Convex. `jsonContent` is canonical; `content`/`legacyContent` preserve the pasted text. `coverLetter: { greeting, body, signOff, updatedAt }` is the letter used by Generate Cover Letter for this resume (synced as a JSON string). `parseReview: { warnings, parsedAt }` blocks generation until `parseConfirmedAt` is set. `updatedAt` (ms) drives cloud sync last-write-wins.
+- `resumes`: array of `{ id, label, icon, content, jsonContent, legacyContent, parseReview, parseConfirmedAt, lastRefineBackup, lastRefineAppliedAt, refineAnswers, updatedAt, coverLetter, coverLetterCooldownUntil }` (up to 3). `icon` is a local-only field (`''` = doc glyph) shown on the resume tabs and the popup resume selector; it is not sent to Convex. `jsonContent` is canonical; `content`/`legacyContent` preserve the pasted text. `coverLetter: { greeting, body, signOff, updatedAt }` is the letter used by Generate Cover Letter for this resume (synced as a JSON string). `coverLetterCooldownUntil` (ms, local-only) is the 60 s gate on AI letter writing — see the cover-letter section. `parseReview: { warnings, parsedAt }` blocks generation until `parseConfirmedAt` is set. `updatedAt` (ms) drives cloud sync last-write-wins.
 - `deletedResumeIds`: `[{ id, deletedAt }]` — delete tombstones so automatic cloud restore doesn't resurrect a locally deleted resume
 - `selectedResumeId`: which resume is active in the popup
 - `cloudSyncStatus`: `"idle" | "syncing" | "synced" | "error"` (cloud sync indicator, written by `src/cloud-sync.js`)
 - `resumeType`: `"professional" | "faang" | "deedy" | "academic-cv"`
 - `applicationProfile`: Form Filler answers — `{ firstName, lastName, email, phone, streetAddress, addressLine2, city, state, postalCode, country, salaryAmount, salaryCurrency, salaryPeriod, startDate, yearsExperience, workAuthorized, needsSponsorship, over18, willingToRelocate, remotePreference, linkedin, website, github, eeoOptIn, eeo: { gender, race, hispanicLatino, veteran, disability }, customQA: [{ id, question, answer }], updatedAt }`
 - `appProfileOnboarding`: `{ active: boolean }` — trigger for the Form Filler setup spotlight tour (set by the popup, consumed by the options page)
-- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'10.5.0'` current)
+- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'10.6.0'` current)
 - `parseConfirmedAt`: ms timestamp of the last parsed-resume confirmation
 - `accessReminderLastShown`: `YYYY-MM-DD` — daily "free until Dec 31" reminder dismissal
 - `featureVideoDeclined`: boolean — legacy flag (tour entry points are hidden in v10.0)
@@ -354,7 +356,7 @@ PocketResume/
 - **Change generation / JD alignment**: `resume-align.js` (`parseJobPosting`, `alignResumeJson`, verifier), `background.js` (`GENERATE`, `BUILD_COVER_LETTER`), `popup.js` (`runGeneration`, `refreshGate`) / `popup.html` (`#signinCard`, `#reviewCard`, `#planLockCard`).
 - **Change the skill vocabulary or update source**: `skill-lexicon.js` (parsers, `CURATED_ALIASES`, source URLs) + `scripts/build-lexicon.mjs` (bundled baseline) + `background.js` (`updateSkillLexicon`, alarms). Keep the O*NET attribution in `NOTICE` and in Settings.
 - **Change Resume Health Check**: `resume-health.js` (`buildProviders`, `checkResumeHealth`, `validateHealthReport`, `SCORE_WEIGHTS`), `background.js` (`CHECK_RESUME_HEALTH`), `options.html`/`options.js` (`#resumeHealthDetails` → `renderHealthPanel` / `runResumeHealthCheck`, cooldown + local fix scoring).
-- **Change the cover letter**: `options.html`/`options.js` (Cover letter section: Generate letter, prompt, sample, per-resume editor) + `resume-letter.js` (`generateCoverLetterBody`, `buildCoverLetterBodyPrompt`, `sanitizeLetter`) + `buildCoverLetterFromTemplate` in `resume-align.js` + `background.js` (`BUILD_AI_COVER_LETTER`).
+- **Change the cover letter**: `options.html`/`options.js` (Cover letter section: Generate letter + 60 s cooldown gate, prompt, sample, per-resume editor) + `resume-letter.js` (`generateCoverLetterBody`, `buildCoverLetterBodyPrompt`, `sanitizeLetter`, `COVER_LETTER_COOLDOWN_MS`) + `buildCoverLetterFromTemplate` in `resume-align.js` + `background.js` (`BUILD_AI_COVER_LETTER` gate + cooldown write).
 - **Change saved-answer resolution / canonical matchers**: `form-profile.js` (`CANONICAL_MATCHERS`, `resolveFormAnswers`) — dormant until Form Filler returns.
 - **Change Form Filler onboarding / application profile**: `options.html` + `options.js` (`#appProfileDetails` section, `APP_PROFILE_FIELDS`, `PROFILE_TOUR_STEPS`), `background.js` (`PROFILE_AUTOFILL` handler + `generateApplicationProfileFromResume`), popup gating in `popup.js` (`isFormFillerProfileComplete` / `#fillProfileCard`).
 - **Change PocketResume PDF layout**: `popup.js` (`generatePDF` / `generateCoverLetterPDF`).
