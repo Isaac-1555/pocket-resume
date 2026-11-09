@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const coverLetterResumeNote = document.getElementById('coverLetterResumeNote');
   const generateCoverLetterBtn = document.getElementById('generateCoverLetterBtn');
   const coverLetterCopyStatus = document.getElementById('coverLetterCopyStatus');
+  const coverLetterGateNote = document.getElementById('coverLetterGateNote');
   const skillLexiconUpdateBtn = document.getElementById('skillLexiconUpdateBtn');
   const skillLexiconAutoToggle = document.getElementById('skillLexiconAutoToggle');
   const skillLexiconStatus = document.getElementById('skillLexiconStatus');
@@ -172,7 +173,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       updatedAt: Date.now(),
       _lastSavedContent: content || '',
       healthReport: null,
-      coverLetter: null
+      coverLetter: null,
+      coverLetterCooldownUntil: 0
     };
   }
 
@@ -196,6 +198,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       healthReport: resume?.healthReport && typeof resume.healthReport === 'object' ? resume.healthReport : null,
       healthEnabledLocal: !!resume?.healthEnabledLocal,
       healthCooldownUntil: Number(resume?.healthCooldownUntil) || 0,
+      coverLetterCooldownUntil: Number(resume?.coverLetterCooldownUntil) || 0,
       coverLetter: normalizeCoverLetter(resume?.coverLetter)
     };
   }
@@ -214,6 +217,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       healthReport: resume.healthReport || null,
       healthEnabledLocal: !!resume.healthEnabledLocal,
       healthCooldownUntil: Number(resume.healthCooldownUntil) || 0,
+      coverLetterCooldownUntil: Number(resume.coverLetterCooldownUntil) || 0,
       coverLetter: normalizeCoverLetter(resume.coverLetter)
     };
   }
@@ -480,6 +484,60 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let coverLetterSaveTimer = null;
   let coverLetterWriting = false;
+  let coverLetterCountdownTimer = null;
+
+  function coverLetterCooldownRemaining(resume) {
+    const until = Number(resume?.coverLetterCooldownUntil) || 0;
+    return Math.max(0, until - Date.now());
+  }
+
+  function stopCoverLetterCountdown() {
+    if (coverLetterCountdownTimer) {
+      clearInterval(coverLetterCountdownTimer);
+      coverLetterCountdownTimer = null;
+    }
+  }
+
+  function setGenerateLetterBusy(busy) {
+    coverLetterWriting = busy;
+    if (!generateCoverLetterBtn) return;
+    const resume = getActiveResume();
+    const remaining = coverLetterCooldownRemaining(resume);
+    const label = generateCoverLetterBtn.querySelector('span');
+    if (label) {
+      label.textContent = busy
+        ? 'Writing…'
+        : remaining > 0
+          ? `Wait ${Math.ceil(remaining / 1000)}s`
+          : 'Generate letter';
+    }
+    generateCoverLetterBtn.disabled = busy || !resume?.jsonContent || remaining > 0;
+  }
+
+  function renderCoverLetterGate() {
+    stopCoverLetterCountdown();
+    const resume = getActiveResume();
+    const remaining = coverLetterCooldownRemaining(resume);
+    if (coverLetterGateNote) {
+      coverLetterGateNote.textContent = remaining > 0
+        ? `The free provider is cooling down. Try again in ${Math.ceil(remaining / 1000)}s.`
+        : '';
+    }
+    setGenerateLetterBusy(coverLetterWriting);
+    if (remaining > 0 && !coverLetterWriting) {
+      coverLetterCountdownTimer = setInterval(() => {
+        const left = coverLetterCooldownRemaining(getActiveResume());
+        if (left <= 0) {
+          renderCoverLetterGate();
+          return;
+        }
+        if (coverLetterGateNote) {
+          coverLetterGateNote.textContent = `The free provider is cooling down. Try again in ${Math.ceil(left / 1000)}s.`;
+        }
+        setGenerateLetterBusy(coverLetterWriting);
+      }, 1000);
+    }
+  }
 
   function activeResumeCoverLetter() {
     return getActiveResume()?.coverLetter || null;
@@ -555,15 +613,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateCoverLetterFallbackPill();
     updateCoverLetterResumeNote();
     renderCoverLetterPreview();
-    setGenerateLetterBusy(coverLetterWriting);
-  }
-
-  function setGenerateLetterBusy(busy) {
-    coverLetterWriting = busy;
-    if (!generateCoverLetterBtn) return;
-    const label = generateCoverLetterBtn.querySelector('span');
-    if (label) label.textContent = busy ? 'Writing…' : 'Generate letter';
-    generateCoverLetterBtn.disabled = busy || !getActiveResume()?.jsonContent;
+    renderCoverLetterGate();
   }
 
   if (uclBody) uclBody.addEventListener('input', scheduleCoverLetterSave);
@@ -597,6 +647,15 @@ My resume:
       showStatus('Build and save this resume first.', 'info', 4000);
       return;
     }
+    const remaining = coverLetterCooldownRemaining(resume);
+    if (remaining > 0) {
+      showStatus(`The free provider is cooling down. Try again in ${Math.ceil(remaining / 1000)}s.`, 'info', 4000);
+      return;
+    }
+    if ((resume.coverLetter?.body || '').trim()
+      && !confirm(`Replace the letter for "${resume.label || 'this resume'}"? The current body will be overwritten.`)) {
+      return;
+    }
     setGenerateLetterBusy(true);
     if (coverLetterCopyStatus) coverLetterCopyStatus.textContent = 'Writing a letter from this resume…';
     try {
@@ -607,6 +666,17 @@ My resume:
         type: 'BUILD_AI_COVER_LETTER',
         payload: { resumeId: resume.id }
       });
+      if (response?.cooldownUntil) {
+        resume.coverLetterCooldownUntil = Number(response.cooldownUntil) || 0;
+        await setLocalStorage({ resumes: getPersistedResumes() });
+      }
+      if (response?.status === 'rate_limited') {
+        if (coverLetterCopyStatus) {
+          coverLetterCopyStatus.textContent = response.message || 'The free provider is busy. Try again shortly.';
+        }
+        showStatus('The free provider is busy. Your existing letter was kept.', 'info', 5000);
+        return;
+      }
       if (!response || response.status !== 'success' || !response.body) {
         throw new Error(response?.message || 'Letter generation failed');
       }
@@ -630,6 +700,7 @@ My resume:
       showStatus('Could not write a letter. Your existing letter was kept.', 'error', 6000);
     } finally {
       setGenerateLetterBusy(false);
+      renderCoverLetterGate();
     }
   }
 
@@ -1909,7 +1980,7 @@ My resume:
       document.getElementById('rfWarn').classList.add('visible');
     }
     refreshDraftWarnings();
-    setGenerateLetterBusy(coverLetterWriting);
+    renderCoverLetterGate();
   }
 
   tabContentArea.addEventListener('input', (event) => {
@@ -2277,7 +2348,7 @@ My resume:
       showStatus(`Error: ${error.message}`, 'error', 4500);
     } finally {
       saveButton.disabled = false;
-      setGenerateLetterBusy(coverLetterWriting);
+      renderCoverLetterGate();
     }
   });
 });

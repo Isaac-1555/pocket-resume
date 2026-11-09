@@ -1877,7 +1877,6 @@
 
     <select id="resumeType" style="display: none;">
       <option value="professional" selected>PocketResume — Professional (Corporate Standard)</option>
-      <option value="faang">PocketResume — FAANG (Impact-Driven)</option>
       <option value="deedy">Double Sided (Dense Two Column)</option>
       <option value="academic-cv">Academic CV (Multi-Page)</option>
     </select>
@@ -1890,7 +1889,6 @@
             </div>
             <div class="custom-options">
                 <span class="custom-option selected" data-value="professional">Professional (Corporate Standard)</span>
-                <span class="custom-option" data-value="faang">FAANG (Impact-Driven)</span>
                 <span class="custom-option" data-value="deedy">Double Sided (Dense Two Column)</span>
                 <span class="custom-option" data-value="academic-cv">Academic CV (Multi-Page)</span>
             </div>
@@ -2024,15 +2022,15 @@
       <div class="onboarding-icon" aria-hidden="true">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m5.6 5.6 2.8 2.8"/><path d="m15.6 15.6 2.8 2.8"/><path d="m18.4 5.6-2.8 2.8"/><path d="m8.4 15.6-2.8 2.8"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> — A cover letter per resume</h2>
+      <h2>New in <span id="whatsNewVersion"></span> — Cleaner PDF layouts</h2>
       <p class="error-message">
-        Every resume now keeps its own cover letter. Write one in a click, or copy the prompt into your favourite assistant.
+        Double Sided and Academic CV were rebuilt for resumes built without AI. Professional is unchanged.
       </p>
       <ul class="whatsnew-collected">
-        <li><strong>Generate letter</strong> — Settings → Cover letter writes a short general letter from the active resume, with the company and role filled in when you generate.</li>
-        <li><strong>One letter per resume</strong> — switching resume tabs switches the letter, and it syncs with the rest of your data.</li>
-        <li><strong>Body-only prompt</strong> — Copy prompt now returns just the body, ready to paste under your greeting.</li>
-        <li><strong>Sticky tracker columns</strong> — long columns scroll inside the column, so the heading and count stay in view.</li>
+        <li><strong>Double Sided always fits one page</strong> — spacing tightens first, then extra bullets are shortened, then the least important sections are trimmed. The match line tells you what changed.</li>
+        <li><strong>No more clipped text</strong> — content never draws past the bottom of the page, bullets keep their markers, and projects are no longer listed twice.</li>
+        <li><strong>Academic CV paginates properly</strong> — entry headers stay with their first bullet, publications are numbered, titles no longer overlap dates, and every page carries your name and page number.</li>
+        <li><strong>FAANG retired</strong> — Professional already produced that layout, so anyone who had FAANG selected now gets Professional.</li>
       </ul>
       <div class="onboarding-actions">
         <button id="whatsNewPlansBtn" class="cloud-primary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Open Settings</span></button>

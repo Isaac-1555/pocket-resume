@@ -18,6 +18,7 @@
     "build:tour": "node scripts/capture-tour.mjs",
     "clean": "rm -f cloud-sync.js cloud-sync-core.js && rm -rf convex/_generated",
     "test:align": "node scripts/test-align.mjs",
+    "test:render": "node scripts/test-render.mjs",
     "build:zip": "node scripts/build-zip.mjs"
   }
 }

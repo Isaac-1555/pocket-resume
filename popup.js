@@ -108,7 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.PocketResumeSavePdf = savePdfDocument;
 
-  function setMatchReport(report, hasCoverLetter = false) {
+  function setMatchReport(report, hasCoverLetter = false, extraNote = '') {
     if (!offlineReport) return;
     if (!report) {
       offlineReport.textContent = '';
@@ -132,8 +132,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const noKeywords = report.jdWarnings && report.jdWarnings.length
       ? ' · no JD keywords found — reload the posting and try again'
       : '';
-    offlineReport.textContent = `JD match ${report.score}%${keywords}${skillsAdded}${unverified}${noEvidence}${noMasterSkills}${confidence}${missing}${noKeywords}${letter}`;
+    const note = extraNote ? ` · ${extraNote}` : '';
+    offlineReport.textContent = `JD match ${report.score}%${keywords}${skillsAdded}${unverified}${noEvidence}${noMasterSkills}${confidence}${missing}${noKeywords}${letter}${note}`;
     offlineReport.classList.add('show');
+  }
+
+  function layoutNote(result) {
+    if (!result || result.layout !== 'deedy') return '';
+    if (!result.fitted) return 'Double Sided could not fit one page — saved the tightest version';
+    const dropped = Array.isArray(result.dropped) ? result.dropped : [];
+    if (dropped.length > 3) return `Double Sided fit to one page (trimmed ${dropped.length} sections)`;
+    if (dropped.length) return `Double Sided fit to one page (trimmed ${dropped.join(', ')})`;
+    if (result.bulletsReduced) return 'Double Sided fit to one page (shortened bullets)';
+    return '';
   }
 
   function coverLetterFor(list, legacy, resumeId) {
@@ -188,7 +199,6 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'deedy':
       case 'academic-cv':
       case 'professional':
-      case 'faang':
         return selectedStyle;
       default:
         return 'professional';
@@ -198,14 +208,12 @@ document.addEventListener('DOMContentLoaded', () => {
   function getResumeStyleConfig(selectedStyle) {
     switch (normalizeResumeStyle(selectedStyle)) {
       case 'deedy':
-        return { promptStyle: 'faang', layout: 'deedy' };
+        return { layout: 'deedy' };
       case 'academic-cv':
-        return { promptStyle: 'academic-cv', layout: 'academic-cv' };
-      case 'faang':
-        return { promptStyle: 'faang', layout: 'pocketresume' };
+        return { layout: 'academic-cv' };
       case 'professional':
       default:
-        return { promptStyle: 'professional', layout: 'pocketresume' };
+        return { layout: 'pocketresume' };
     }
   }
 
@@ -618,11 +626,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderResumePdf(resumeData, selectedStyle, styleConfig) {
     if (styleConfig.layout === 'pocketresume') {
       generatePDF(resumeData, selectedStyle);
-      return;
+      return null;
     }
     if (window.ResumeRenderers && typeof window.ResumeRenderers.generateResumePDF === 'function') {
-      window.ResumeRenderers.generateResumePDF(resumeData, selectedStyle, styleConfig.layout);
-      return;
+      return window.ResumeRenderers.generateResumePDF(resumeData, selectedStyle, styleConfig.layout);
     }
     throw new Error('Resume renderer module failed to load.');
   }
@@ -862,8 +869,8 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           playResumeLoop(() => {
             try {
-              renderResumePdf(resumeData, selectedStyle, styleConfig);
-              setMatchReport(response.report || null, !!response.coverLetterData);
+              const layoutResult = renderResumePdf(resumeData, selectedStyle, styleConfig);
+              setMatchReport(response.report || null, !!response.coverLetterData, layoutNote(layoutResult));
               setStatus('success');
               if (generateLabel) generateLabel.textContent = 'Generate Resume';
               setGenerateEnabled(true);
@@ -983,8 +990,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.5.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.5.0';
+  const ANNOUNCEMENT_VERSION = '10.7.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.7.0';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {

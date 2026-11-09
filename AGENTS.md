@@ -13,7 +13,7 @@ Key runtime entrypoints (declared in `manifest.json`):
 - **Popup UI**: `popup.html` + `popup.js` — user actions + PDF generation for PocketResume layouts
 - **Feature tour video**: `feature-video.js` / `feature-video.css` (player) + `scripts/capture-tour.mjs` / `assets/tour/` (frames) — scripted cursor-follow walkthrough, popup-only
 - **Options page**: `options.html` + `options.js` — resume form + cover letter + account + toggles
-- **Resume renderers**: `resume-renderers.js` — Jake, Deedy, Academic CV PDF layouts
+- **Resume renderers**: `resume-renderers.js` — Double Sided and Academic CV PDF layouts
 - **Pro (optional)**: `src/cloud-sync.js` (source) → `cloud-sync.js` (options page, with Clerk UI) + `cloud-sync-core.js` (popup / tracker / worker, no UI) — both bundles gitignored — auth, plan gating, pricing, resume sync
 - **Convex backend (optional)**: `convex/` — auth config + resume schema/functions
 
@@ -55,11 +55,12 @@ npm install jspdf@latest
 cp node_modules/jspdf/dist/jspdf.umd.min.js libs/jspdf.umd.min.js
 ```
 
-### Rebuild the skill lexicon / run the aligner tests
+### Rebuild the skill lexicon / run the engine tests
 
 ```sh
 npm run build:lexicon   # downloads O*NET 31.0 CSVs -> libs/skills-lexicon.js
 npm run test:align      # determinism + no-invented-numbers checks (no network)
+npm run test:render     # PDF layout: one-page fit, margins, pagination, duplication
 ```
 
 ### Update vendored LDRS loader
@@ -94,7 +95,7 @@ Requires `CONVEX_DEPLOYMENT` in `.env.local`. Generated code goes to `convex/_ge
 
 ### Tests / lint
 
-`npm run test:align` is the only automated check (determinism, no-invented-numbers, parser fixtures, normalization). No linter. Otherwise: load unpacked, generate with a real account, inspect the PDF + the service worker console.
+`npm run test:align` (determinism, no-invented-numbers, parser fixtures, normalization) and `npm run test:render` (Double Sided one-page fit, no text below the page margin, Academic CV pagination + footer, no duplicated projects) are the automated checks. No linter. Otherwise: load unpacked, generate with a real account, inspect the PDF + the service worker console.
 
 ### Versioning & changelog
 
@@ -166,22 +167,24 @@ Opt-in rule-based checker in the Settings sidebar (`#resumeHealthDetails` → `#
 - Baseline snapshot: `libs/skills-lexicon.js` (`npm run build:lexicon`, ~8k terms, committed). Runtime updates go to `chrome.storage.local` as compact rows (`skillLexicon`) + `skillLexiconMeta`.
 - Updates: `chrome.alarms` (`skillLexiconWeekly`, 7 days) plus `onStartup`/`onInstalled`; runs when `skillLexiconAutoUpdate !== false`, data older than 7 days, and the optional `https://www.onetcenter.org/*` permission is granted. No plan check. Settings → Skill directory has **Update now**, which requests that permission first. Failures keep the last good copy and record `lastError`.
 
-### Cover letter per resume (v10.5)
+### Cover letter per resume (v10.5, gated in v10.6)
 
 Settings → **Cover letter** edits the **active resume tab's** letter (`resume.coverLetter = { greeting, body, signOff, updatedAt }`). The editor lives in the left panel, so switching resume tabs reloads it; pending edits flush before the switch. Under the hood, the dropdown writes to `resumes[activeTabIndex]`, bumps `updatedAt`, and auto-syncs.
 
 Two write paths:
 
 - **Generate letter** — sends `BUILD_AI_COVER_LETTER` (`{ resumeId }`) to the background, which calls `generateCoverLetterBody(jsonContent)` in `resume-letter.js`. Same provider chain as Resume Health: Pollinations (`https://text.pollinations.ai/openai`, no key, `reasoning_effort: low`) first, local Ollama (`http://localhost:11434/v1/chat/completions`, `llama3.2`) as the fallback. Contact details are redacted with `redactProfile`. Prompt asks for a general body only: 120–160 words, 3 short paragraphs, no greeting/date/sign-off, `{{company}}` and `{{role}}` kept for generation-time fill, no invented facts. The previous letter is kept if every provider fails.
-- **Copy prompt** — copies the same body-only authoring prompt for an external assistant.
+- **Copy prompt** — copies the same body-only authoring prompt for an external assistant. Never gated.
 
-The popup's **Generate Cover Letter** sends `GENERATE` with `output: 'cover-letter'`; background renders the selected resume's letter through `buildCoverLetterFromTemplate(...)` into the shape `generateCoverLetterPDF` expects. A generated resume is never discarded because the letter failed. `openCoverLetterSection: { resumeId }` deep-links Settings to that resume's editor.
+**The gate (v10.6).** The background is the only writer of `resume.coverLetterCooldownUntil` (`COVER_LETTER_COOLDOWN_MS` = 60 s, exported from `resume-letter.js`). It refuses a request while the field is in the future (`{ status: 'rate_limited', retryAfterMs, cooldownUntil }`), sets it before calling a provider, and extends it to the provider's `Retry-After` on 402 or 60 s on 429 (capped at 15 min). Every reply carries `cooldownUntil`, so the options page just mirrors it — it never writes the cooldown before sending, or the worker could not tell a spam click from the in-flight request. The button shows `Wait Ns` with a 1 s countdown and a note; the value persists across reloads because it is stored with the resume. It is **local-only** — the Convex payload is explicit (`label`/`content`/`jsonContent`/`coverLetter`), so it never syncs. `runGenerateCoverLetter` also asks for `confirm()` before replacing a non-empty body.
+
+The popup's **Generate Cover Letter** sends `GENERATE` with `output: 'cover-letter'`; background renders the selected resume's letter through `buildCoverLetterFromTemplate(...)` into the shape `generateCoverLetterPDF` expects. That path is template-only, so it is not gated and makes no network call. A generated resume is never discarded because the letter failed. `openCoverLetterSection: { resumeId }` deep-links Settings to that resume's editor.
 
 ### Form filler setup (Application Questions — Soon in v10.0)
 
 Since 10.1.1 the Form Filler Setup section markup is removed from the Options left panel (it stays drifted out of view while the feature is rebuilt); the JS side in `options.js` is intact and fully null-guarded, and `applicationProfile` storage keeps working.
 
-Everything below is dormant: the section is visible with a `Soon` badge and its buttons are disabled. It is kept as the basis for the deterministic rebuild.
+Everything below is dormant: the section markup is gone from the Options page while the feature is rebuilt, and the popup's Fill Form button is disabled. It is kept as the basis for the deterministic rebuild.
 
 One-time onboarding for Form Filler: the user answers common application-form questions once; fills reuse them.
 
@@ -217,14 +220,17 @@ Safety rules (enforced in `form-filler.js` + prompt): never submits the form, ne
 
 Configured by `getResumeStyleConfig(...)` in `background.js`:
 
-| UI Style     | promptStyle  | layout       | PDF Renderer                                                       |
-| ------------ | ------------ | ------------ | ------------------------------------------------------------------ |
-| professional | professional | pocketresume | `popup.js` → `generatePDF`                                         |
-| faang        | faang        | pocketresume | `popup.js` → `generatePDF`                                         |
-| deedy        | faang        | deedy        | `resume-renderers.js` → `renderDeedyLayout`                        |
-| academic-cv  | academic-cv  | academic-cv  | `resume-renderers.js` → `renderAcademicCvLayout`                   |
+| UI Style     | layout       | PDF Renderer                                     |
+| ------------ | ------------ | ------------------------------------------------ |
+| professional | pocketresume | `popup.js` → `generatePDF`                       |
+| deedy        | deedy        | `resume-renderers.js` → `renderDeedyLayout`      |
+| academic-cv  | academic-cv  | `resume-renderers.js` → `renderAcademicCvLayout` |
 
-Bullet selection is deterministic in `alignResumeJson(...)` (`resume-align.js`): per entry it keeps the strongest 2–3 bullets (metric presence + JD keyword hits + strong action-verb opener + length), rewrites banned openers from a fixed table (`fixBulletOpener`), and trims long bullets at clause boundaries without dropping numbers (`trimBullet`). It never authors new text. `professional`/`deedy`/`academic-cv` share the same selector; `faang` gets the same selection with tighter limits.
+There are three layouts. The old `faang` id was removed in 10.7.0; a stored `resumeType: "faang"` normalizes to `professional` (same `pocketresume` renderer) and is rewritten on the next popup load.
+
+Double Sided is a **one-page** layout: `renderDeedyLayout` measures every block, tries progressively tighter spacing, shortens per-entry bullets, then trims the least important sections (Open Source → Awards → Publications → Certifications → Links → Projects → oldest roles). Nothing draws past the bottom margin, and the trims are reported in the popup match line. Academic CV paginates with a per-page `Name - N` footer and never separates an entry header from its first bullet.
+
+Bullet selection is deterministic in `alignResumeJson(...)` (`resume-align.js`): per entry it keeps the strongest 2–3 bullets (metric presence + JD keyword hits + strong action-verb opener + length), rewrites banned openers from a fixed table (`fixBulletOpener`), and trims long bullets at clause boundaries without dropping numbers (`trimBullet`). It never authors new text. `professional`/`deedy` keep up to 3 bullets per entry (120 / 130 chars); `academic-cv` keeps up to 5 (170 chars). The limits are keyed on `styleConfig.layout`, not a prompt style.
 
 `alignSkills(...)` merges the JD's skill terms (any zone, including a plain `Skills:` / `Tech Stack:` / `Core Competencies` block) into `resume.skills`, but only terms the master resume already evidences (canonical name or alias, word-boundary matched). The list is deduped on lexical identity (`React`/`React.js`, `javascript`/`JAVASCRIPT`, `Apache Spark`/`Spark`), displays the lexicon canonical name for JD matches, caps at 10 additions / 30 total, and rewrites `skillGroups` (kept verbatim by the Deedy / Academic renderers) so the groups carry the same deduped set plus any JD addition. `verifyAlignedResume(...)` re-checks skills against canonical names and aliases, so an alias spelling (`k8s` → `Kubernetes`) survives verification while an invented skill still drops. `allowUnverifiedSkills` (Settings toggle, **on by default** since 10.1.1) lifts the evidence gate: unevidenced JD keywords are added anyway, exempted from the verifier's skill filter, and reported separately as `skillsAddedUnverified`.
 
@@ -238,14 +244,14 @@ Settings are stored in `chrome.storage.local`, managed in `options.js`.
 
 Important keys:
 
-- `resumes`: array of `{ id, label, icon, content, jsonContent, legacyContent, parseReview, parseConfirmedAt, lastRefineBackup, lastRefineAppliedAt, refineAnswers, updatedAt, coverLetter }` (up to 3). `icon` is a local-only field (`''` = doc glyph) shown on the resume tabs and the popup resume selector; it is not sent to Convex. `jsonContent` is canonical; `content`/`legacyContent` preserve the pasted text. `coverLetter: { greeting, body, signOff, updatedAt }` is the letter used by Generate Cover Letter for this resume (synced as a JSON string). `parseReview: { warnings, parsedAt }` blocks generation until `parseConfirmedAt` is set. `updatedAt` (ms) drives cloud sync last-write-wins.
+- `resumes`: array of `{ id, label, icon, content, jsonContent, legacyContent, parseReview, parseConfirmedAt, lastRefineBackup, lastRefineAppliedAt, refineAnswers, updatedAt, coverLetter, coverLetterCooldownUntil }` (up to 3). `icon` is a local-only field (`''` = doc glyph) shown on the resume tabs and the popup resume selector; it is not sent to Convex. `jsonContent` is canonical; `content`/`legacyContent` preserve the pasted text. `coverLetter: { greeting, body, signOff, updatedAt }` is the letter used by Generate Cover Letter for this resume (synced as a JSON string). `coverLetterCooldownUntil` (ms, local-only) is the 60 s gate on AI letter writing — see the cover-letter section. `parseReview: { warnings, parsedAt }` blocks generation until `parseConfirmedAt` is set. `updatedAt` (ms) drives cloud sync last-write-wins.
 - `deletedResumeIds`: `[{ id, deletedAt }]` — delete tombstones so automatic cloud restore doesn't resurrect a locally deleted resume
 - `selectedResumeId`: which resume is active in the popup
 - `cloudSyncStatus`: `"idle" | "syncing" | "synced" | "error"` (cloud sync indicator, written by `src/cloud-sync.js`)
-- `resumeType`: `"professional" | "faang" | "deedy" | "academic-cv"`
+- `resumeType`: `"professional" | "deedy" | "academic-cv"` (legacy `"faang"` is normalized to `"professional"`)
 - `applicationProfile`: Form Filler answers — `{ firstName, lastName, email, phone, streetAddress, addressLine2, city, state, postalCode, country, salaryAmount, salaryCurrency, salaryPeriod, startDate, yearsExperience, workAuthorized, needsSponsorship, over18, willingToRelocate, remotePreference, linkedin, website, github, eeoOptIn, eeo: { gender, race, hispanicLatino, veteran, disability }, customQA: [{ id, question, answer }], updatedAt }`
 - `appProfileOnboarding`: `{ active: boolean }` — trigger for the Form Filler setup spotlight tour (set by the popup, consumed by the options page)
-- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'10.5.0'` current)
+- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'10.7.0'` current)
 - `parseConfirmedAt`: ms timestamp of the last parsed-resume confirmation
 - `accessReminderLastShown`: `YYYY-MM-DD` — daily "free until Dec 31" reminder dismissal
 - `featureVideoDeclined`: boolean — legacy flag (tour entry points are hidden in v10.0)
@@ -317,7 +323,7 @@ PocketResume/
 ├── feature-video.js / feature-video.css  # Cursor-follow feature tour over real screenshots (popup-only)
 ├── scripts/capture-tour.mjs # Generates assets/tour/*.webp + frames.js (npm run build:tour)
 ├── options.html / options.js# Settings: resume form, cover letter, account, toggles
-├── resume-renderers.js      # Jake / Deedy / Academic CV PDF layouts
+├── resume-renderers.js      # Double Sided / Academic CV PDF layouts
 ├── resume-parse.js          # Resume text -> structured profile + normalization (pure, no network)
 ├── resume-align.js          # Deterministic JD alignment + verifier + cover-letter template (pure)
 ├── resume-health.js         # Opt-in health check: redaction, prompt, JSON salvage, Pollinations→Ollama chain
@@ -332,9 +338,11 @@ PocketResume/
 │   ├── resumes.ts
 │   └── _generated/          # [generated, gitignored]
 ├── libs/jspdf.umd.min.js    # Vendored jsPDF
-├── libs/ldrs-newtons-cradle.js # [generated, gitignored? no—committed] vendored ldrs Newton's Cradle web component
+├── libs/ldrs-newtons-cradle.js # Vendored ldrs Newton's Cradle web component
 ├── scripts/build-clerk.mjs  # Build script for the Pro (Clerk) bundles
 ├── scripts/build-zip.mjs    # Builds dist/pocketresume-vX.Y.zip from the runtime file list (npm run build:zip)
+├── scripts/test-align.mjs   # Engine tests (npm run test:align)
+├── scripts/test-render.mjs  # PDF layout tests (npm run test:render)
 ├── .env.example             # Template for .env.local
 ├── AGENTS.md                # This file
 ├── CHANGELOG.md             # Version history — update on every version bump
@@ -354,7 +362,7 @@ PocketResume/
 - **Change generation / JD alignment**: `resume-align.js` (`parseJobPosting`, `alignResumeJson`, verifier), `background.js` (`GENERATE`, `BUILD_COVER_LETTER`), `popup.js` (`runGeneration`, `refreshGate`) / `popup.html` (`#signinCard`, `#reviewCard`, `#planLockCard`).
 - **Change the skill vocabulary or update source**: `skill-lexicon.js` (parsers, `CURATED_ALIASES`, source URLs) + `scripts/build-lexicon.mjs` (bundled baseline) + `background.js` (`updateSkillLexicon`, alarms). Keep the O*NET attribution in `NOTICE` and in Settings.
 - **Change Resume Health Check**: `resume-health.js` (`buildProviders`, `checkResumeHealth`, `validateHealthReport`, `SCORE_WEIGHTS`), `background.js` (`CHECK_RESUME_HEALTH`), `options.html`/`options.js` (`#resumeHealthDetails` → `renderHealthPanel` / `runResumeHealthCheck`, cooldown + local fix scoring).
-- **Change the cover letter**: `options.html`/`options.js` (Cover letter section: Generate letter, prompt, sample, per-resume editor) + `resume-letter.js` (`generateCoverLetterBody`, `buildCoverLetterBodyPrompt`, `sanitizeLetter`) + `buildCoverLetterFromTemplate` in `resume-align.js` + `background.js` (`BUILD_AI_COVER_LETTER`).
+- **Change the cover letter**: `options.html`/`options.js` (Cover letter section: Generate letter + 60 s cooldown gate, prompt, sample, per-resume editor) + `resume-letter.js` (`generateCoverLetterBody`, `buildCoverLetterBodyPrompt`, `sanitizeLetter`, `COVER_LETTER_COOLDOWN_MS`) + `buildCoverLetterFromTemplate` in `resume-align.js` + `background.js` (`BUILD_AI_COVER_LETTER` gate + cooldown write).
 - **Change saved-answer resolution / canonical matchers**: `form-profile.js` (`CANONICAL_MATCHERS`, `resolveFormAnswers`) — dormant until Form Filler returns.
 - **Change Form Filler onboarding / application profile**: `options.html` + `options.js` (`#appProfileDetails` section, `APP_PROFILE_FIELDS`, `PROFILE_TOUR_STEPS`), `background.js` (`PROFILE_AUTOFILL` handler + `generateApplicationProfileFromResume`), popup gating in `popup.js` (`isFormFillerProfileComplete` / `#fillProfileCard`).
 - **Change PocketResume PDF layout**: `popup.js` (`generatePDF` / `generateCoverLetterPDF`).

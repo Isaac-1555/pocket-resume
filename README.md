@@ -11,7 +11,7 @@
 
 - **On-device resume engine** — deterministic job-description alignment: JD title/company/location filled in, skills ranked by relevance, strongest bullets selected, banned openers fixed. Wording is never rewritten, and a verifier reverts any number that is not in your profile
 - **Paste once, edit a form** — the local parser turns resume text into a structured, editable profile. No API key, no cloud round-trip
-- **4 Resume Layouts** — Professional, FAANG, Deedy (double-sided, dense two-column), Academic CV
+- **3 Resume Layouts** — Professional, Double Sided (dense two-column, always one page), Academic CV (multi-page)
 - **A cover letter per resume** — each saved resume keeps its own letter with `{{company}}`, `{{role}}`, and `{{recipient}}` filled from the posting. Write it yourself, click **Generate letter** for a short general draft, or copy the prompt into any assistant
 - **Job Tracker** — every generation drops a card with the job URL, company, and role. Pipeline board + analytics, no extra calls
 - **Quick Download** — re-download your saved resume as a professional PDF without reading the page
@@ -19,13 +19,12 @@
 - **Multi-Profile** — save up to 3 master profiles and switch between them
 - **Privacy First** — resumes stay in `chrome.storage.local`; the engine makes no network requests
 
-### What's New in v10.0
+### What's New in v10.7
 
-- **No more API keys.** Pick-your-provider, model overrides, and custom endpoints are gone. Generation is local.
-- **Editable resume form** replaces the raw text and JSON boxes; existing resumes are parsed and shown for review once.
-- **Generate Resume and Generate Cover Letter** are separate buttons.
-- **Everything free until Dec 31, 2026** with a free account.
-- **Form Filler, Refine, and Check ATS** are marked `Soon` while they are rebuilt without AI.
+- **Double Sided always fits one page.** Spacing tightens first, then long bullets are shortened, then the least important sections are trimmed. The popup match line reports what changed.
+- **Academic CV paginates cleanly.** Entry headers stay with their first bullet, titles reserve room for the date, and every page carries a `Name - page` footer.
+- **FAANG retired.** Professional already produced that layout; saved FAANG selections move to Professional automatically.
+- **The resume engine stays on-device.** No API key, no provider picker, no upload — alignment is deterministic and wording is never rewritten.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
@@ -60,7 +59,7 @@ npm install
 
 If generation fails, the popup stays red — click the **?** button (top right) for a readable message plus copyable raw details. The error clears when you close the popup or retry.
 
-Refine Resume, Check ATS, Profile Autofill, and Form Filler are visible but disabled with a **Soon** badge while they are rebuilt without AI.
+Refine Resume, Check ATS, Profile Autofill, and Form Filler are disabled with a **Soon** badge while they are rebuilt without AI. The Form Filler setup section is hidden in Settings until then.
 
 ## Configuration
 
@@ -68,7 +67,7 @@ Resume generation works out of the box and is fully local. One optional integrat
 
 ### Plans (Clerk + Convex)
 
-A **free account** (`free_user`) is required to generate and includes resume cloud sync. Everything is free until **Dec 31, 2026**; after that a **Pro** plan (`pocketresume_pro`) keeps generation and Job Tracker editing unlocked. Resume editing and JSON export stay available without a plan. Sign-in, plan checks, and the embedded pricing table run through [Clerk](https://clerk.com); synced resumes are stored in your own [Convex](https://convex.dev) deployment (`convex/resumes.ts`):
+A **free account** is required to generate and includes resume cloud sync. Everything is free until **Dec 31, 2026**; after that a **Pro** plan (`pocketresume_pro`, $4/month or $47/year with a 7-day trial) keeps generation, the Job Tracker, and cloud sync unlocked. Resume editing and JSON export stay available without a plan. Sign-in, plan checks, and the embedded pricing table run through [Clerk](https://clerk.com); synced resumes are stored in your own [Convex](https://convex.dev) deployment (`convex/resumes.ts`):
 
 1. Fill in `CLERK_PUBLISHABLE_KEY`, `CLERK_FRONTEND_API_URL`, and `CONVEX_URL` in `.env.local`
 2. Run `npm run build:clerk` to bundle `src/cloud-sync.js` → `cloud-sync.js` with your env vars injected
@@ -91,8 +90,15 @@ A **free account** (`free_user`) is required to generate and includes resume clo
 # Install deps
 npm ci
 
-# Rebuild cloud-sync.js after editing src/cloud-sync.js
+# Rebuild cloud-sync.js / cloud-sync-core.js after editing src/cloud-sync.js
 npm run build:clerk
+
+# Deterministic engine + PDF layout checks (no network)
+npm run test:align
+npm run test:render
+
+# Build the Chrome Web Store zip from the runtime file list
+npm run build:zip
 
 # Update vendored jsPDF
 npm install jspdf@latest
@@ -122,7 +128,8 @@ Report vulnerabilities privately via [GitHub Security Advisories](../../security
 - [jsPDF](https://github.com/parallax/jsPDF) — PDF generation
 - [Clerk](https://clerk.com) — Pro auth + pricing (optional)
 - [Convex](https://convex.dev) — resume sync
-- AI providers: [Google Gemini](https://ai.google.dev/), [OpenAI](https://openai.com/), [Anthropic](https://anthropic.com/), [OpenRouter](https://openrouter.ai/)
+- [Pollinations](https://pollinations.ai) and [Ollama](https://ollama.com) — opt-in AI for the Resume health check and Generate letter
+- [O*NET](https://www.onetcenter.org/) — skill vocabulary (CC BY 4.0)
 
 ## License
 

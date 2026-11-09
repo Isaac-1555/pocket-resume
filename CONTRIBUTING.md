@@ -1,6 +1,6 @@
 # Contributing to PocketResume
 
-Thanks for your interest in contributing! PocketResume is an open-source Chrome extension and welcomes issues, bug fixes, features, docs improvements, and prompt tuning.
+Thanks for your interest in contributing! PocketResume is an open-source Chrome extension and welcomes issues, bug fixes, features, docs improvements, and resume-engine tuning.
 
 ## Code of Conduct
 
@@ -18,7 +18,6 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By particip
 
 - Node.js 18+ and npm
 - Chrome / Chromium / Edge / Brave
-- (Optional) API keys for at least one AI provider: Google Gemini, OpenAI, Anthropic, or OpenRouter
 - (Optional) Clerk + Convex accounts if you want to work on Pro auth/pricing or resume sync
 
 ### Install
@@ -43,18 +42,35 @@ See [AGENTS.md](AGENTS.md) for the full architecture map, runtime entrypoints, a
 ```
 PocketResume/
 ├── manifest.json            # Manifest V3 entrypoint wiring
-├── background.js            # Service worker: pipeline orchestration + AI calls
+├── background.js            # Service worker: deterministic pipeline + generation gate
 ├── content.js               # Content script: page text extraction
 ├── popup.html / popup.js    # Popup UI + PDF generation
-├── options.html / options.js# Settings: API keys, resumes, toggles
-├── resume-renderers.js      # Jake / Deedy / Academic CV PDF layouts
+├── options.html / options.js# Settings: resume form, cover letter, account, toggles
+├── resume-parse.js          # Resume text -> structured profile (pure, no network)
+├── resume-align.js          # Deterministic JD alignment + verifier + cover-letter template
+├── resume-renderers.js      # Double Sided / Academic CV PDF layouts
+├── resume-health.js         # Opt-in Resume health check (Pollinations -> Ollama)
+├── resume-letter.js         # Opt-in cover-letter body writer (same provider chain)
+├── skill-lexicon.js         # O*NET skill vocabulary (pure)
 ├── src/cloud-sync.js        # Pro auth/plan/pricing source (bundled → cloud-sync.js)
 ├── cloud-sync.js            # [generated] esbuild bundle of src/cloud-sync.js
 ├── convex/                  # Convex backend (resumes schema)
 ├── libs/jspdf.umd.min.js    # Vendored jsPDF build
+├── scripts/                 # Build + test scripts
 ├── AGENTS.md                # AI agent + contributor guide
 └── package.json             # Build scripts only (no runtime deps)
 ```
+
+## Tests and Builds
+
+```sh
+npm run test:align    # determinism, no-invented-numbers, parser fixtures, normalization
+npm run test:render   # Double Sided one-page fit, page margins, Academic CV pagination, no duplicated projects
+npm run build:clerk   # bundle src/cloud-sync.js → cloud-sync.js + cloud-sync-core.js
+npm run build:zip     # dist/pocketresume-vX.Y.zip from the runtime file list
+```
+
+Keep `test:align` and `test:render` green. There is no linter; otherwise load unpacked and check the PDF plus the service worker console.
 
 ## Pull Requests
 
@@ -72,13 +88,17 @@ PocketResume/
 - **No new comments in source files** unless behavior is non-obvious. The codebase intentionally ships minimal comments.
 - Use `chrome.storage.local` for persistence; do not introduce new global state.
 
-## AI Provider Changes
+## Resume Engine Changes
 
-If you change a prompt, model, or JSON schema, update both:
-- The matching `callGemini*` / `callOpenAI*` / `callAnthropic*` / `callOpenRouter*` function in `background.js`
-- The style config table in `AGENTS.md` if the schema or layout mapping changed
+Generation is deterministic and runs on-device. If you change the parser, the JD aligner, or the verifier:
 
-Test with a real API key before opening a PR. JSON-only outputs (no markdown fences) are a hard requirement — the popup parser will fail otherwise.
+- Keep it pure: `resume-parse.js`, `resume-align.js`, and `skill-lexicon.js` make no network calls.
+- Never author new resume wording. The engine selects, reorders, trims, and fixes banned openers only.
+- Run `npm run test:align` — it asserts determinism, no invented numbers, parser fixtures, and normalization. A schema or layout-mapping change also needs the style config table in `AGENTS.md` updated.
+
+## PDF Layout Changes
+
+`resume-renderers.js` owns the Double Sided and Academic CV layouts. Run `npm run test:render` after any change; it checks one-page Double Sided fit, no text below the page margin, Academic CV pagination and footer, and that projects render once.
 
 ## Pro / Analytics Backend Changes
 

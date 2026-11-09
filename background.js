@@ -19,7 +19,20 @@ import {
 } from './skill-lexicon.js';
 import { SKILL_LEXICON_BASE } from './libs/skills-lexicon.js';
 import { checkResumeHealth } from './resume-health.js';
-import { generateCoverLetterBody } from './resume-letter.js';
+import { generateCoverLetterBody, COVER_LETTER_COOLDOWN_MS } from './resume-letter.js';
+
+async function setCoverLetterCooldown(resumeId, cooldownUntil) {
+    if (!resumeId) return;
+    const data = await chrome.storage.local.get(['resumes']);
+    const entries = Array.isArray(data.resumes) ? data.resumes : [];
+    let changed = false;
+    const next = entries.map((item) => {
+        if (!item || item.id !== resumeId) return item;
+        changed = true;
+        return { ...item, coverLetterCooldownUntil: cooldownUntil };
+    });
+    if (changed) await chrome.storage.local.set({ resumes: next });
+}
 
 // --- Pipeline Utilities ---
 function normalizeResumeStyle(selectedStyle) {
@@ -27,7 +40,6 @@ function normalizeResumeStyle(selectedStyle) {
         case "deedy":
         case "academic-cv":
         case "professional":
-        case "faang":
             return selectedStyle;
         default:
             return "professional";
@@ -37,14 +49,12 @@ function normalizeResumeStyle(selectedStyle) {
 function getResumeStyleConfig(selectedStyle) {
     switch (normalizeResumeStyle(selectedStyle)) {
         case "deedy":
-            return { promptStyle: "faang", layout: "deedy" };
+            return { layout: "deedy" };
         case "academic-cv":
-            return { promptStyle: "academic-cv", layout: "academic-cv" };
-        case "faang":
-            return { promptStyle: "faang", layout: "pocketresume" };
+            return { layout: "academic-cv" };
         case "professional":
         default:
-            return { promptStyle: "professional", layout: "pocketresume" };
+            return { layout: "pocketresume" };
     }
 }
 
@@ -494,8 +504,40 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     sendResponse({ status: 'needs_json', message: 'Build and save this resume first.' });
                     return;
                 }
-                const letter = await generateCoverLetterBody(storedJson);
-                sendResponse({ status: 'success', ...letter });
+
+                const cooldownUntil = Number(entry.coverLetterCooldownUntil) || 0;
+                const remaining = cooldownUntil - Date.now();
+                if (remaining > 0) {
+                    sendResponse({
+                        status: 'rate_limited',
+                        message: `Letter generation is cooling down. Try again in ${Math.ceil(remaining / 1000)}s.`,
+                        retryAfterMs: remaining,
+                        cooldownUntil
+                    });
+                    return;
+                }
+
+                const nextCooldownUntil = Date.now() + COVER_LETTER_COOLDOWN_MS;
+                await setCoverLetterCooldown(entry.id, nextCooldownUntil);
+
+                try {
+                    const letter = await generateCoverLetterBody(storedJson);
+                    sendResponse({ status: 'success', ...letter, cooldownUntil: nextCooldownUntil });
+                } catch (error) {
+                    const retryAfterMs = Number(error?.retryAfterMs) || 0;
+                    if (retryAfterMs > 0) {
+                        const extendedUntil = Date.now() + retryAfterMs;
+                        await setCoverLetterCooldown(entry.id, extendedUntil);
+                        sendResponse({
+                            status: 'rate_limited',
+                            message: error.message,
+                            retryAfterMs,
+                            cooldownUntil: extendedUntil
+                        });
+                        return;
+                    }
+                    sendResponse({ status: 'error', message: error.message, cooldownUntil: nextCooldownUntil });
+                }
             } catch (error) {
                 console.error('[CoverLetter] AI write failed:', error);
                 sendResponse({ status: 'error', message: error.message });

@@ -6,6 +6,8 @@ import { buildProviders, redactProfile } from './resume-health.js';
 
 const REQUEST_TIMEOUT_MS = 60000;
 const MAX_LETTER_CHARS = 2400;
+const COVER_LETTER_COOLDOWN_MS = 60000;
+const MAX_BACKOFF_MS = 900000;
 
 function buildCoverLetterBodyPrompt(profile) {
     return `Write the body of a general cover letter I can reuse for every job.
@@ -78,12 +80,19 @@ async function requestProvider(provider, prompt, signal) {
 
     if (response.status === 402) {
         const retryAfter = Number(response.headers.get('Retry-After'));
-        throw new Error(Number.isFinite(retryAfter) && retryAfter > 0
+        const hasRetryAfter = Number.isFinite(retryAfter) && retryAfter > 0;
+        const error = new Error(hasRetryAfter
             ? `${provider.label} is busy. Try again in ${Math.ceil(retryAfter)}s.`
             : `${provider.label} is busy. Try again in a minute.`);
+        error.retryAfterMs = hasRetryAfter
+            ? Math.min(retryAfter * 1000, MAX_BACKOFF_MS)
+            : COVER_LETTER_COOLDOWN_MS;
+        throw error;
     }
     if (response.status === 429) {
-        throw new Error(`${provider.label} is rate limited.`);
+        const error = new Error(`${provider.label} is rate limited.`);
+        error.retryAfterMs = COVER_LETTER_COOLDOWN_MS;
+        throw error;
     }
     if (!response.ok) {
         throw new Error(`${provider.label} returned ${response.status}.`);
@@ -114,6 +123,7 @@ async function generateCoverLetterBody(jsonContent, options = {}) {
     const providers = buildProviders(options);
     const prompt = buildCoverLetterBodyPrompt(redactProfile(profile));
     const failures = [];
+    let backoffMs = 0;
 
     for (const provider of providers) {
         const controller = new AbortController();
@@ -124,6 +134,8 @@ async function generateCoverLetterBody(jsonContent, options = {}) {
         try {
             return await requestProvider(provider, prompt, combinedSignal);
         } catch (error) {
+            const retryAfterMs = Number(error?.retryAfterMs) || 0;
+            if (retryAfterMs > 0) backoffMs = Math.max(backoffMs, Math.min(retryAfterMs, MAX_BACKOFF_MS));
             if (error?.name === 'AbortError') {
                 failures.push(`${provider.label} timed out`);
                 continue;
@@ -138,12 +150,15 @@ async function generateCoverLetterBody(jsonContent, options = {}) {
         }
     }
 
-    throw new Error(providers.length > 1
+    const failure = new Error(providers.length > 1
         ? `Letter generation failed. ${failures.join(' · ')}`
         : failures[0] || 'Letter generation failed.');
+    if (backoffMs > 0) failure.retryAfterMs = backoffMs;
+    throw failure;
 }
 
 export {
+    COVER_LETTER_COOLDOWN_MS,
     MAX_LETTER_CHARS,
     buildCoverLetterBodyPrompt,
     sanitizeLetter,

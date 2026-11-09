@@ -61,8 +61,8 @@ const jd = parseJobPosting({ title: 'Senior Frontend Engineer | Acme Corp', text
 assert.equal(jd.title, 'Senior Frontend Engineer', 'JD title');
 assert.match(jd.title, /Frontend/);
 
-const first = alignResumeJson(profile, jd, { lexicon, styleConfig: { layout: 'pocketresume', promptStyle: 'professional' } });
-const second = alignResumeJson(profile, jd, { lexicon, styleConfig: { layout: 'pocketresume', promptStyle: 'professional' } });
+const first = alignResumeJson(profile, jd, { lexicon, styleConfig: { layout: 'pocketresume' } });
+const second = alignResumeJson(profile, jd, { lexicon, styleConfig: { layout: 'pocketresume' } });
 assert.deepEqual(first.resume, second.resume, 'aligner is deterministic');
 assert.deepEqual(first.report, second.report, 'report is deterministic');
 
@@ -202,7 +202,7 @@ const skillJd = parseJobPosting({
         '- Build pipelines with Airflow',
     ].join('\n'),
 });
-const skillRun = alignResumeJson(skillProfile, skillJd, { lexicon: bundled, styleConfig: { layout: 'pocketresume', promptStyle: 'professional' } });
+const skillRun = alignResumeJson(skillProfile, skillJd, { lexicon: bundled, styleConfig: { layout: 'pocketresume' } });
 const skillKeys = skillRun.resume.skills.map((skill) => skill.toLowerCase());
 assert.equal(new Set(skillKeys).size, skillKeys.length, 'skills list has no duplicates');
 assert.equal(skillKeys.filter((key) => key === 'react' || key === 'react.js').length, 1, 'React aliases merged');
@@ -215,19 +215,19 @@ assert.equal(skillKeys.filter((key) => key.includes('spark')).length, 1, 'Apache
 const noFalsePositive = alignResumeJson(
     { ...skillProfile, skills: [], summary: '', experience: [{ title: 'Eng', company: 'X', period: '2020', points: ['Migrated workloads to Google Cloud.'] }] },
     parseJobPosting({ title: 'Backend Engineer', text: 'Requirements:\n- Go and Rust' }),
-    { lexicon: bundled, styleConfig: { layout: 'pocketresume', promptStyle: 'professional' } },
+    { lexicon: bundled, styleConfig: { layout: 'pocketresume' } },
 );
 assert.ok(!noFalsePositive.resume.skills.includes('Go'), 'Google must not imply the Go skill');
 
 const unverifiedRun = alignResumeJson(
     skillProfile,
     skillJd,
-    { lexicon: bundled, styleConfig: { layout: 'pocketresume', promptStyle: 'professional' }, allowUnverifiedSkills: true },
+    { lexicon: bundled, styleConfig: { layout: 'pocketresume' }, allowUnverifiedSkills: true },
 );
 assert.ok(unverifiedRun.resume.skills.includes('Jira'), 'allowUnverifiedSkills adds unevidenced JD skills');
 assert.ok(unverifiedRun.report.skillsAddedUnverified.includes('Jira'), 'unverified additions are reported distinctly');
 assert.ok(!(unverifiedRun.alignmentWarnings || []).some((w) => w.startsWith('skill:Jira')), 'verifier does not drop unverified additions');
-const stillNoInvention = alignResumeJson(skillProfile, skillJd, { lexicon: bundled, styleConfig: { layout: 'pocketresume', promptStyle: 'professional' } });
+const stillNoInvention = alignResumeJson(skillProfile, skillJd, { lexicon: bundled, styleConfig: { layout: 'pocketresume' } });
 assert.ok(stillNoInvention.resume.skills.includes('Jira') === false, 'default stays evidence-gated');
 
 const groupedRun = alignResumeJson(
@@ -238,7 +238,7 @@ const groupedRun = alignResumeJson(
         experience: [{ title: 'Eng', company: 'X', period: '2020', points: ['Ran Kubernetes clusters and wrote SQL.'] }],
     },
     parseJobPosting({ title: 'Data Engineer', text: 'Data Engineer\nSkills:\nSQL, Kubernetes, Airflow' }),
-    { lexicon: bundled, styleConfig: { layout: 'deedy', promptStyle: 'faang' } },
+    { lexicon: bundled, styleConfig: { layout: 'deedy' } },
 );
 const groupedItems = groupedRun.resume.skillGroups.flatMap((group) => group.items);
 assert.equal(groupedItems.filter((item) => item.toLowerCase() === 'typescript').length, 1, 'skill groups deduped');
@@ -285,7 +285,7 @@ const atbRun = alignResumeJson(    {
         certifications: [],
     },
     atbJd,
-    { lexicon: bundled, styleConfig: { layout: 'pocketresume', promptStyle: 'professional' } },
+    { lexicon: bundled, styleConfig: { layout: 'pocketresume' } },
 );
 assert.ok(atbRun.report.score > 0, 'ATB JD produces a non-zero match score');
 assert.ok(atbRun.report.jdSkillCount > 10, 'ATB JD yields many skill keywords');

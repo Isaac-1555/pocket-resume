@@ -2433,7 +2433,8 @@
           <div class="app-profile-actions">
             <button type="button" id="generateCoverLetterBtn" class="secondary-action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.6L13.5 10.5L19.4 12L13.5 13.5L12 19.4L10.5 13.5L4.6 12L10.5 10.5Z"/></svg><span>Generate letter</span></button>
           </div>
-          <small class="resume-help">Writes a short general letter from this resume. Contact details are redacted. Pollinations runs first, local Ollama is the fallback.</small>
+          <small class="resume-help">Writes a short general letter from this resume. Contact details are redacted. Pollinations runs first, local Ollama is the fallback. One letter per minute keeps the free provider available.</small>
+          <small id="coverLetterGateNote" class="resume-help"></small>
 
           <p class="app-profile-group-label">Or write it with an assistant (optional)</p>
           <ol class="cover-letter-steps">
