@@ -286,9 +286,9 @@
   <div class="glow glow-amber hero-glow-1"></div>
   <div class="glow glow-violet hero-glow-2"></div>
   <div class="hero-inner glass-card">
-    <p class="eyebrow">Chrome extension · AI resume writer</p>
+    <p class="eyebrow">Chrome extension · On-device resume engine</p>
     <h1 class="display">Paste your resume once.<br>Rewrite it for every job you open.</h1>
-    <p class="subhead">PocketResume reads the posting, keeps your facts straight, and hands back a resume and cover letter built for that role — in the layout you pick, with the AI provider you already trust. Every application you generate lands on your tracker automatically.</p>
+    <p class="subhead">PocketResume reads the posting, keeps your facts straight, and hands back a resume and cover letter built for that role — in the layout you pick, entirely on your device. No API key, no upload. Every application you generate lands on your tracker automatically.</p>
     <div class="cta-row">
       <a class="btn btn-primary" href="https://chromewebstore.google.com/detail/pocketresume/mdplmgfkpgalajmchilemiamifoaneip?authuser=0&hl=en" target="_blank" rel="noopener">Add to Chrome — it's free</a>
       <a class="btn btn-ghost" href="https://github.com/Isaac-1555/pocket-resume" target="_blank" rel="noopener">View on GitHub</a>
@@ -312,7 +312,7 @@
       </div>
       <div class="beam-track">
         <div class="beam" id="beam"></div>
-        <p class="provider-label" id="provider-label">GEMINI-2.5-FLASH</p>
+        <p class="provider-label" id="provider-label">ALIGN BULLETS</p>
       </div>
       <div class="pane glass-card">
         <p class="pane-label">Your resume</p>
@@ -335,19 +335,19 @@
   </div>
   <div class="feature-grid">
     <div class="feature-card glass-card">
-      <div class="icon-dot" style="background:rgba(255,138,61,0.15); color:var(--amber);">4</div>
+      <div class="icon-dot" style="background:rgba(255,138,61,0.15); color:var(--amber);">3</div>
       <h3>3 resume layouts</h3>
       <p>Professional, Double Sided, and Academic CV — pick per application, not per install.</p>
     </div>
     <div class="feature-card glass-card">
-      <div class="icon-dot" style="background:rgba(79,215,224,0.15); color:var(--cyan);">AI</div>
-      <h3>Works with your AI key</h3>
-      <p>Gemini, GPT-4o, Claude, or OpenRouter — plus any local model through custom endpoints (Ollama, LM Studio). Your key, your provider, your cost.</p>
+      <div class="icon-dot" style="background:rgba(79,215,224,0.15); color:var(--cyan);">⌂</div>
+      <h3>Runs on your device</h3>
+      <p>No API key, no provider picker, no upload. The engine matches your saved profile to the posting locally, and resets nothing when a provider is down.</p>
     </div>
     <div class="feature-card glass-card">
       <div class="icon-dot" style="background:rgba(155,123,255,0.15); color:var(--violet);">✉</div>
       <h3>Cover letters, optional</h3>
-      <p>Toggle on a matching single-page cover letter generated alongside the resume.</p>
+      <p>Every saved resume keeps its own letter, filled with the company and role from the posting. Write it yourself, or generate a short draft.</p>
     </div>
     <div class="feature-card glass-card">
       <div class="icon-dot" style="background:rgba(255,138,61,0.15); color:var(--amber);">PDF</div>
@@ -355,9 +355,9 @@
       <p>Print-ready output for every layout, no formatting cleanup afterward.</p>
     </div>
     <div class="feature-card glass-card">
-      <div class="icon-dot" style="background:rgba(79,215,224,0.15); color:var(--cyan);">↻</div>
-      <h3>Refine your master resume</h3>
-      <p>AI polishes your source resume with a change summary you review before applying.</p>
+      <div class="icon-dot" style="background:rgba(79,215,224,0.15); color:var(--cyan);">↓</div>
+      <h3>Quick Download</h3>
+      <p>Re-download your saved resume as a clean PDF without opening a job posting or waiting on anything.</p>
     </div>
     <div class="feature-card glass-card">
       <div class="icon-dot" style="background:rgba(155,123,255,0.15); color:var(--violet);">3×</div>
@@ -370,9 +370,9 @@
       <p>Every application you generate lands on a tracking board automatically — drag it through your pipeline as it progresses.</p>
     </div>
     <div class="feature-card glass-card">
-      <div class="icon-dot" style="background:rgba(255,138,61,0.15); color:var(--amber);">⚙</div>
-      <h3>Any model, not a fixed list</h3>
-      <p>Pick from your provider's full model catalog, or point PocketResume at any OpenAI-compatible server.</p>
+      <div class="icon-dot" style="background:rgba(255,138,61,0.15); color:var(--amber);">⌕</div>
+      <h3>Matches the posting, not a template</h3>
+      <p>Job title, company, skills, and the strongest bullets are aligned to the posting with deterministic rules — and a verifier reverts any number that is not in your profile.</p>
     </div>
   </div>
 </section>
@@ -428,14 +428,14 @@
       <div class="job-mini"><strong>Senior Web Engineer</strong><span>Figma · academic CV</span></div>
     </div>
   </div>
-  <p class="tracker-note">Applications are captured the moment you generate a resume — company, role, and which layout you sent. View them as a kanban board or a pipeline graph, and drag them through stages as things move. Free for your first 30 days.</p>
+  <p class="tracker-note">Applications are captured the moment you generate a resume — company, role, and which layout you sent. View them as a kanban board or a pipeline graph, and drag them through stages as things move. Free until Dec 31, 2026.</p>
 </section>
 
 <!-- PRIVACY: FLAT, NO GLASS, NO GLOW -->
 <section class="privacy">
   <div class="privacy-inner">
     <h2>Your data stays local.</h2>
-    <p>Your API key and resume profile are stored in your browser, not on our servers. Cloud sync is off unless you turn it on — and when you do, it's your own Clerk and Convex account, not ours.</p>
+    <p>Your resume and cover letters are stored in your browser, not on our servers. Resume generation makes no network request. Cloud sync is off unless you turn it on — and when you do, it's your own Clerk and Convex account, not ours.</p>
   </div>
 </section>
 
@@ -447,7 +447,7 @@
     <div class="cta-row" style="justify-content:center;">
       <a class="btn btn-primary" href="https://chromewebstore.google.com/detail/pocketresume/mdplmgfkpgalajmchilemiamifoaneip?authuser=0&hl=en" target="_blank" rel="noopener">Add to Chrome — it's free</a>
     </div>
-    <p class="pricing-note">Free to install and use with your own AI key. Optional cloud sync and tracker upgrades are paid.</p>
+    <p class="pricing-note">Free to install. Everything is free with a free account until Dec 31, 2026; after that, optional Pro keeps generation, the tracker, and cloud sync unlocked.</p>
   </div>
 </section>
 
@@ -517,12 +517,12 @@
     autoplay: false
   });
 
-  const providers = [
-    { name: 'GEMINI-2.5-FLASH', color: '--amber' },
-    { name: 'GPT-4O-MINI', color: '--cyan' },
-    { name: 'CLAUDE-3.5-HAIKU', color: '--violet' },
-    { name: 'OPENROUTER', color: '--amber' },
-    { name: 'OLLAMA · LOCAL', color: '--cyan' }
+  const stages = [
+    { name: 'PARSE PROFILE', color: '--amber' },
+    { name: 'SCAN POSTING', color: '--cyan' },
+    { name: 'ALIGN BULLETS', color: '--violet' },
+    { name: 'VERIFY FACTS', color: '--amber' },
+    { name: 'EXPORT PDF', color: '--cyan' }
   ];
 
   function setBeamColor(varName){
@@ -542,8 +542,8 @@
     textAnim.seek(progress * textAnim.duration);
     captionAnim.seek(Math.max(0, (progress - 0.8) / 0.2) * captionAnim.duration);
 
-    const stage = Math.min(providers.length - 1, Math.floor(progress * providers.length));
-    const p = providers[stage];
+    const stage = Math.min(stages.length - 1, Math.floor(progress * stages.length));
+    const p = stages[stage];
     providerLabel.textContent = p.name;
     setBeamColor(p.color);
 

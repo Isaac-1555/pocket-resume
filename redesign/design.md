@@ -2,9 +2,9 @@
 
 ## 0. Brief
 
-**Product:** PocketResume — an AI Chrome extension that turns a saved master resume into a tailored resume + cover letter for any job posting, in 4 layouts, using the AI provider you choose (Gemini, GPT-4o, Claude, OpenRouter). Local-first; cloud sync optional.
+**Product:** PocketResume — a Chrome extension that turns a saved master resume into a tailored resume + cover letter for any job posting, in 3 layouts, using a deterministic on-device engine. No API key, no upload; cloud sync optional.
 
-**Audience:** People actively job-hunting who apply to many roles and are tired of hand-editing a resume per posting. Technical enough to install a Chrome extension and paste in an API key; skeptical enough to want a privacy answer before they hand over their resume.
+**Audience:** People actively job-hunting who apply to many roles and are tired of hand-editing a resume per posting. Careful enough to want a privacy answer before they hand over their resume.
 
 **Page's one job:** get them to click "Add to Chrome" — https://chromewebstore.google.com/detail/pocketresume/mdplmgfkpgalajmchilemiamifoaneip
 
@@ -12,9 +12,9 @@
 
 ## 1. Concept
 
-Every screen in the product is the same move: a generic document goes in one side, a specific one comes out the other, shaped by whatever's in between. That's what glass does to light — bends it, doesn't stop it. The whole page treats **glass-and-light as a working metaphor for "rewritten," not just a texture.** Job description in one pane, resume out the other, AI in the middle as the medium the light passes through.
+Every screen in the product is the same move: a generic document goes in one side, a specific one comes out the other, shaped by whatever's in between. That's what glass does to light — bends it, doesn't stop it. The whole page treats **glass-and-light as a working metaphor for "tailored," not just a texture.** Job description in one pane, resume out the other, the on-device engine in the middle as the medium the light passes through.
 
-That's also why the accent isn't one glow, it's three — amber, cyan, violet — one per family of AI provider the extension supports. Three colors of light hitting the same glass, always resolving to the same warm result (your resume). Multi-provider-by-design is a real feature, not a footnote, so it gets to be the color story instead of a bullet point.
+That's also why the accent isn't one glow, it's three — amber, cyan, violet — one per stage of the engine the posting travels through. Three colors of light hitting the same glass, always resolving to the same warm result (your resume). Deterministic-by-design is a real feature, not a footnote, so it gets to be the color story instead of a bullet point.
 
 ## 2. Tokens
 
@@ -28,7 +28,7 @@ That's also why the accent isn't one glow, it's three — amber, cyan, violet �
 | Slate | `#8890A0` | Secondary text, captions, borders on glass |
 | Amber Signal | `#FF8A3D` | Primary accent + CTA glow (the "match found" color) |
 | Cyan Circuit | `#4FD7E0` | Secondary glow, technical/precision moments |
-| Violet Drift | `#9B7BFF` | Tertiary glow, the "other provider" color |
+| Violet Drift | `#9B7BFF` | Tertiary glow, the "final pass" color |
 
 Glass surfaces: `rgba(244,241,232,0.06)` fill, `rgba(244,241,232,0.14)` 1px border, inner highlight `rgba(255,255,255,0.10)` top edge only, `backdrop-filter: blur(20px) saturate(140%)`. Glows never sit flat behind glass — they sit *behind and slightly offset*, so the blur pulls a soft chromatic fringe at the glass edge (cheap fake refraction: a saturated, slightly hue-rotated duplicate of the glow blurred more and offset 2–4px).
 
@@ -38,7 +38,7 @@ Glass surfaces: `rgba(244,241,232,0.06)` fill, `rgba(244,241,232,0.14)` 1px bord
 |---|---|---|
 | Display | **Fraunces** (variable, optical size high, some italic) | Hero headline, section titles. Set large, tight leading. This is the "paper" reference — a serif built for print showing up on a screen full of glass. |
 | Body | **Inter** | All running copy, feature text. Stays out of the way. |
-| Utility/Mono | **JetBrains Mono** | Eyebrows, AI provider names, small labels, the "manifest.json" texture — uppercase, wide tracking, small size. This is the "extension/code" reference. |
+| Utility/Mono | **JetBrains Mono** | Eyebrows, engine stage labels, small labels, the "manifest.json" texture — uppercase, wide tracking, small size. This is the "extension/code" reference. |
 
 Scale: 15px body / 1.6 line-height. Headline ~clamp(2.75rem, 6vw, 5.5rem), Fraunces at optical size 144, weight 380 (not bold — bold serif reads heavy against glass).
 
@@ -67,15 +67,15 @@ Respect `prefers-reduced-motion`: signature piece becomes a static end-state ima
 └─────────────────────────────────────────┘
 ┌── pinned / sticky ────────────────────────┐
 │ [glass pane: job desc text]  ⇢  [glass pane: resume bullets]
-│ light passes through, color = active provider (amber/cyan/violet cycle)
+│ light passes through, color = current engine stage (amber/cyan/violet)
 └─────────────────────────────────────────┘   ← SIGNATURE ELEMENT
 ┌─────────────────────────────────────────┐
 │  ⬚ card   ⬚ card   ⬚ card                 │  ← feature grid, glass cards,
 │  ⬚ card   ⬚ card   ⬚ card                 │    2–3 col, no numbering (not a sequence)
 └─────────────────────────────────────────┘
 ┌─────────────────────────────────────────┐
-│  ◧ Professional  ◧ FAANG  ◧ Deedy  ◧ CV  │  ← 4 layout previews, glass frames,
-│  (labeled by name, not 01–04)            │    horizontal on mobile
+│  ◧ Professional  ◧ Double Sided  ◧ CV    │  ← 3 layout previews, glass frames,
+│  (labeled by name, not 01–03)            │    horizontal on mobile
 └─────────────────────────────────────────┘
 ┌─────────────────────────────────────────┐
 │  JOB TRACKER — mini kanban mockup        │  ← 4 glass columns (Applied /
@@ -99,7 +99,7 @@ A pinned section (height ~250vh, content sticky inside it). As the user scrolls 
 
 - Left glass pane holds a real (shortened) job-posting excerpt in Inter, Slate.
 - A vertical beam of light — a blurred, saturated gradient bar — sweeps left → right, timeline-driven by scroll position (`onScroll({ sync: 0.15 })`), not time.
-- As the beam crosses the gap between panes, small mono labels flick past behind it: `GEMINI-2.5-FLASH` → `GPT-4O-MINI` → `CLAUDE-3.5-HAIKU` → `OPENROUTER`, each tinting the beam amber/cyan/violet/amber.
+- As the beam crosses the gap between panes, small mono labels flick past behind it: `PARSE PROFILE` → `SCAN POSTING` → `ALIGN BULLETS` → `VERIFY FACTS`, each tinting the beam amber/cyan/violet/amber.
 - Right glass pane's resume bullets type/reveal in via `stagger()` on character spans, timed to the beam's arrival, in Fraunces at small size (paper-as-output).
 - End state (final ~20% of scroll): beam settles to Amber Signal, both panes lock, a small mono caption reads `same resume, right job` — the one line of copy this section needs.
 
@@ -110,10 +110,10 @@ This is the only place all three glow colors and both scroll-linked animation an
 - Register: plain, a little dry, written by someone who has personally rewritten a resume for the 40th time — never "revolutionize your job search."
 - Hero subhead candidate: "Paste your resume once. PocketResume rewrites it for every posting you open."
 - CTA verb stays identical everywhere it appears: **Add to Chrome** (matches the store button people will actually see next).
-- Privacy section speaks in flat statements, not reassurance-speak: "Your API key stays in your browser. Cloud sync is off unless you turn it on."
-- Feature card titles name what the person gets (**4 resume layouts**, **Cover letters, optional**, **Works with your AI key**), not internal mechanisms.
-- Providers named on the page must match the app's five: Gemini, OpenAI, Anthropic, OpenRouter, **plus Custom/Local (Ollama, LM Studio, any OpenAI-compatible endpoint)** — never list only four.
-- Pricing posture: "Add to Chrome — it's free" stays; one flat footnote near the final CTA covers paid cloud sync + tracker upgrades. No pricing tables on the landing page.
+- Privacy section speaks in flat statements, not reassurance-speak: "Your resume never leaves your browser. Cloud sync is off unless you turn it on."
+- Feature card titles name what the person gets (**3 resume layouts**, **Cover letters, optional**, **Runs on your device**), not internal mechanisms.
+- Name no AI provider on the page. Generation is on-device; the only optional AI features are the Resume health check and Generate letter, and they are not part of the landing pitch.
+- Pricing posture: "Add to Chrome — it's free" stays; one flat footnote near the final CTA says everything is free with an account until Dec 31, 2026, then Pro. No pricing tables on the landing page.
 - The Job Tracker gets its own section (mini kanban mockup, cyan glow) plus a feature-grid card — it auto-captures every generated application and is the newest surface in the product.
 
 ## 6. Build notes for next pass

@@ -33,15 +33,15 @@ You should receive an acknowledgment within 72 hours. A fix timeline will be dis
 In scope:
 
 - Content script injection / XSS via crafted pages
-- Prompt injection against the AI provider calls
-- API key exposure in storage or logs
+- Prompt injection against the opt-in AI features (Resume health check, Generate letter)
+- Leakage of resume or profile data through the opt-in AI provider calls
 - Pro auth / plan-check bypass (Clerk / Convex)
 - Permissions or host_permissions abuse in `manifest.json`
 - Unsafe PDF generation (code execution via crafted JSON)
 
 Out of scope:
 
-- Vulnerabilities in upstream dependencies (Gemini SDK, OpenAI SDK, Clerk, Convex, jsPDF) — report to those projects
+- Vulnerabilities in upstream dependencies (Clerk, Convex, jsPDF) — report to those projects
 - Social engineering or phishing
 - Denial of service against the AI provider endpoints
 

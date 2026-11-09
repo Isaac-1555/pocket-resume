@@ -21,7 +21,7 @@ assignees: ''
 - [ ] Breaking change (fix or feature that would cause existing behavior to change)
 - [ ] Documentation update
 - [ ] Refactor / cleanup
-- [ ] Prompt / AI behavior change
+- [ ] Resume engine / PDF layout change
 
 ## How to test
 
@@ -36,8 +36,10 @@ assignees: ''
 
 - [ ] I have read [CONTRIBUTING.md](../CONTRIBUTING.md)
 - [ ] My changes follow the existing code style (4-space indent, no new comments unless required)
-- [ ] I have not committed any secrets, API keys, or `.env` files
-- [ ] I have not committed build artifacts (`cloud-sync.js`, `convex/_generated/`)
+- [ ] I have not committed any secrets or `.env` files
+- [ ] I have not committed build artifacts (`cloud-sync.js`, `cloud-sync-core.js`, `convex/_generated/`)
 - [ ] I have updated [AGENTS.md](../AGENTS.md) if I changed the architecture, schema, or file map
 - [ ] I have updated [README.md](../README.md) if I changed user-facing behavior
-- [ ] For AI prompt / schema changes: I tested with a real API key and confirmed the JSON-only output
+- [ ] I have updated [CHANGELOG.md](../CHANGELOG.md) and the popup "What's New" announcement if I bumped the version
+- [ ] For engine changes: `npm run test:align` passes
+- [ ] For PDF layout changes: `npm run test:render` passes

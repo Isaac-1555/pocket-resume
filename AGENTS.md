@@ -55,11 +55,12 @@ npm install jspdf@latest
 cp node_modules/jspdf/dist/jspdf.umd.min.js libs/jspdf.umd.min.js
 ```
 
-### Rebuild the skill lexicon / run the aligner tests
+### Rebuild the skill lexicon / run the engine tests
 
 ```sh
 npm run build:lexicon   # downloads O*NET 31.0 CSVs -> libs/skills-lexicon.js
 npm run test:align      # determinism + no-invented-numbers checks (no network)
+npm run test:render     # PDF layout: one-page fit, margins, pagination, duplication
 ```
 
 ### Update vendored LDRS loader
@@ -183,7 +184,7 @@ The popup's **Generate Cover Letter** sends `GENERATE` with `output: 'cover-lett
 
 Since 10.1.1 the Form Filler Setup section markup is removed from the Options left panel (it stays drifted out of view while the feature is rebuilt); the JS side in `options.js` is intact and fully null-guarded, and `applicationProfile` storage keeps working.
 
-Everything below is dormant: the section is visible with a `Soon` badge and its buttons are disabled. It is kept as the basis for the deterministic rebuild.
+Everything below is dormant: the section markup is gone from the Options page while the feature is rebuilt, and the popup's Fill Form button is disabled. It is kept as the basis for the deterministic rebuild.
 
 One-time onboarding for Form Filler: the user answers common application-form questions once; fills reuse them.
 
@@ -226,6 +227,8 @@ Configured by `getResumeStyleConfig(...)` in `background.js`:
 | academic-cv  | academic-cv  | `resume-renderers.js` → `renderAcademicCvLayout` |
 
 There are three layouts. The old `faang` id was removed in 10.7.0; a stored `resumeType: "faang"` normalizes to `professional` (same `pocketresume` renderer) and is rewritten on the next popup load.
+
+Double Sided is a **one-page** layout: `renderDeedyLayout` measures every block, tries progressively tighter spacing, shortens per-entry bullets, then trims the least important sections (Open Source → Awards → Publications → Certifications → Links → Projects → oldest roles). Nothing draws past the bottom margin, and the trims are reported in the popup match line. Academic CV paginates with a per-page `Name - N` footer and never separates an entry header from its first bullet.
 
 Bullet selection is deterministic in `alignResumeJson(...)` (`resume-align.js`): per entry it keeps the strongest 2–3 bullets (metric presence + JD keyword hits + strong action-verb opener + length), rewrites banned openers from a fixed table (`fixBulletOpener`), and trims long bullets at clause boundaries without dropping numbers (`trimBullet`). It never authors new text. `professional`/`deedy` keep up to 3 bullets per entry (120 / 130 chars); `academic-cv` keeps up to 5 (170 chars). The limits are keyed on `styleConfig.layout`, not a prompt style.
 
@@ -335,9 +338,11 @@ PocketResume/
 │   ├── resumes.ts
 │   └── _generated/          # [generated, gitignored]
 ├── libs/jspdf.umd.min.js    # Vendored jsPDF
-├── libs/ldrs-newtons-cradle.js # [generated, gitignored? no—committed] vendored ldrs Newton's Cradle web component
+├── libs/ldrs-newtons-cradle.js # Vendored ldrs Newton's Cradle web component
 ├── scripts/build-clerk.mjs  # Build script for the Pro (Clerk) bundles
 ├── scripts/build-zip.mjs    # Builds dist/pocketresume-vX.Y.zip from the runtime file list (npm run build:zip)
+├── scripts/test-align.mjs   # Engine tests (npm run test:align)
+├── scripts/test-render.mjs  # PDF layout tests (npm run test:render)
 ├── .env.example             # Template for .env.local
 ├── AGENTS.md                # This file
 ├── CHANGELOG.md             # Version history — update on every version bump
