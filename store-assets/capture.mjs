@@ -1,43 +1,55 @@
 // store-assets capture generator
 // Usage: node store-assets/capture.mjs
-// Captures real UI + real PDF output for Chrome Web Store screenshots.
+// Captures the real v10 UI + real PDF output for Chrome Web Store screenshots.
 import { chromium } from 'playwright';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { resumeJson, coverLetterJson, trackerApplications, PAGE_TITLE, PAGE_URL, masterResumeText, atsCheckResult, refineResult } from './sample-data.mjs';
+import { resumeJson, coverLetterJson, trackerApplications, healthReport, masterResumeText, PAGE_TITLE, PAGE_URL } from './sample-data.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const ASSETS = path.join(ROOT, 'store-assets');
 const CAPTURES = path.join(ASSETS, 'captures');
 const fileUrl = (p) => pathToFileURL(path.join(ROOT, p)).href;
 
-const FORM_ANSWERS = [
-    ['first name', 'Maya'],
-    ['last name', 'Chen'],
-    ['phone', '(415) 555-0192'],
-    ['email', 'maya.chen@hey.com'],
-    ['linkedin', 'linkedin.com/in/mayachen'],
-    ['where are you based', 'San Francisco Bay Area, CA'],
-    ['years of professional frontend', '6 - 9'],
-    ['legally authorized', 'Yes, I am authorized to work in the U.S.'],
-    ['salary expectations', '$165,000 - $185,000'],
-    ['why do you want', `I have spent the last four years building design systems and data-heavy dashboards, including the component library six teams at Brightline now ship with. Northwind's analytics workspace is exactly the kind of surface I enjoy making fast and accessible, and your engineering blog tells me performance is treated as a feature here. I would love to help raise that bar.`],
-    ['how did you hear', 'A teammate or friend'],
-];
+const MATCH_REPORT = {
+    score: 92,
+    jdSkillCount: 18,
+    skillsAdded: ['TypeScript', 'React', 'GraphQL'],
+    skillsAddedUnverified: [],
+    skillsSkippedNoEvidence: [],
+    masterSkillCount: 12,
+    missingRequired: [],
+    parseQuality: 'high',
+    jdWarnings: [],
+};
+
+const PRO_ACCESS = {
+    signedIn: true,
+    isPro: true,
+    promoActive: true,
+    withinWindow: true,
+    proAccess: true,
+    canGenerate: true,
+    cloudSyncAccess: true,
+    resolved: true,
+    healthy: true,
+    trialDaysLeft: 0,
+    planPeriod: 'month',
+    checkedAt: Date.now(),
+};
 
 function initScript(seed) {
-    const serialized = JSON.stringify({ seed, resumeJson, coverLetterJson, pageTitle: PAGE_TITLE, pageUrl: PAGE_URL, atsCheckResult, refineResult });
+    const serialized = JSON.stringify({ seed, resumeJson, coverLetterJson, report: MATCH_REPORT, proAccess: PRO_ACCESS, pageTitle: PAGE_TITLE, pageUrl: PAGE_URL });
     return `(() => {
         const cfg = ${serialized};
         const store = { ...cfg.seed };
         window.__RESUME_JSON__ = cfg.resumeJson;
         window.__COVER_LETTER_JSON__ = cfg.coverLetterJson;
+        window.__MATCH_REPORT__ = cfg.report;
         window.__PAGE_TITLE__ = cfg.pageTitle;
         window.__PAGE_URL__ = cfg.pageUrl;
-        window.__ATS_CHECK_RESULT__ = cfg.atsCheckResult;
-        window.__REFINE_RESULT__ = cfg.refineResult;
         const listeners = [];
         const fire = (obj) => {
             const changes = {};
@@ -51,9 +63,8 @@ function initScript(seed) {
                         const out = {};
                         const list = Array.isArray(keys) ? keys : (typeof keys === 'string' ? [keys] : Object.keys(keys || {}));
                         for (const k of list) if (k in store) out[k] = JSON.parse(JSON.stringify(store[k]));
-                        const resolveValue = () => out;
                         if (typeof cb === 'function') { setTimeout(() => cb(out), 0); return undefined; }
-                        return new Promise((resolve) => { setTimeout(() => resolve(resolveValue()), 0); });
+                        return new Promise((resolve) => { setTimeout(() => resolve(out), 0); });
                     },
                     set(obj, cb) {
                         Object.assign(store, JSON.parse(JSON.stringify(obj)));
@@ -72,30 +83,56 @@ function initScript(seed) {
             runtime: {
                 lastError: undefined,
                 getURL: (p) => new URL(p, window.location.href).href,
-                getManifest: () => ({ version: '7.9.9', name: 'PocketResume' }),
+                getManifest: () => ({ version: '10.7.0', name: 'PocketResume' }),
                 openOptionsPage() {},
                 sendMessage(msg, cb) {
                     setTimeout(() => {
-                        if (msg && msg.type === 'START_GENERATION') cb({ status: 'success', data: window.__RESUME_JSON__, coverLetterData: window.__COVER_LETTER_JSON__ });
-                        else if (msg && msg.type === 'FILL_APPLICATION_FORM') cb({ status: 'success', filled: 9, total: 9 });
-                        else if (msg && msg.type === 'CHECK_ATS') cb({ status: 'success', data: window.__ATS_CHECK_RESULT__ });
-                        else if (msg && msg.type === 'GET_REFINE_QUESTIONS') cb({ status: 'success', data: { questions: [] } });
-                        else if (msg && msg.type === 'REFINE_RESUME') cb({ status: 'success', data: window.__REFINE_RESULT__ });
-                        else cb({ status: 'success' });
-                    }, 40);
+                        if (msg && msg.type === 'GENERATE') {
+                            cb({ status: 'success', data: window.__RESUME_JSON__, coverLetterData: window.__COVER_LETTER_JSON__, report: window.__MATCH_REPORT__ });
+                        } else if (msg && msg.type === 'CHECK_PRO_ACCESS') {
+                            cb(cfg.proAccess);
+                        } else {
+                            cb({ status: 'success' });
+                        }
+                    }, 60);
                 },
             },
             tabs: {
                 query: async () => [{ id: 1, title: window.__PAGE_TITLE__, url: window.__PAGE_URL__ }],
                 create() {},
-                sendMessage(msg, cb) { cb && cb({ text: 'Senior Frontend Engineer\\nNorthwind\\nSan Francisco, CA' }); },
+                sendMessage(msg, cb) { cb && cb({ text: '' }); },
             },
             scripting: { executeScript: async () => [] },
             permissions: { request: async () => true, contains: async () => true },
             i18n: { getMessage: () => '' },
         };
+        // Page realms normally load the Clerk bundle; the capture harness answers
+        // with a signed-in Pro session so the gate renders the ready state.
+        Object.defineProperty(window, 'CloudSync', {
+            configurable: true,
+            get: () => ({
+                isConfigured: () => true,
+                init: async () => {},
+                isSignedIn: async () => true,
+                getAccessState: async () => ({ ...cfg.proAccess }),
+                getUserProfile: async () => ({ name: 'Maya Chen', email: 'maya.chen@hey.com' }),
+                startAutoSync: () => {},
+                syncResumes: async () => ({ changed: false }),
+                signIn: async () => {},
+                signUp: async () => {},
+                signOut: async () => {}
+            }),
+            set: () => {},
+        });
+        // setup card hooks
+        window.__captureMode = true;
     })();`;
 }
+
+const RESUME_SEED = [
+    { id: 'r1', label: 'Product Frontend', icon: 'code', content: '', jsonContent: resumeJson, updatedAt: Date.now() },
+    { id: 'r2', label: 'Full Stack', icon: 'layers', content: '', jsonContent: resumeJson, updatedAt: Date.now() },
+];
 
 async function patchJsPdfSave(page) {
     await page.evaluate(() => {
@@ -121,6 +158,11 @@ async function patchJsPdfSave(page) {
     });
 }
 
+async function hideFillForm(page) {
+    await page.addStyleTag({ content: '#fillFormBtn { display: none !important; }' });
+    await page.waitForTimeout(150);
+}
+
 async function drainPdfs(page) {
     return page.evaluate(() => (window.__pdfOutputs || []).splice(0));
 }
@@ -136,10 +178,14 @@ async function selectStyle(page, value) {
     }, value);
 }
 
-async function runGenerate(page) {
-    await page.click('#generateBtn');
-    await page.waitForSelector('body[data-status="success"]', { timeout: 15000 });
-    await page.waitForTimeout(700);
+async function runGenerate(page, output = 'resume') {
+    const attr = output === 'cover-letter' ? 'letter-status' : 'status';
+    // Reset the previous run's terminal state; otherwise waitForSelector would
+    // resolve against the last success before this click produces anything.
+    await page.evaluate((a) => { document.body.dataset[a] = 'idle'; }, attr === 'status' ? 'status' : 'letterStatus');
+    await page.click(output === 'cover-letter' ? '#coverLetterBtn' : '#generateBtn');
+    await page.waitForSelector(`body[data-${attr}="success"]`, { timeout: 20000 });
+    await page.waitForTimeout(900);
 }
 
 function saveDataUri(dataUri, filePath) {
@@ -149,7 +195,7 @@ function saveDataUri(dataUri, filePath) {
 async function pdfToPng(pdfPath, outPngPath) {
     const tmp = path.join(CAPTURES, '.ql');
     fs.mkdirSync(tmp, { recursive: true });
-    execFileSync('/usr/bin/qlmanage', ['-t', '-s', '1500', '-o', tmp, pdfPath], { stdio: 'ignore' });
+    execFileSync('/usr/bin/qlmanage', ['-t', '-s', '1800', '-o', tmp, pdfPath], { stdio: 'ignore' });
     const generated = path.join(tmp, path.basename(pdfPath) + '.png');
     fs.renameSync(generated, outPngPath);
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -157,43 +203,45 @@ async function pdfToPng(pdfPath, outPngPath) {
 
 async function main() {
     fs.mkdirSync(CAPTURES, { recursive: true });
-    const browser = await chromium.launch({ channel: 'chrome', headless: true });
+    const browser = await chromium.launch({
+        channel: 'chrome',
+        headless: true,
+        args: ['--allow-file-access-from-files'],
+    });
 
-    // ============ 1. POPUP: idle + success states + all 4 resume PDFs + cover letter ============
+    // ============ 1. POPUP: idle + success + 3 layout PDFs + cover letter ============
     {
         const context = await browser.newContext({
             viewport: { width: 480, height: 820 },
             deviceScaleFactor: 3,
         });
         await context.addInitScript(initScript({
-            apiProvider: 'google',
-            geminiApiKey: 'AIzaSyDExampleKeyForScreenshots00000',
-            resumes: [
-                { id: 'r1', label: 'Master Resume', content: 'Maya Chen - Senior Frontend Engineer ...', jsonContent: '' },
-                { id: 'r2', label: 'SWE - Frontend', content: 'Maya Chen - variant ...', jsonContent: '' },
-            ],
+            resumes: RESUME_SEED,
             selectedResumeId: 'r1',
             resumeType: 'professional',
+            animationsEnabled: true,
             onboardingCompleted: true,
-            lastSeenAnnouncement: '8.4',
+            lastSeenAnnouncement: '10.7.0',
             growthRatingPrompt: { converted: true },
             growthSharePrompt: { converted: true },
-            coverLetterEnabled: true,
-            trackerCaptureEnabled: true,
+            quickDownloadNewBadgeDismissed: true,
+            trackerNewBadgeDismissed: true,
+            fillFormNewBadgeDismissed: true,
+            proAccessCache: PRO_ACCESS,
+            trackerPlanCache: PRO_ACCESS,
         }));
         const page = await context.newPage();
         page.on('pageerror', (e) => console.error('[pageerror]', e.message));
-        page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.warn('[console]', m.type(), m.text().slice(0, 200)); });
+        page.on('console', (m) => { if (m.type() === 'error') console.warn('[console]', m.text().slice(0, 200)); });
         await page.goto(fileUrl('popup.html'));
         await page.waitForSelector('#generateBtn');
-        await page.waitForTimeout(300);
+        await page.waitForTimeout(900);
+        await hideFillForm(page);
         await patchJsPdfSave(page);
 
-        // idle state
         await page.locator('body').screenshot({ path: path.join(CAPTURES, 'popup-idle.png') });
         console.log('captured popup-idle');
 
-        // professional (default) -> resume + cover letter PDFs + success shot
         await runGenerate(page);
         await page.locator('body').screenshot({ path: path.join(CAPTURES, 'popup-success.png') });
         let outputs = await drainPdfs(page);
@@ -203,7 +251,6 @@ async function main() {
         }
         console.log('captured popup-success + professional pdf + cover letter');
 
-        // deedy
         await selectStyle(page, 'deedy');
         await runGenerate(page);
         outputs = await drainPdfs(page);
@@ -212,14 +259,11 @@ async function main() {
         }
         console.log('captured deedy pdf');
 
-        // academic-cv
         await selectStyle(page, 'academic-cv');
         await runGenerate(page);
         outputs = await drainPdfs(page);
-        console.log('academic outputs:', JSON.stringify(outputs.map((o) => o.name)));
-        console.log('status:', await page.evaluate(() => document.body.dataset.status));
         for (const o of outputs) {
-            if (!o.name.startsWith('CoverLetter')) saveDataUri(o.data, path.join(CAPTURES, 'resume-academic-cv.pdf'));
+            if (o.name.startsWith('Resume') || o.name.startsWith('CV')) saveDataUri(o.data, path.join(CAPTURES, 'resume-academic-cv.pdf'));
         }
         console.log('captured academic-cv pdf');
 
@@ -244,109 +288,66 @@ async function main() {
     // ============ 3. TRACKER board ============
     {
         const context = await browser.newContext({
-            viewport: { width: 1680, height: 1000 },
+            viewport: { width: 1280, height: 900 },
             deviceScaleFactor: 2,
         });
         await context.addInitScript(initScript({
             applications: trackerApplications,
-            trackerTrialStartedAt: Date.now() - 20 * 24 * 60 * 60 * 1000,
-            trackerUnlocked: true,
-            trackerPlanCache: { unlocked: true, checkedAt: Date.now() },
             trackerTourSeen: true,
             trackerLockDismissed: true,
+            trackerPlanCache: PRO_ACCESS,
+            proAccessCache: PRO_ACCESS,
         }));
         const page = await context.newPage();
         await page.goto(fileUrl('tracker.html'));
         await page.waitForSelector('.board-column .card', { timeout: 15000 }).catch(() => {});
-        await page.waitForTimeout(1200);
+        await page.waitForTimeout(1400);
         await page.screenshot({ path: path.join(CAPTURES, 'tracker.png') });
         console.log('captured tracker');
+        await page.click('[data-view="graph"]');
+        await page.waitForTimeout(1800);
+        await page.screenshot({ path: path.join(CAPTURES, 'tracker-graph.png') });
+        console.log('captured tracker-graph');
         await context.close();
     }
 
-    // ============ 4. FORM FILLER ============
+    // ============ 4. OPTIONS: resume form + health panel ============
     {
         const context = await browser.newContext({
-            viewport: { width: 1400, height: 1500 },
-            deviceScaleFactor: 2,
-        });
-        const page = await context.newPage();
-        await page.goto(fileUrl('store-assets/templates/mock-application.html'));
-        await page.addScriptTag({ path: path.join(ROOT, 'form-filler.js') });
-        const result = await page.evaluate((answers) => {
-            const fields = globalThis.__PocketResumeForm.detect(30);
-            const answerFor = (question) => {
-                const q = (question || '').toLowerCase();
-                for (const [key, value] of answers) {
-                    if (q.includes(key)) return value;
-                }
-                return '';
-            };
-            const payload = fields
-                .map((f) => ({ id: f.id, answer: answerFor(f.question) }))
-                .filter((a) => a.answer);
-            const fillResult = globalThis.__PocketResumeForm.fill(payload);
-            globalThis.__PocketResumeForm.toast(`Filled ${fillResult.filled} of ${fields.length} fields. Review before submitting.`);
-            return { detected: fields.length, ...fillResult, questions: fields.map((f) => f.question) };
-        }, FORM_ANSWERS);
-        console.log('form filler:', JSON.stringify({ detected: result.detected, attempted: result.attempted, filled: result.filled }));
-        console.log('questions:', JSON.stringify(result.questions, null, 2));
-        await page.waitForTimeout(800);
-        await page.screenshot({ path: path.join(CAPTURES, 'form-filler.png') });
-        console.log('captured form-filler');
-        await context.close();
-    }
-
-    // ============ 5. OPTIONS PAGE: ATS check modal + refine review modal ============
-    {
-        const context = await browser.newContext({
-            viewport: { width: 1720, height: 1400 },
+            viewport: { width: 1180, height: 1000 },
             deviceScaleFactor: 2,
         });
         await context.addInitScript(initScript({
-            apiProvider: 'google',
-            geminiApiKey: 'AIzaSyDExampleKeyForScreenshots00000',
-            resumes: [
-                { id: 'r1', label: 'Master Resume', content: masterResumeText, jsonContent: '' },
-            ],
+            resumes: [{
+                ...RESUME_SEED[0],
+                content: masterResumeText,
+                legacyContent: masterResumeText,
+                updatedAt: Date.now() - 10 * 60 * 1000,
+                healthEnabledLocal: true,
+                healthReport,
+            }],
             selectedResumeId: 'r1',
             resumeType: 'professional',
             onboardingCompleted: true,
-            lastSeenAnnouncement: '8.4',
-            growthRatingPrompt: { converted: true },
-            growthSharePrompt: { converted: true },
-            coverLetterEnabled: false,
+            lastSeenAnnouncement: '10.7.0',
+            proAccessCache: PRO_ACCESS,
         }));
         const page = await context.newPage();
-        page.on('pageerror', (e) => console.error('[pageerror]', e.message));
-        page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.warn('[console]', m.type(), m.text().slice(0, 200)); });
+        page.on('pageerror', (e) => console.error('[options pageerror]', e.message));
         await page.goto(fileUrl('options.html'));
-        await page.waitForSelector('#checkAtsBtn', { timeout: 20000 });
-        await page.waitForTimeout(600);
-
-        // ATS check modal
-        await page.click('#checkAtsBtn');
-        await page.waitForFunction(() => {
-            const m = document.getElementById('atsResultModal');
-            return m && m.style.display === 'flex';
-        }, { timeout: 15000 });
-        await page.waitForTimeout(1500); // let the ring gauge odometer land
+        await page.waitForSelector('#resumeHealthDetails', { timeout: 20000 });
+        await page.waitForTimeout(1800);
         await page.evaluate(() => { const s = document.getElementById('statusOverlay'); if (s) s.style.display = 'none'; });
-        await page.locator('#atsResultModal').screenshot({ path: path.join(CAPTURES, 'ats-check.png') });
-        console.log('captured ats-check');
-        await page.click('#atsCloseBtn');
+        await page.fill('#rfPasteInput', masterResumeText);
+        await page.evaluate(() => { const t = document.getElementById('rfPasteInput'); if (t) { t.scrollTop = 0; t.blur(); } });
         await page.waitForTimeout(300);
+        await page.locator('#tabContentArea').screenshot({ path: path.join(CAPTURES, 'resume-form.png') });
+        console.log('captured resume-form');
 
-        // Refine review modal (questions step skipped: GET_REFINE_QUESTIONS returns [])
-        await page.click('#refineResumeBtn');
-        await page.waitForFunction(() => {
-            const m = document.getElementById('refineModal');
-            return m && m.style.display === 'flex';
-        }, { timeout: 20000 });
-        await page.waitForTimeout(1800); // 1400ms gauge animation + settle
-        await page.evaluate(() => { const s = document.getElementById('statusOverlay'); if (s) s.style.display = 'none'; });
-        await page.locator('#refineModal').screenshot({ path: path.join(CAPTURES, 'refine-review.png') });
-        console.log('captured refine-review');
+        await page.evaluate(() => document.getElementById('resumeHealthDetails').setAttribute('open', ''));
+        await page.waitForTimeout(600);
+        await page.locator('#resumeHealthDetails').screenshot({ path: path.join(CAPTURES, 'health-check.png') });
+        console.log('captured health-check');
         await context.close();
     }
 

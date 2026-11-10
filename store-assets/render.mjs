@@ -16,8 +16,7 @@ const SHOTS = [
     ['2-cover-letter.html', '2-resume-cover-letter.png'],
     ['3-layouts.html', '3-layouts.png'],
     ['4-tracker.html', '4-job-tracker.png'],
-    ['5-form-filler.html', '5-form-filler.png'],
-    ['6-ats-refine.html', '6-ats-refine.png'],
+    ['5-master-resume.html', '5-master-resume.png'],
 ];
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
