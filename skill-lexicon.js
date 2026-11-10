@@ -120,6 +120,17 @@ const CURATED_ALIASES = {
     'figma design': 'Figma',
 };
 
+const AMBIGUOUS_SKILL_KEYS = new Set([
+    'reduce', 'analyze', 'lean', 'excel', 'sketch', 'spark', 'segment', 'lever',
+    'ramp', 'stripe', 'route', 'scheme', 'square', 'zoom', 'slack', 'bash',
+    'chef', 'puppet', 'bootstrap', 'dig', 'blink', 'snort', 'harvest',
+    'honeypot', 'diameter', 'clipper', 'excavator', 'squeegee', 'cyclone',
+    'gazebo', 'ferret', 'seesaw', 'loom', 'notion', 'blender', 'workday',
+    'looker', 'sentry', 'quicken', 'postman', 'paintbrush', 'audacity',
+    'amplitude', 'algae', 'archon', 'magic', 'fear', 'sand', 'puff', 'blat',
+    'cubic', 'emboss', 'aspen', 'prince', 'jet', 'iris',
+]);
+
 const CURATED_EXTRA_TERMS = [
     'TypeScript', 'Kubernetes', 'Terraform', 'GraphQL', 'Next.js', 'Tailwind CSS', 'Figma', 'Notion',
     'Snowflake', 'Databricks', 'dbt', 'Airflow', 'Looker', 'Power BI', 'Tableau', 'Segment', 'Amplitude',
@@ -424,6 +435,7 @@ export {
     ONET_TRANSFERABLE_CSV,
     ONET_LICENSE,
     CURATED_ALIASES,
+    AMBIGUOUS_SKILL_KEYS,
     normalizeSkillKey,
     parseCsv,
     parseOnetSoftwareSkillsCsv,

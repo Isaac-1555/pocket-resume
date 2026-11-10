@@ -230,6 +230,55 @@ assert.ok(!(unverifiedRun.alignmentWarnings || []).some((w) => w.startsWith('ski
 const stillNoInvention = alignResumeJson(skillProfile, skillJd, { lexicon: bundled, styleConfig: { layout: 'pocketresume' } });
 assert.ok(stillNoInvention.resume.skills.includes('Jira') === false, 'default stays evidence-gated');
 
+const homonymJd = parseJobPosting({
+    title: 'Sales Engineer',
+    text: [
+        'Sales Engineer',
+        'Responsibilities:',
+        '- Reduce ticket backlog and lean on data to prioritize work',
+        '- Sketch out new processes and help the team excel at demos',
+        '- Analyze response times and report on them',
+        'Requirements:',
+        '- 3+ years of experience',
+        '- Strong communication skills',
+    ].join('\n'),
+});
+const homonymProfile = {
+    ...skillProfile,
+    skills: ['Communication'],
+    summary: '',
+    experience: [{
+        title: 'Sales Engineer',
+        company: 'Beta',
+        period: '2020 - Present',
+        points: ['Reduce backlog 42% and lean on data to prioritize work.'],
+    }],
+};
+for (const allowUnverifiedSkills of [true, false]) {
+    const homonymRun = alignResumeJson(homonymProfile, homonymJd, {
+        lexicon: bundled,
+        styleConfig: { layout: 'pocketresume' },
+        allowUnverifiedSkills,
+    });
+    const homonymKeys = homonymRun.resume.skills.map((skill) => skill.toLowerCase());
+    for (const banned of ['reduce', 'lean manufacturing', 'sketch', 'microsoft excel', 'analyze']) {
+        assert.ok(!homonymKeys.includes(banned), `homonym stays out of skills (${banned}, unverified=${allowUnverifiedSkills})`);
+    }
+}
+
+const homonymSkillRun = alignResumeJson(
+    { ...skillProfile, skills: [], summary: '' },
+    parseJobPosting({
+        title: 'Data Engineer',
+        text: ['Data Engineer', 'Skills:', 'REDUCE, Lean Six Sigma, Sketch'].join('\n'),
+    }),
+    { lexicon: bundled, styleConfig: { layout: 'pocketresume' }, allowUnverifiedSkills: true },
+);
+const homonymSkillKeys = homonymSkillRun.resume.skills.map((skill) => skill.toLowerCase());
+assert.ok(homonymSkillKeys.includes('reduce'), 'all-caps REDUCE still matches');
+assert.ok(homonymSkillKeys.includes('lean manufacturing'), 'Lean Six Sigma still matches');
+assert.ok(homonymSkillKeys.includes('sketch'), 'Sketch in a skills list still matches');
+
 const groupedRun = alignResumeJson(
     {
         ...skillProfile,

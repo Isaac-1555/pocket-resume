@@ -3,6 +3,7 @@
 // network, no randomness. Same inputs always produce the same resume JSON.
 // Imported by background.js (module service worker).
 import { parseResumeText } from './resume-parse.js';
+import { AMBIGUOUS_SKILL_KEYS } from './skill-lexicon.js';
 
 const STOPWORDS = new Set(`
 a about above after again against all also am an and any are as at be because been before being below
@@ -134,6 +135,21 @@ function phrasePresent(haystack, phrase) {
     const plural = /[a-z0-9]$/.test(needle) ? 's?' : '';
     const pattern = new RegExp(`(?<![a-z0-9])${escapeRegExp(needle)}${plural}(?![a-z0-9])`);
     return pattern.test(hay);
+}
+
+function caseEvidenced(text, key) {
+    const raw = String(text || '');
+    if (!raw || !key) return false;
+    const pattern = new RegExp(`(?<![A-Za-z0-9])${escapeRegExp(key)}(?:s|es)?(?![A-Za-z0-9])`, 'gi');
+    let match;
+    while ((match = pattern.exec(raw))) {
+        const hit = match[0];
+        if (/[A-Z]/.test(hit) && hit === hit.toUpperCase()) return true;
+        if (!/^[A-Z]/.test(hit)) continue;
+        const before = raw.slice(0, match.index);
+        if (!/(?:^|[.!?:;\n•*\-–—]|\d[.)])\s*$/.test(before)) return true;
+    }
+    return false;
 }
 
 function uniqueNames(list) {
@@ -357,6 +373,7 @@ function matchSkills(text, lexicon) {
             const key = tokens.slice(start, start + size).join(' ');
             const term = index.byTerm.get(key);
             if (!term) continue;
+            if (AMBIGUOUS_SKILL_KEYS.has(key) && !caseEvidenced(text, key)) continue;
             if (!found.has(term.name)) found.set(term.name, { name: term.name, hot: !!term.hot });
         }
     }
@@ -364,8 +381,13 @@ function matchSkills(text, lexicon) {
 }
 
 function termPresent(term, profileIndex) {
-    if (phrasePresent(profileIndex.text, term.name)) return true;
-    return (term.aliases || []).some((alias) => phrasePresent(profileIndex.text, alias));
+    const names = [term.name, ...(term.aliases || [])];
+    for (const name of names) {
+        const key = normalizeTerm(name);
+        if (AMBIGUOUS_SKILL_KEYS.has(key) && !caseEvidenced(profileIndex.text, key)) continue;
+        if (phrasePresent(profileIndex.text, name)) return true;
+    }
+    return false;
 }
 
 function buildProfileIndex(profile) {
@@ -646,8 +668,11 @@ function verifyAlignedResume(source, aligned, styleConfig, lexicon, { allowUnver
     if (Array.isArray(aligned.skills) && !allowUnverifiedSkills) {
         aligned.skills = aligned.skills.filter((skill) => {
             const match = matchesExactSkill(skill, lexicon);
-            const present = phrasePresent(sourceText, skill)
-                || (match ? [match.name, ...(match.aliases || [])].some((value) => phrasePresent(sourceText, value)) : false);
+            const key = normalizeTerm(match ? match.name : skill);
+            const present = AMBIGUOUS_SKILL_KEYS.has(key)
+                ? caseEvidenced(sourceText, key)
+                : (phrasePresent(sourceText, skill)
+                    || (match ? [match.name, ...(match.aliases || [])].some((value) => phrasePresent(sourceText, value)) : false));
             if (!present) issues.push(`skill:${skill}`);
             return present;
         });
