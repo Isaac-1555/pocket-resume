@@ -1,5 +1,9 @@
 # Changelog
 
+## [10.7.2] — 2026-11-10
+### Fixed
+- **Share dialog shows the share icon.** The invite modal's header glyph was an upload arrow (box with an arrow pointing up), which read as "upload a file" instead of "invite a friend". It now uses the same three-node share icon as its Share with friends button.
+
 ## [10.7.1] — 2026-11-10
 ### Fixed
 - **Ordinary words no longer become skills.** The skill extractor matched the JD case-insensitively, so plain prose hit homonym entries in the O*NET vocabulary — "reduce the backlog" became the `REDUCE` computer-algebra system, "lean on data" became `Lean Manufacturing`, "excel at demos" became `Microsoft Excel`, and "sketch out" became `Sketch`. Terms in the new `AMBIGUOUS_SKILL_KEYS` set now need case evidence: an all-caps hit, or a capitalized hit that does not start a line or sentence. Real mentions (`REDUCE, Lean Six Sigma, Sketch` in a skills list) still match, and normal skills stay case-insensitive, so lowercase `python` / `docker` still count. The same gate applies to the resume-evidence check and the verifier, so a bullet that happens to contain "reduce" can no longer pull the term in.
