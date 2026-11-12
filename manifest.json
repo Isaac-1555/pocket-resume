@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PocketResume",
-  "version": "10.7.2",
+  "version": "10.8.0",
   "description": "Tailor your resume to any job posting on-device. No API key, no quota, no rate limit.",
   "permissions": [
     "storage",
@@ -14,7 +14,8 @@
     "https://*.convex.cloud/*",
     "https://*.clerk.accounts.dev/*",
     "https://clerk.pocket-resume.xyz/*",
-    "https://text.pollinations.ai/*"
+    "https://text.pollinations.ai/*",
+    "https://www.onetcenter.org/*"
   ],
   "optional_host_permissions": [
     "https://*/*",

@@ -41,7 +41,7 @@ Signing in is optional for editing and required for generation. If you create an
 
 ## Skill Directory Download
 
-To recognise skills in job descriptions, the extension can download a public skill vocabulary from the O*NET Resource Center (`onetcenter.org`) — the U.S. Department of Labor occupational database, licensed CC BY 4.0. This is a plain GET for a public data file. **No personal data, resume content, job text, or identifiers are sent.** The file is parsed locally and the result is stored in your browser. Updates are weekly and can be turned off in Settings → Skill directory; the extension also ships a bundled snapshot so it works with no download at all.
+To recognise skills in job descriptions, the extension downloads a public skill vocabulary from the O*NET Resource Center (`onetcenter.org`) — the U.S. Department of Labor occupational database, licensed CC BY 4.0. This is a plain GET for a public data file. **No personal data, resume content, job text, or identifiers are sent.** The file is parsed locally and the result is stored in your browser. The vocabulary is checked once a day when the extension starts or Settings is opened, and the CSV files are only re-downloaded when O*NET publishes a new release. There is no toggle; the extension also ships a bundled snapshot so the engine works before the first download.
 
 ## Local Data Storage
 
@@ -68,10 +68,10 @@ Pocket Resume requests only the permissions necessary for core functionality:
 * **Active Tab**: To read the job posting in the tab you are generating for
 * **Storage**: To save your resume profiles, preferences, tracker cards, and generated documents locally
 * **Scripting**: To extract text content from the job posting page when the content script is not already present
-* **Alarms**: To schedule the weekly skill-directory refresh; no browsing data is read
+* **Alarms**: To schedule the daily skill-vocabulary check; no browsing data is read
 * **Downloads**: To save generated resume and cover-letter PDFs reliably
-* **Host Permissions**: To reach Clerk (sign-in), Convex (optional resume sync), and Pollinations (opt-in Resume health check and Generate letter)
-* **Optional Host Permissions**: Requested only when you turn on the weekly skill-directory update or the local Ollama fallback — the public `onetcenter.org` vocabulary file and `http://localhost:11434`. Chrome asks for your explicit consent before granting them; you can revoke them at any time in Chrome's extension settings.
+* **Host Permissions**: To reach Clerk (sign-in), Convex (optional resume sync), Pollinations (opt-in Resume health check and Generate letter), and the public O*NET skill vocabulary (`onetcenter.org`)
+* **Optional Host Permissions**: Requested only when you turn on the local Ollama fallback — `http://localhost:11434`. Chrome asks for your explicit consent before granting it; you can revoke it at any time in Chrome's extension settings.
 
 These permissions are used exclusively to enable the resume and cover letter generation features and are not used to collect data for other purposes.
 

@@ -175,8 +175,8 @@ function buildJobText(page) {
 // --- Deterministic alignment (offline mode) ---
 const SKILL_LEXICON_KEY = 'skillLexicon';
 const SKILL_LEXICON_META_KEY = 'skillLexiconMeta';
-const SKILL_LEXICON_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const SKILL_LEXICON_ALARM = 'skillLexiconWeekly';
+const SKILL_LEXICON_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const SKILL_LEXICON_ALARM = 'skillLexiconDaily';
 
 function getBundledLexicon() {
     const expanded = expandLexicon(SKILL_LEXICON_BASE);
@@ -206,14 +206,18 @@ async function fetchTextWithTimeout(url, timeoutMs = 45000) {
     }
 }
 
-async function updateSkillLexicon() {
-    let release = ONET_PINNED_RELEASE;
+async function resolveOnetRelease() {
     try {
         const indexHtml = await fetchTextWithTimeout(`${ONET_ORIGIN}/database.html`, 20000);
-        release = parseOnetRelease(indexHtml) || ONET_PINNED_RELEASE;
+        return parseOnetRelease(indexHtml) || ONET_PINNED_RELEASE;
     } catch (error) {
         console.warn('[Align] Could not resolve the newest O*NET release, using the pinned one:', error.message);
+        return ONET_PINNED_RELEASE;
     }
+}
+
+async function updateSkillLexicon(releaseOverride) {
+    const release = releaseOverride || await resolveOnetRelease();
     const urls = buildOnetUrls(release);
     const [softwareCsv, essentialCsv, transferableCsv] = await Promise.all([
         fetchTextWithTimeout(urls.software),
@@ -239,14 +243,20 @@ async function updateSkillLexicon() {
 
 async function maybeAutoUpdateSkillLexicon() {
     try {
-        const data = await chrome.storage.local.get([SKILL_LEXICON_META_KEY, 'skillLexiconAutoUpdate']);
-        if (data.skillLexiconAutoUpdate === false) return;
+        const data = await chrome.storage.local.get(SKILL_LEXICON_META_KEY);
         const meta = data[SKILL_LEXICON_META_KEY];
         const age = Date.now() - (meta?.fetchedAt || 0);
         if (meta && age < SKILL_LEXICON_MAX_AGE_MS) return;
         const permission = await chrome.permissions.contains({ origins: ['https://www.onetcenter.org/*'] });
         if (!permission) return;
-        await updateSkillLexicon();
+        const release = await resolveOnetRelease();
+        if (meta && meta.version === release) {
+            await chrome.storage.local.set({
+                [SKILL_LEXICON_META_KEY]: { ...meta, fetchedAt: Date.now(), lastError: '' }
+            });
+            return;
+        }
+        await updateSkillLexicon(release);
         console.log('[Align] Skill lexicon updated.');
     } catch (error) {
         console.warn('[Align] Skill lexicon auto-update failed:', error);
@@ -259,14 +269,16 @@ async function maybeAutoUpdateSkillLexicon() {
     }
 }
 
-chrome.alarms.create(SKILL_LEXICON_ALARM, { periodInMinutes: 7 * 24 * 60, delayInMinutes: 3 });
+chrome.alarms.create(SKILL_LEXICON_ALARM, { periodInMinutes: 24 * 60, delayInMinutes: 3 });
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === SKILL_LEXICON_ALARM) maybeAutoUpdateSkillLexicon();
 });
 chrome.runtime.onStartup.addListener(() => {
+    chrome.alarms.clear('skillLexiconWeekly');
     maybeAutoUpdateSkillLexicon();
 });
 chrome.runtime.onInstalled.addListener(() => {
+    chrome.alarms.clear('skillLexiconWeekly');
     maybeAutoUpdateSkillLexicon();
 });
 maybeAutoUpdateSkillLexicon();
@@ -351,7 +363,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     return;
                 }
 
-                const settings = await chrome.storage.local.get(['resumes', 'userProfile', 'universalCoverLetter', 'allowUnverifiedSkills']);
+                const settings = await chrome.storage.local.get(['resumes', 'userProfile', 'universalCoverLetter']);
                 const entries = Array.isArray(settings.resumes) ? settings.resumes : [];
                 const entry = entries.find((item) => item && item.id === payload.resumeId) || entries[0] || null;
                 if (!entry) {
@@ -387,7 +399,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         lexicon,
                         styleConfig,
                         generateSummary: !!payload.generateSummary,
-                        allowUnverifiedSkills: settings.allowUnverifiedSkills !== false
+                        allowUnverifiedSkills: true
                     });
                     return { jd, ...aligned };
                 };
@@ -547,46 +559,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
-    if (message.type === 'UPDATE_SKILL_LEXICON') {
+    if (message.type === 'ENSURE_SKILL_LEXICON') {
         (async () => {
-            try {
-                const granted = await chrome.permissions.contains({ origins: ['https://www.onetcenter.org/*'] });
-                if (!granted) {
-                    sendResponse({ status: 'permission_required' });
-                    return;
-                }
-                const meta = await updateSkillLexicon();
-                sendResponse({ status: 'success', meta });
-            } catch (error) {
-                console.error('Skill Lexicon Update Error:', error);
-                const stored = await chrome.storage.local.get(SKILL_LEXICON_META_KEY);
-                await chrome.storage.local.set({
-                    [SKILL_LEXICON_META_KEY]: { ...(stored[SKILL_LEXICON_META_KEY] || {}), lastError: error.message || String(error) }
-                });
-                sendResponse({ status: 'error', message: error.message });
-            }
-        })();
-
-        return true;
-    }
-
-    if (message.type === 'GET_SKILL_LEXICON_STATUS') {
-        (async () => {
-            try {
-                const [data, lexicon] = await Promise.all([
-                    chrome.storage.local.get(SKILL_LEXICON_META_KEY),
-                    getSkillLexicon()
-                ]);
-                sendResponse({
-                    status: 'success',
-                    meta: data[SKILL_LEXICON_META_KEY] || null,
-                    count: lexicon.count || (lexicon.terms || []).length,
-                    source: lexicon.source || '',
-                    version: lexicon.version || ''
-                });
-            } catch (error) {
-                sendResponse({ status: 'error', message: error.message });
-            }
+            await maybeAutoUpdateSkillLexicon();
+            sendResponse({ status: 'success' });
         })();
 
         return true;

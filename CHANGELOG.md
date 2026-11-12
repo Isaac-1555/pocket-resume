@@ -1,5 +1,21 @@
 # Changelog
 
+## [10.8.0] — 2026-11-11
+### Added
+- **Long-resume warning.** PocketResume now says when a resume is too long for the one-page Professional layout. Settings shows a notice once per resume (dismissed until the resume grows again), and Generate Resume / Quick Download ask before saving a two-page PDF. The generation warning has a **Never show this again** button.
+- **Cover letter preview header.** The live preview in Settings is labelled "This is how the letter will look", with the sample company and role filled in.
+
+### Changed
+- **Skill directory updates run every day, silently.** The vocabulary refreshes from O*NET once a day and on the first open after that window, with no toggle or manual update button. `onetcenter.org` is now a required host permission so the refresh never prompts.
+- **Unverified JD keywords are always on.** The "Skills on generated resumes" setting is gone; generation always merges job-posting keywords your resume never mentions, so review the skills before sending.
+
+### Fixed
+- **Editing a bullet no longer jumps to the top.** Adding or removing a bullet or entry keeps your scroll position, and a new bullet or entry is focused in place.
+- **A renamed resume keeps its name.** The label is written to the resume as you type, so adding a project or bullet no longer reverts it to the old name.
+
+### Removed
+- **Skills on generated resumes** and **Skill directory** sections in Settings.
+
 ## [10.7.2] — 2026-11-10
 ### Fixed
 - **Share dialog shows the share icon.** The invite modal's header glyph was an upload arrow (box with an arrow pointing up), which read as "upload a file" instead of "invite a friend". It now uses the same three-node share icon as its Share with friends button.

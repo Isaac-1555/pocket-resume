@@ -1983,6 +1983,23 @@
     </div>
   </div>
 
+  <!-- Long Resume Warning Modal -->
+  <div id="fitWarningModal" class="onboarding-modal" style="display: none;">
+    <div id="fitWarningBackdrop" class="onboarding-backdrop"></div>
+    <div class="onboarding-card">
+      <div class="onboarding-icon" aria-hidden="true">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      </div>
+      <h2>This resume runs to <span id="fitWarningPages">2</span> pages</h2>
+      <p class="error-message">It does not fit the one-page layout. Trim a few bullets in Settings for a tighter version, or download it as-is.</p>
+      <div class="onboarding-actions">
+        <button id="fitWarningContinueBtn" class="cloud-primary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>Download anyway</span></button>
+        <button id="fitWarningNeverBtn" class="cloud-secondary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg><span>Never show this again</span></button>
+        <button id="fitWarningCancelBtn" class="cloud-secondary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span>Cancel</span></button>
+      </div>
+    </div>
+  </div>
+
   <!-- Rating Prompt Modal -->
   <div id="ratingPromptModal" class="onboarding-modal" style="display: none;">
     <div class="onboarding-backdrop"></div>
@@ -2022,14 +2039,16 @@
       <div class="onboarding-icon" aria-hidden="true">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m5.6 5.6 2.8 2.8"/><path d="m15.6 15.6 2.8 2.8"/><path d="m18.4 5.6-2.8 2.8"/><path d="m8.4 15.6-2.8 2.8"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> — Smarter skill matching</h2>
+      <h2>New in <span id="whatsNewVersion"></span> — Finishing touches</h2>
       <p class="error-message">
-        Plain English no longer turns into skills, and the invite dialog finally looks like an invite.
+        Editing is smoother, long resumes get a heads-up, and the letter preview says what it is.
       </p>
       <ul class="whatsnew-collected">
-        <li><strong>Ordinary words stay ordinary</strong> — "reduce the backlog" no longer adds the <code>REDUCE</code> computer-algebra system, "lean on data" no longer adds Lean Manufacturing, and "excel at demos" no longer adds Microsoft Excel.</li>
-        <li><strong>Real mentions still count</strong> — a skills list entry like <code>REDUCE, Lean Six Sigma, Sketch</code> still matches, and ordinary skills stay case-insensitive, so lowercase <code>python</code> and <code>docker</code> work as before.</li>
-        <li><strong>Share with friends looks right</strong> — the invite dialog now shows the share icon instead of an upload arrow.</li>
+        <li><strong>No more scrolling back up</strong> — adding or removing a bullet or entry keeps your place, and the new field is focused for you.</li>
+        <li><strong>Rename once</strong> — a new resume name now sticks while you keep editing bullets and projects.</li>
+        <li><strong>Long-resume warning</strong> — if a resume will run to two pages, Settings tells you once and Generate Resume asks before saving. Turn the ask off with <em>Never show this again</em>.</li>
+        <li><strong>Simpler Settings</strong> — the Skills on generated resumes and Skill directory sections are gone. Job-posting keywords are always merged, and the skill vocabulary refreshes daily on its own.</li>
+        <li><strong>Clear letter preview</strong> — the preview now says "This is how the letter will look".</li>
       </ul>
       <div class="onboarding-actions">
         <button id="whatsNewPlansBtn" class="cloud-primary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Open Settings</span></button>

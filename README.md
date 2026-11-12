@@ -19,12 +19,12 @@
 - **Multi-Profile** — save up to 3 master profiles and switch between them
 - **Privacy First** — resumes stay in `chrome.storage.local`; the engine makes no network requests
 
-### What's New in v10.7
+### What's New in v10.8
 
-- **Double Sided always fits one page.** Spacing tightens first, then long bullets are shortened, then the least important sections are trimmed. The popup match line reports what changed.
-- **Academic CV paginates cleanly.** Entry headers stay with their first bullet, titles reserve room for the date, and every page carries a `Name - page` footer.
-- **FAANG retired.** Professional already produced that layout; saved FAANG selections move to Professional automatically.
-- **The resume engine stays on-device.** No API key, no provider picker, no upload — alignment is deterministic and wording is never rewritten.
+- **Long-resume warning.** Settings now flags a resume that will run past one page, and Generate Resume / Quick Download ask before saving a two-page Professional PDF — with a **Never show this again** option.
+- **Smoother editing.** Adding or removing a bullet or entry keeps your scroll position and focuses the new field, and a renamed resume keeps its name while you keep editing.
+- **Simpler Settings.** The Skills on generated resumes and Skill directory sections are gone: job-posting keywords are always merged, and the O*NET vocabulary refreshes once a day in the background.
+- **Clear letter preview.** The live preview is labelled "This is how the letter will look".
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 

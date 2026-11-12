@@ -66,6 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   chrome.storage.local.get('animationsEnabled', (data) => applyMotionPreference(data.animationsEnabled !== false));
+  chrome.runtime.sendMessage({ type: 'ENSURE_SKILL_LEXICON' }, () => void chrome.runtime.lastError);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.animationsEnabled) {
       applyMotionPreference(changes.animationsEnabled.newValue !== false);
@@ -138,7 +139,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function layoutNote(result) {
-    if (!result || result.layout !== 'deedy') return '';
+    if (!result) return '';
+    if (result.layout === 'pocketresume') {
+      return result.pages > 1 ? `${result.pages} pages` : '';
+    }
+    if (result.layout !== 'deedy') return '';
     if (!result.fitted) return 'Double Sided could not fit one page — saved the tightest version';
     const dropped = Array.isArray(result.dropped) ? result.dropped : [];
     if (dropped.length > 3) return `Double Sided fit to one page (trimmed ${dropped.length} sections)`;
@@ -403,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
     quickDownloadBtn.addEventListener('click', async () => {
       const checked = await refreshGate();
       if (checked.state !== 'ready') return;
-      chrome.storage.local.get(['resumes', 'selectedResumeId', 'userProfile'], (data) => {
+      chrome.storage.local.get(['resumes', 'selectedResumeId', 'userProfile'], async (data) => {
         let resumes = Array.isArray(data.resumes) ? data.resumes.slice() : [];
         if (resumes.length === 0 && data.userProfile) {
           resumes = [{ id: 'migrated_1', label: 'Resume 1', content: data.userProfile }];
@@ -437,7 +442,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-          generatePDF(resumeData, 'professional');
+          const built = buildProfessionalPdf(resumeData);
+          const proceed = await confirmLongResume(built.pages);
+          if (!proceed) return;
+          savePdfDocument(built.doc, built.filename);
         } catch (e) {
           console.error('Quick Download Error:', e);
           setError(e.message || 'Quick Download failed. Please try again.');
@@ -623,10 +631,46 @@ document.addEventListener('DOMContentLoaded', () => {
     updateAccountButton();
   }
 
-  function renderResumePdf(resumeData, selectedStyle, styleConfig) {
+  function showResumeFitWarning(pages) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('fitWarningModal');
+      if (!modal) {
+        resolve(true);
+        return;
+      }
+      const pagesEl = document.getElementById('fitWarningPages');
+      if (pagesEl) pagesEl.textContent = String(pages);
+      const continueBtn = document.getElementById('fitWarningContinueBtn');
+      const neverBtn = document.getElementById('fitWarningNeverBtn');
+      const cancelBtn = document.getElementById('fitWarningCancelBtn');
+      const backdrop = document.getElementById('fitWarningBackdrop');
+      const finish = (proceed, hideForever = false) => {
+        modal.style.display = 'none';
+        if (hideForever) chrome.storage.local.set({ resumeFitWarningHidden: true });
+        resolve(proceed);
+      };
+      if (continueBtn) continueBtn.onclick = () => finish(true);
+      if (neverBtn) neverBtn.onclick = () => finish(true, true);
+      if (cancelBtn) cancelBtn.onclick = () => finish(false);
+      if (backdrop) backdrop.onclick = () => finish(false);
+      modal.style.display = 'flex';
+    });
+  }
+
+  async function confirmLongResume(pages) {
+    if (!(pages > 1)) return true;
+    const data = await chrome.storage.local.get('resumeFitWarningHidden');
+    if (data.resumeFitWarningHidden) return true;
+    return showResumeFitWarning(pages);
+  }
+
+  async function renderResumePdf(resumeData, selectedStyle, styleConfig) {
     if (styleConfig.layout === 'pocketresume') {
-      generatePDF(resumeData, selectedStyle);
-      return null;
+      const built = buildProfessionalPdf(resumeData);
+      const proceed = await confirmLongResume(built.pages);
+      if (!proceed) return { layout: 'pocketresume', pages: built.pages, cancelled: true };
+      savePdfDocument(built.doc, built.filename);
+      return { layout: 'pocketresume', pages: built.pages };
     }
     if (window.ResumeRenderers && typeof window.ResumeRenderers.generateResumePDF === 'function') {
       return window.ResumeRenderers.generateResumePDF(resumeData, selectedStyle, styleConfig.layout);
@@ -867,9 +911,15 @@ document.addEventListener('DOMContentLoaded', () => {
             generateCoverLetterPDF(coverParsed);
             setOfflineLetterNote(false);
           }
-          playResumeLoop(() => {
+          playResumeLoop(async () => {
             try {
-              const layoutResult = renderResumePdf(resumeData, selectedStyle, styleConfig);
+              const layoutResult = await renderResumePdf(resumeData, selectedStyle, styleConfig);
+              if (layoutResult && layoutResult.cancelled) {
+                setStatus('idle');
+                if (generateLabel) generateLabel.textContent = 'Generate Resume';
+                setGenerateEnabled(true);
+                return;
+              }
               setMatchReport(response.report || null, !!response.coverLetterData, layoutNote(layoutResult));
               setStatus('success');
               if (generateLabel) generateLabel.textContent = 'Generate Resume';
@@ -990,8 +1040,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.7.2';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.7.2';
+  const ANNOUNCEMENT_VERSION = '10.8.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.8.0';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
@@ -1410,7 +1460,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function generatePDF(data, type) {
+  function buildProfessionalPdf(data) {
     const { jsPDF } = window.jspdf;
 
     // Blue accent matching the reference resume
@@ -1686,20 +1736,20 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // --- Auto-fit loop: try each config, save first that fits 1 page ---
+    // --- Auto-fit loop: use the first config that fits one page ---
+    const filename = `Resume_${(data.name || 'Generated').replace(/\s+/g, '_')}.pdf`;
     for (const cfg of configs) {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
       renderResume(doc, cfg);
       if (doc.internal.getNumberOfPages() === 1) {
-        savePdfDocument(doc, `Resume_${(data.name || 'Generated').replace(/\s+/g, '_')}.pdf`);
-        return;
+        return { doc, pages: 1, filename };
       }
     }
 
-    // Fallback: save tightest attempt even if >1 page
+    // Fallback: keep the tightest attempt even if it spills to a second page
     const fallbackDoc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
     renderResume(fallbackDoc, configs[configs.length - 1]);
-    savePdfDocument(fallbackDoc, `Resume_${(data.name || 'Generated').replace(/\s+/g, '_')}.pdf`);
+    return { doc: fallbackDoc, pages: fallbackDoc.internal.getNumberOfPages(), filename };
   }
 
   function generateCoverLetterPDF(data) {

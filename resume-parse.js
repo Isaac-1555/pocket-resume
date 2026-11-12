@@ -835,12 +835,125 @@ function resumeProfileWarnings(profile) {
     return warnings;
 }
 
+const FIT_PAGE_HEIGHT = 792;
+const FIT_PAGE_WIDTH = 612;
+const FIT_MARGIN = 36;
+const FIT_BODY_SIZE = 9.5;
+const FIT_LINE_HEIGHT = 1.1;
+const FIT_START_Y = 40;
+
+function estimateTextLines(text, fontSize, width) {
+    const clean = normalizeSpace(text);
+    if (!clean) return 0;
+    const perLine = Math.max(12, Math.floor(width / (fontSize * 0.52)));
+    return Math.max(1, Math.ceil(clean.length / perLine));
+}
+
+// Rough height of the Professional ("pocketresume") layout at its tightest
+// config. Used for the "too long for one page" hint; the popup measures the
+// real render before it warns.
+function estimateResumePages(profile) {
+    const data = normalizeResumeProfile(profile || {});
+    const contentWidth = FIT_PAGE_WIDTH - FIT_MARGIN * 2;
+    const usable = FIT_PAGE_HEIGHT - FIT_MARGIN * 2;
+    let height = FIT_START_Y;
+    const addLines = (lines, fontSize) => {
+        if (!lines) return;
+        height += lines * fontSize * FIT_LINE_HEIGHT;
+    };
+    const addText = (text, fontSize, width = contentWidth) => {
+        addLines(estimateTextLines(text, fontSize, width), fontSize);
+    };
+    const addInline = (items) => {
+        const clean = (Array.isArray(items) ? items : []).map((item) => normalizeSpace(item)).filter(Boolean);
+        if (!clean.length) return;
+        addText(clean.join('   '), FIT_BODY_SIZE);
+        height += 3;
+    };
+    const addSection = () => {
+        height += 3 + 5 + 8;
+    };
+    const pointsHeight = (points) => {
+        (Array.isArray(points) ? points : []).forEach((point) => {
+            addText(point, FIT_BODY_SIZE, contentWidth - 10);
+            height += 0.5;
+        });
+    };
+
+    addText(data.name, 14);
+    height += 2;
+    if (data.subtitle) {
+        addText(data.subtitle, 9.5);
+        height += 3;
+    }
+    addText(data.contact, 9);
+    height += 8;
+
+    if (data.summary) {
+        addSection();
+        addText(data.summary, FIT_BODY_SIZE);
+        height += 4;
+    }
+
+    if (Array.isArray(data.skills) && data.skills.length) {
+        addSection();
+        addInline(data.skills);
+    }
+
+    if (Array.isArray(data.experience) && data.experience.length) {
+        addSection();
+        data.experience.forEach((entry) => {
+            addText(entry.title, FIT_BODY_SIZE);
+            if (entry.company || entry.period) {
+                addText(`${entry.company || ''} ${entry.period || ''}`.trim(), FIT_BODY_SIZE);
+            }
+            height += 2;
+            pointsHeight(entry.points);
+            height += 1.5;
+        });
+    }
+
+    if (Array.isArray(data.projects) && data.projects.length) {
+        addSection();
+        data.projects.forEach((entry) => {
+            addText(entry.title || entry.name, FIT_BODY_SIZE);
+            if (entry.platform || entry.period) {
+                addText(`${entry.platform || ''} ${entry.period || ''}`.trim(), FIT_BODY_SIZE);
+            }
+            if (Array.isArray(entry.points) && entry.points.length) {
+                height += 2;
+                pointsHeight(entry.points);
+            } else if (entry.description) {
+                addText(entry.description, FIT_BODY_SIZE);
+            }
+            height += 1.5;
+        });
+    }
+
+    if (Array.isArray(data.education) && data.education.length) {
+        addSection();
+        data.education.forEach((entry) => {
+            addText(entry.degree, FIT_BODY_SIZE);
+            addText(`${entry.school || ''} ${entry.year || ''}`.trim(), FIT_BODY_SIZE);
+            height += 2;
+        });
+    }
+
+    if (Array.isArray(data.certifications) && data.certifications.length) {
+        addSection();
+        addInline(data.certifications);
+    }
+
+    return Math.max(0.01, Math.round((height / usable) * 100) / 100);
+}
+
 export {
     parseResumeText,
     normalizeResumeProfile,
     splitContactParts,
     buildContactString,
     resumeProfileWarnings,
+    estimateResumePages,
     isDateRange,
     normalizePeriod,
     isBulletLine,

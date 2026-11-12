@@ -4,7 +4,7 @@
 
 import assert from 'node:assert/strict';
 import { parseJobPosting, alignResumeJson, parseResumeText, buildCoverLetterFromTemplate, buildKeywordModel, mergePageText } from '../resume-align.js';
-import { parseResumeText as parseLocal, normalizeResumeProfile, splitContactParts, buildContactString } from '../resume-parse.js';
+import { parseResumeText as parseLocal, normalizeResumeProfile, splitContactParts, buildContactString, estimateResumePages } from '../resume-parse.js';
 import { CURATED_ALIASES } from '../skill-lexicon.js';
 import { expandLexicon } from '../skill-lexicon.js';
 import { SKILL_LEXICON_BASE } from '../libs/skills-lexicon.js';
@@ -353,5 +353,24 @@ assert.equal(mergePageText('Skip to main content\nJobs', 'Brief'), 'Skip to main
 assert.ok(mergePageText('', longDescription).includes('\n'), 'description keeps its line breaks');
 assert.equal(mergePageText('', 'Description only'), 'Description only');
 assert.equal(mergePageText('Body only', ''), 'Body only');
+
+const fitBullet = (n) => `Delivered outcome ${n} by rebuilding the reconciliation service, cutting manual effort across four teams and saving 18 percent of processing time.`;
+const fitProfile = (jobs, bullets) => ({
+    name: 'Alexandra M. Whitfield',
+    subtitle: 'Senior Data Scientist',
+    email: 'alex@example.com',
+    summary: 'Data scientist with nine years of experience building production machine learning systems for insurance and logistics.',
+    skills: ['Python', 'SQL', 'PyTorch', 'Airflow', 'dbt', 'Snowflake', 'AWS'],
+    experience: Array.from({ length: jobs }, (_, index) => ({
+        title: `Job Title ${index + 1}`,
+        company: `Company ${index + 1}`,
+        period: '2019 - 2021',
+        points: Array.from({ length: bullets }, (_, point) => fitBullet(point + 1))
+    })),
+    education: [{ degree: 'MSc, Statistics', school: 'University of Toronto', year: '2015' }]
+});
+assert.ok(estimateResumePages(fitProfile(2, 2)) < 1, 'a short resume fits one page');
+assert.ok(estimateResumePages(fitProfile(6, 4)) > 1, 'a long resume estimates more than one page');
+assert.equal(typeof estimateResumePages({}), 'number', 'the estimator always returns a number');
 
 console.log('align tests passed');

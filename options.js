@@ -1,4 +1,4 @@
-import { parseResumeText, normalizeResumeProfile, splitContactParts, buildContactString, resumeProfileWarnings } from './resume-parse.js';
+import { parseResumeText, normalizeResumeProfile, splitContactParts, buildContactString, resumeProfileWarnings, estimateResumePages } from './resume-parse.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const saveButton = document.getElementById('save');
@@ -47,11 +47,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const generateCoverLetterBtn = document.getElementById('generateCoverLetterBtn');
   const coverLetterCopyStatus = document.getElementById('coverLetterCopyStatus');
   const coverLetterGateNote = document.getElementById('coverLetterGateNote');
-  const skillLexiconUpdateBtn = document.getElementById('skillLexiconUpdateBtn');
-  const skillLexiconAutoToggle = document.getElementById('skillLexiconAutoToggle');
-  const skillLexiconStatus = document.getElementById('skillLexiconStatus');
-  const skillLexiconPill = document.getElementById('skillLexiconPill');
-  const allowUnverifiedSkillsToggle = document.getElementById('allowUnverifiedSkillsToggle');
   const animationsToggle = document.getElementById('animationsToggle');
   const animationsPill = document.getElementById('animationsPill');
 
@@ -61,7 +56,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   let healthChecking = false;
   let appProfileCustomQa = [];
   let appProfileAutofilling = false;
-  let skillLexiconMeta = null;
   let healthError = '';
 
   function generateId() {
@@ -199,6 +193,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       healthEnabledLocal: !!resume?.healthEnabledLocal,
       healthCooldownUntil: Number(resume?.healthCooldownUntil) || 0,
       coverLetterCooldownUntil: Number(resume?.coverLetterCooldownUntil) || 0,
+      fitNoticeDismissedAt: Number(resume?.fitNoticeDismissedAt) || 0,
+      fitNoticeDismissedPages: Number(resume?.fitNoticeDismissedPages) || 0,
       coverLetter: normalizeCoverLetter(resume?.coverLetter)
     };
   }
@@ -218,6 +214,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       healthEnabledLocal: !!resume.healthEnabledLocal,
       healthCooldownUntil: Number(resume.healthCooldownUntil) || 0,
       coverLetterCooldownUntil: Number(resume.coverLetterCooldownUntil) || 0,
+      fitNoticeDismissedAt: Number(resume.fitNoticeDismissedAt) || 0,
+      fitNoticeDismissedPages: Number(resume.fitNoticeDismissedPages) || 0,
       coverLetter: normalizeCoverLetter(resume.coverLetter)
     };
   }
@@ -436,50 +434,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function renderSkillLexiconStatus(meta, fallback) {
-    if (!skillLexiconStatus) return;
-    if (meta && meta.count) {
-      skillLexiconStatus.textContent = `${meta.count.toLocaleString()} skills · ${meta.version || 'O*NET'} · updated ${formatLexiconTimestamp(meta.fetchedAt)}`;
-      if (skillLexiconPill) {
-        skillLexiconPill.textContent = 'Updated';
-        skillLexiconPill.className = 'cloud-status-pill synced';
-      }
-      if (meta.lastError) skillLexiconStatus.textContent += ` · last error: ${meta.lastError}`;
-      return;
-    }
-    if (fallback) {
-      skillLexiconStatus.textContent = fallback;
-      return;
-    }
-    skillLexiconStatus.textContent = 'Bundled vocabulary in use.';
-  }
-
-  async function refreshSkillLexiconStatus() {
-    const response = await sendRuntimeMessage({ type: 'GET_SKILL_LEXICON_STATUS' });
-    if (response && response.status === 'success') {
-      skillLexiconMeta = response.meta || null;
-      if (skillLexiconStatus && (!response.meta || !response.meta.count)) {
-        skillLexiconStatus.textContent = `${response.count ? response.count.toLocaleString() + ' ' : ''}bundled skills in use.`;
-      }
-      renderSkillLexiconStatus(response.meta, null);
-    }
-  }
-
   function fillSettings(data) {
     loadCoverLetterEditor();
-    if (skillLexiconAutoToggle) {
-      skillLexiconAutoToggle.checked = data.skillLexiconAutoUpdate !== false;
-      syncToggleState(skillLexiconAutoToggle);
-    }
-    if (allowUnverifiedSkillsToggle) {
-      allowUnverifiedSkillsToggle.checked = data.allowUnverifiedSkills !== false;
-      syncToggleState(allowUnverifiedSkillsToggle);
-    }
     if (animationsToggle) {
       animationsToggle.checked = data.animationsEnabled !== false;
       syncToggleState(animationsToggle);
     }
-    refreshSkillLexiconStatus();
   }
 
   let coverLetterSaveTimer = null;
@@ -726,7 +686,10 @@ My resume:
   function renderCoverLetterPreview() {
     const preview = document.getElementById('coverLetterPreview');
     if (!preview) return;
-    preview.innerHTML = coverLetterPreviewMarkup();
+    const markup = coverLetterPreviewMarkup();
+    preview.innerHTML = markup;
+    const block = document.getElementById('coverLetterPreviewBlock');
+    if (block) block.hidden = !markup;
   }
 
   const copyPromptBtn = document.getElementById('copyCoverLetterPromptBtn');
@@ -768,22 +731,6 @@ My resume:
     pop.style.display = 'none';
   });
 
-  if (skillLexiconAutoToggle) {
-    syncToggleState(skillLexiconAutoToggle);
-    skillLexiconAutoToggle.addEventListener('change', () => {
-      syncToggleState(skillLexiconAutoToggle);
-      chrome.storage.local.set({ skillLexiconAutoUpdate: skillLexiconAutoToggle.checked });
-    });
-  }
-
-  if (allowUnverifiedSkillsToggle) {
-    syncToggleState(allowUnverifiedSkillsToggle);
-    allowUnverifiedSkillsToggle.addEventListener('change', () => {
-      syncToggleState(allowUnverifiedSkillsToggle);
-      chrome.storage.local.set({ allowUnverifiedSkills: allowUnverifiedSkillsToggle.checked });
-    });
-  }
-
   if (animationsToggle) {
     syncToggleState(animationsToggle);
     animationsToggle.addEventListener('change', () => {
@@ -795,39 +742,6 @@ My resume:
 
   function requestEndpointPermission(origin) {
     return chrome.permissions.request({ origins: [origin] }).catch(() => false);
-  }
-
-  if (skillLexiconUpdateBtn) {
-    skillLexiconUpdateBtn.addEventListener('click', async () => {
-      const granted = await chrome.permissions.request({ origins: ['https://www.onetcenter.org/*'] }).catch(() => false);
-      if (!granted) {
-        showStatus('Permission to reach onetcenter.org is required to update the skill directory.', 'info', 5000);
-        return;
-      }
-      skillLexiconUpdateBtn.disabled = true;
-      const original = skillLexiconUpdateBtn.innerHTML;
-      const UPDATE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg>';
-      skillLexiconUpdateBtn.innerHTML = UPDATE_ICON + '<span>Updating…</span>';
-      try {
-        const response = await sendRuntimeMessage({ type: 'UPDATE_SKILL_LEXICON' });
-        if (response && response.status === 'success') {
-          skillLexiconMeta = response.meta || null;
-          renderSkillLexiconStatus(skillLexiconMeta, null);
-          showStatus(`Skill directory updated: ${(response.meta?.count || 0).toLocaleString()} skills.`, 'success', 4000);
-        } else if (response && response.status === 'permission_required') {
-          showStatus('Permission to reach onetcenter.org is required to update the skill directory.', 'info', 5000);
-        } else {
-          throw new Error(response?.message || 'Unknown update error');
-        }
-      } catch (error) {
-        showStatus(`Skill directory update failed: ${error.message}`, 'error', 6000);
-      } finally {
-        if (skillLexiconUpdateBtn) {
-          skillLexiconUpdateBtn.disabled = false;
-          skillLexiconUpdateBtn.innerHTML = original;
-        }
-      }
-    });
   }
 
   function renderCustomQa() {
@@ -1135,8 +1049,8 @@ My resume:
 
   const data = await chrome.storage.local.get([
     'resumes', 'userProfile', 'resumeType', 'resumeLayout', 'selectedResumeId', 'onboarding',
-    'onboardingCompleted', 'universalCoverLetter', 'applicationProfile', 'skillLexiconAutoUpdate',
-    'pendingExtract', 'openCoverLetterSection', 'allowUnverifiedSkills', 'animationsEnabled'
+    'onboardingCompleted', 'universalCoverLetter', 'applicationProfile',
+    'pendingExtract', 'openCoverLetterSection', 'animationsEnabled'
   ]);
 
   if (data.resumes && data.resumes.length > 0) {
@@ -1194,6 +1108,10 @@ My resume:
   fillAppProfileForm(data.applicationProfile || null);
   fillSettings(data);
 
+  // Refresh the O*NET skill vocabulary in the background; it self-throttles to
+  // once a day, so this is a no-op on later opens.
+  chrome.runtime.sendMessage({ type: 'ENSURE_SKILL_LEXICON' }, () => void chrome.runtime.lastError);
+
   if (data.pendingExtract) {
     chrome.storage.local.remove('pendingExtract');
     setTimeout(() => {
@@ -1218,7 +1136,7 @@ My resume:
           saveCurrentTabToState();
           activeTabIndex = index;
           renderTabBar();
-          renderTabContent();
+          renderTabContent({ preserveScroll: false });
           loadCoverLetterEditor();
         }
       }
@@ -1621,7 +1539,7 @@ My resume:
         saveCurrentTabToState();
         activeTabIndex = index;
         renderTabBar();
-        renderTabContent();
+        renderTabContent({ preserveScroll: false });
         loadCoverLetterEditor();
       });
       tabBar.appendChild(btn);
@@ -1640,7 +1558,7 @@ My resume:
         activeTabIndex = resumes.length - 1;
         await setLocalStorage({ resumes: getPersistedResumes() });
         renderTabBar();
-        renderTabContent();
+        renderTabContent({ preserveScroll: false });
         loadCoverLetterEditor();
         runAutoSync();
       });
@@ -1725,7 +1643,31 @@ My resume:
     if (target) target.textContent = list.join(' ');
   }
 
-  function renderTabContent() {
+  function fitNoticeShouldShow(resume) {
+    if (!resume) return 0;
+    const pages = estimateResumePages(resumeDraft(resume));
+    if (pages <= 1) return 0;
+    const dismissedPages = Number(resume.fitNoticeDismissedPages) || 0;
+    if (dismissedPages >= pages) return 0;
+    return pages;
+  }
+
+  function refreshFitNotice() {
+    const resume = getActiveResume();
+    const notice = document.getElementById('rfFitNotice');
+    if (!resume || !notice) return;
+    const pages = fitNoticeShouldShow(resume);
+    notice.hidden = !pages;
+    const copy = notice.querySelector('[data-rf-fit-copy]');
+    if (copy && pages) {
+      copy.textContent = `This resume is long — it may render on ${Math.ceil(pages)} pages. Trim a few bullets to keep it to one page.`;
+    }
+  }
+
+  function renderTabContent({ preserveScroll = true } = {}) {
+    const previousScroll = preserveScroll
+      ? (tabContentArea.querySelector('.rf')?.scrollTop || 0)
+      : 0;
     const resume = getActiveResume();
     if (!resume) return;
     healthError = '';
@@ -1753,6 +1695,10 @@ My resume:
 
     tabContentArea.innerHTML = labelRow + `
       <div class="rf">
+        <div class="rf-fit" id="rfFitNotice" hidden>
+          <strong>Long resume.</strong> <span data-rf-fit-copy></span>
+          <button type="button" class="ghost-btn" id="rfFitDismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Got it</span></button>
+        </div>
         <div class="rf-warn" id="rfWarn">
           <strong>Almost there.</strong> <span data-rf-warn-list></span>
           ${review ? `
@@ -1855,6 +1801,7 @@ My resume:
     const labelInput = document.getElementById('resumeLabelInput');
     if (labelInput) {
       labelInput.addEventListener('input', () => {
+        resume.label = labelInput.value;
         const tabBtns = tabBar.querySelectorAll('.tab-btn');
         const labelSpan = tabBtns[activeTabIndex] ? tabBtns[activeTabIndex].querySelector('span') : null;
         if (labelSpan) {
@@ -1897,7 +1844,7 @@ My resume:
         if (activeTabIndex >= resumes.length) activeTabIndex = resumes.length - 1;
         await setLocalStorage({ resumes: getPersistedResumes() });
         renderTabBar();
-        renderTabContent();
+        renderTabContent({ preserveScroll: false });
         loadCoverLetterEditor();
         runAutoSync();
       });
@@ -1914,7 +1861,7 @@ My resume:
         }
         const parsed = applyParsedText(resume, text);
         renderTabBar();
-        renderTabContent();
+        renderTabContent({ preserveScroll: false });
         const counted = [];
         if (parsed.experience.length) counted.push(`${parsed.experience.length} roles`);
         if (parsed.skills.length) counted.push(`${parsed.skills.length} skills`);
@@ -1962,7 +1909,7 @@ My resume:
         try {
           const parsed = normalizeResumeProfile(JSON.parse(jsonArea.value));
           resume._draft = parsed;
-          renderTabContent();
+          renderTabContent({ preserveScroll: false });
           showStatus('JSON applied to the form.', 'success', 3000);
         } catch (error) {
           showStatus(`JSON is not valid: ${error.message}`, 'error', 5000);
@@ -1979,8 +1926,26 @@ My resume:
       }
       document.getElementById('rfWarn').classList.add('visible');
     }
+
+    const fitDismissBtn = document.getElementById('rfFitDismiss');
+    if (fitDismissBtn) {
+      fitDismissBtn.addEventListener('click', async () => {
+        resume.fitNoticeDismissedAt = Date.now();
+        resume.fitNoticeDismissedPages = estimateResumePages(resumeDraft(resume));
+        await setLocalStorage({ resumes: getPersistedResumes() });
+        const notice = document.getElementById('rfFitNotice');
+        if (notice) notice.hidden = true;
+      });
+    }
+
     refreshDraftWarnings();
+    refreshFitNotice();
     renderCoverLetterGate();
+
+    if (preserveScroll) {
+      const scrollHost = tabContentArea.querySelector('.rf');
+      if (scrollHost) scrollHost.scrollTop = previousScroll;
+    }
   }
 
   tabContentArea.addEventListener('input', (event) => {
@@ -2019,6 +1984,7 @@ My resume:
       return;
     }
     refreshDraftWarnings();
+    refreshFitNotice();
   });
 
   tabContentArea.addEventListener('click', (event) => {
@@ -2033,6 +1999,7 @@ My resume:
       if (!Array.isArray(draft[group])) draft[group] = [];
       draft[group].push(blankEntry(group));
       renderTabContent();
+      focusFormField(tabContentArea.querySelector(`[data-rf-entry="${group}"][data-idx="${draft[group].length - 1}"]`));
       return;
     }
     if (button.dataset.rfDel) {
@@ -2044,11 +2011,13 @@ My resume:
     }
     if (button.dataset.rfAddpoint) {
       const group = button.dataset.rfAddpoint;
-      const entry = Array.isArray(draft[group]) ? draft[group][Number(button.dataset.idx)] : null;
+      const index = Number(button.dataset.idx);
+      const entry = Array.isArray(draft[group]) ? draft[group][index] : null;
       if (entry) {
         if (!Array.isArray(entry.points)) entry.points = [];
         entry.points.push('');
         renderTabContent();
+        focusFormField(tabContentArea.querySelector(`[data-rf-point="${group}"][data-idx="${index}"][data-pidx="${entry.points.length - 1}"]`));
       }
       return;
     }
@@ -2061,6 +2030,12 @@ My resume:
       }
     }
   });
+
+  function focusFormField(field) {
+    if (!field) return;
+    field.focus({ preventScroll: true });
+    if (typeof field.scrollIntoView === 'function') field.scrollIntoView({ block: 'nearest' });
+  }
 
 
 
