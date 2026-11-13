@@ -2446,6 +2446,222 @@
         </div>
       </details>
 
+      <details class="cloud-sync-details" id="appProfileDetails">
+        <summary>Form filler <span id="appProfileStatePill" class="cloud-status-pill">Not set up</span></summary>
+        <div class="app-profile-body">
+          <small class="resume-help">Answer these once. Fill Form uses your saved answers on every application &mdash; anything with no saved answer is left empty and highlighted for you. Nothing is ever submitted.</small>
+
+          <div class="app-profile-actions">
+            <button type="button" class="secondary-action-btn" id="profileAutofillBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v3"/><path d="M12 18v3"/><path d="M3 12h3"/><path d="M18 12h3"/><circle cx="12" cy="12" r="5"/></svg><span>Auto-fill from my resume</span></button>
+            <button type="button" class="accent-btn" id="profileTourBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><span>Guide me</span></button>
+          </div>
+
+          <p class="app-profile-group-label">Basics</p>
+          <div class="app-profile-grid">
+            <div class="app-profile-field">
+              <label for="apFirstName">First name</label>
+              <input type="text" id="apFirstName" autocomplete="off">
+            </div>
+            <div class="app-profile-field">
+              <label for="apLastName">Last name</label>
+              <input type="text" id="apLastName" autocomplete="off">
+            </div>
+            <div class="app-profile-field">
+              <label for="apEmail">Email</label>
+              <input type="text" id="apEmail" autocomplete="off">
+            </div>
+            <div class="app-profile-field">
+              <label for="apPhone">Phone</label>
+              <input type="text" id="apPhone" autocomplete="off">
+            </div>
+          </div>
+
+          <p class="app-profile-group-label">Location</p>
+          <div class="app-profile-grid">
+            <div class="app-profile-field">
+              <label for="apStreet">Street address</label>
+              <input type="text" id="apStreet" autocomplete="off">
+            </div>
+            <div class="app-profile-field">
+              <label for="apStreet2">Apartment or suite</label>
+              <input type="text" id="apStreet2" autocomplete="off">
+            </div>
+            <div class="app-profile-field">
+              <label for="apCity">City</label>
+              <input type="text" id="apCity" autocomplete="off">
+            </div>
+            <div class="app-profile-field">
+              <label for="apState">State or province</label>
+              <input type="text" id="apState" autocomplete="off">
+            </div>
+            <div class="app-profile-field">
+              <label for="apPostal">Postal code</label>
+              <input type="text" id="apPostal" autocomplete="off">
+            </div>
+            <div class="app-profile-field">
+              <label for="apCountry">Country</label>
+              <input type="text" id="apCountry" autocomplete="off">
+            </div>
+          </div>
+
+          <p class="app-profile-group-label">Work eligibility</p>
+          <div class="app-profile-grid">
+            <div class="app-profile-field">
+              <label for="apWorkAuthorized">Legally authorized to work</label>
+              <select id="apWorkAuthorized">
+                <option value="">Not set</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+            <div class="app-profile-field">
+              <label for="apSponsorship">Will you now or in future require visa sponsorship?</label>
+              <select id="apSponsorship">
+                <option value="">Not set</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+            <div class="app-profile-field">
+              <label for="apOver18">Are you 18 or older?</label>
+              <select id="apOver18">
+                <option value="">Not set</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+            <div class="app-profile-field">
+              <label for="apRelocate">Are you willing to relocate?</label>
+              <select id="apRelocate">
+                <option value="">Not set</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+            <div class="app-profile-field span2">
+              <label for="apRemote">Work arrangement preference</label>
+              <select id="apRemote">
+                <option value="">Not set</option>
+                <option value="Remote">Remote</option>
+                <option value="Hybrid">Hybrid</option>
+                <option value="On-site">On-site</option>
+              </select>
+            </div>
+          </div>
+
+          <p class="app-profile-group-label">Preferences</p>
+          <div class="app-profile-grid">
+            <div class="app-profile-field">
+              <label for="apSalary">Salary expectation</label>
+              <input type="number" id="apSalary" min="0" step="1" autocomplete="off">
+            </div>
+            <div class="app-profile-field">
+              <label for="apCurrency">Currency</label>
+              <select id="apCurrency">
+                <option value="">Not set</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+                <option value="CAD">CAD</option>
+                <option value="AUD">AUD</option>
+                <option value="INR">INR</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="app-profile-field">
+              <label for="apSalaryPeriod">Per</label>
+              <select id="apSalaryPeriod">
+                <option value="">Not set</option>
+                <option value="Year">Year</option>
+                <option value="Month">Month</option>
+                <option value="Hour">Hour</option>
+              </select>
+            </div>
+            <div class="app-profile-field">
+              <label for="apStartDate">Earliest start date</label>
+              <input type="date" id="apStartDate" autocomplete="off">
+            </div>
+            <div class="app-profile-field">
+              <label for="apYears">Years of experience</label>
+              <input type="number" id="apYears" min="0" step="1" autocomplete="off">
+            </div>
+          </div>
+
+          <p class="app-profile-group-label">Links</p>
+          <div class="app-profile-grid">
+            <div class="app-profile-field span2">
+              <label for="apLinkedin">LinkedIn</label>
+              <input type="text" id="apLinkedin" placeholder="https://linkedin.com/in/you" autocomplete="off">
+            </div>
+            <div class="app-profile-field">
+              <label for="apWebsite">Portfolio or website</label>
+              <input type="text" id="apWebsite" autocomplete="off">
+            </div>
+            <div class="app-profile-field">
+              <label for="apGithub">GitHub</label>
+              <input type="text" id="apGithub" autocomplete="off">
+            </div>
+          </div>
+
+          <p class="app-profile-group-label">Voluntary self-identification</p>
+          <small class="resume-help">Only used when a form asks for it. Kept on this device and never sent anywhere.</small>
+          <div class="tracker-toggle-row">
+            <div class="tracker-toggle-text">
+              <p>Allow EEO answers to fill forms</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="apEeoToggle">
+              <span class="toggle-slider"><span class="toggle-state">OFF</span></span>
+            </label>
+          </div>
+          <div class="app-profile-eeo-grid" id="apEeoGrid" style="display: none;">
+            <div class="app-profile-field">
+              <label for="apEeoGender">Gender</label>
+              <input type="text" id="apEeoGender" autocomplete="off">
+            </div>
+            <div class="app-profile-field">
+              <label for="apEeoRace">Race or ethnicity</label>
+              <input type="text" id="apEeoRace" autocomplete="off">
+            </div>
+            <div class="app-profile-field">
+              <label for="apEeoHispanic">Hispanic or Latino</label>
+              <select id="apEeoHispanic">
+                <option value="">Not set</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+            <div class="app-profile-field">
+              <label for="apEeoVeteran">Protected veteran</label>
+              <select id="apEeoVeteran">
+                <option value="">Not set</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+            <div class="app-profile-field">
+              <label for="apEeoDisability">Disability status</label>
+              <select id="apEeoDisability">
+                <option value="">Not set</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+          </div>
+
+          <p class="app-profile-group-label">Custom answers</p>
+          <small class="resume-help">Questions you meet often, with the answer you always give. They match on the question text.</small>
+          <div class="custom-qa-add">
+            <input type="text" id="customQaQuestionInput" maxlength="200" placeholder="Question" autocomplete="off">
+            <textarea id="customQaAnswerInput" rows="2" placeholder="Your answer" autocomplete="off"></textarea>
+            <div class="custom-qa-add-actions">
+              <button type="button" class="ghost-btn" id="customQaAddBtn">Add answer</button>
+            </div>
+          </div>
+          <div id="customQaList"></div>
+        </div>
+      </details>
+
       <details class="cloud-sync-details" id="coverLetterDetails">
         <summary>Cover letter <span id="coverLetterFallbackPill" class="cloud-status-pill">Not set</span></summary>
         <div class="app-profile-body">

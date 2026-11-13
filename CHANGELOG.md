@@ -1,5 +1,17 @@
 # Changelog
 
+## [10.11.0] — 2026-11-13
+### Added
+- **Form Filler is back, and it runs on your saved answers.** Fill Form fills the empty fields on an application form from answers you save once in Settings — name, contact details, location, work eligibility, salary expectation, start date, links and the Yes/No questions forms keep asking. The tape is off the button.
+- **Your own answers for the open questions.** Add a question you meet often with the answer you always give, and it matches on the question text.
+- **One click from your resume.** *Auto-fill from my resume* in Settings → Form filler reads the name, email, phone, city, links and years of experience out of the resume you already built. It never touches a box you already filled.
+- **Nothing is guessed.** A question with no saved answer is left empty and highlighted with a dashed amber outline, so you can see exactly what still needs you. The popup lists those questions and copies them to the clipboard.
+- **It never submits.** Fill Form only types into empty fields. Consent boxes, terms, captchas and anything you already answered are left alone, and the form is never sent for you.
+
+### Changed
+- **Form Filler setup lives in Settings → Form filler.** One card holds every answer, the pill says *Ready* or *Not set up*, and *Guide me* walks through it.
+- **The AI extraction step is gone.** Auto-fill from your resume is now a local, deterministic read of the resume you already have. No provider call, no upload.
+
 ## [10.10.1] — 2026-11-13
 ### Added
 - **Job details are remembered per posting.** Correct the job title, company, location or recipient in the review dialog and the fix is remembered for that posting, so Generate Cover Letter opens with it already filled in — no typing it twice.

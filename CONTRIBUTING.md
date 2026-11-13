@@ -45,7 +45,9 @@ PocketResume/
 ├── background.js            # Service worker: deterministic pipeline + generation gate
 ├── content.js               # Content script: page text extraction
 ├── popup.html / popup.js    # Popup UI + PDF generation
-├── options.html / options.js# Settings: resume form, cover letter, account, toggles
+├── options.html / options.js# Settings: resume form, cover letter, form filler, account, toggles
+├── form-filler.js           # Injected form detect/fill/flag/toast (deterministic Form Filler)
+├── form-profile.js          # Saved-answer resolver: canonical matchers, custom Q&A, resume -> profile
 ├── resume-parse.js          # Resume text -> structured profile (pure, no network)
 ├── resume-align.js          # Deterministic JD alignment + verifier + cover-letter template
 ├── resume-renderers.js      # Double Sided / Academic CV PDF layouts
@@ -65,12 +67,13 @@ PocketResume/
 
 ```sh
 npm run test:align    # determinism, no-invented-numbers, parser fixtures, normalization
+npm run test:formfill # saved-answer resolution, option matching, EEO gate, maxLength, resume -> profile
 npm run test:render   # Double Sided one-page fit, page margins, Academic CV pagination, no duplicated projects
 npm run build:clerk   # bundle src/cloud-sync.js → cloud-sync.js + cloud-sync-core.js
 npm run build:zip     # dist/pocketresume-vX.Y.zip from the runtime file list
 ```
 
-Keep `test:align` and `test:render` green. There is no linter; otherwise load unpacked and check the PDF plus the service worker console.
+Keep `test:align`, `test:formfill` and `test:render` green. There is no linter; otherwise load unpacked and check the PDF plus the service worker console.
 
 ## Pull Requests
 

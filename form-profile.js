@@ -2,7 +2,11 @@
 // Pure resolver logic: maps detected form fields to saved applicationProfile answers.
 // No chrome.* APIs. Imported by background.js (module service worker).
 
+import { splitContactParts } from './resume-parse.js';
+
 const MAX_QUESTION_LENGTH = 300;
+const FIELD_ID_PATTERN = /^pf[a-z0-9]{6}-[rcs]?\d+$/;
+const TRUNCATABLE_TAGS = new Set(['input', 'text', 'textarea', 'editable']);
 
 function normalizeQuestion(text) {
     return (text || '')
@@ -239,8 +243,118 @@ export function resolveFormAnswers(fields, profile) {
         const questionNorm = normalizeQuestion(field && field.question);
         const customQaAnswer = matchCustomQa(questionNorm, profile && profile.customQA);
         const answer = resolveFieldAnswer(field, profile, customQaAnswer);
-        if (answer) resolved.push({ id: field.id, answer });
+        if (answer) resolved.push({ id: field.id, answer: truncateAnswer(field, answer) });
         else unresolved.push(field);
     }
     return { resolved, unresolved, cachedCount: resolved.length };
+}
+
+function truncateAnswer(field, answer) {
+    const text = String(answer || '');
+    const max = Number(field && field.maxLength);
+    if (!Number.isFinite(max) || max <= 0) return text;
+    const tag = String((field && field.tag) || '').toLowerCase();
+    if (!TRUNCATABLE_TAGS.has(tag)) return text;
+    return text.slice(0, max);
+}
+
+// Guards the answer list before it reaches the page: only real field ids and
+// non-empty string answers survive.
+export function normalizeFormAnswers(resolved) {
+    const out = [];
+    const seen = new Set();
+    for (const item of Array.isArray(resolved) ? resolved : []) {
+        const id = String((item && item.id) || '');
+        const answer = typeof (item && item.answer) === 'string' ? item.answer.trim() : '';
+        if (!id || !FIELD_ID_PATTERN.test(id)) continue;
+        if (!answer || seen.has(id)) continue;
+        seen.add(id);
+        out.push({ id, answer });
+    }
+    return out;
+}
+
+function splitNameParts(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return { firstName: '', lastName: '' };
+    if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+    return { firstName: parts.slice(0, -1).join(' '), lastName: parts[parts.length - 1] };
+}
+
+function splitLocationParts(location) {
+    const parts = String(location || '')
+        .split(',')
+        .map((part) => part.replace(/\b\d{5}(?:-\d{4})?\b/g, '').trim())
+        .filter(Boolean);
+    const result = { city: '', state: '', country: '' };
+    if (!parts.length) return result;
+    if (/^(remote|hybrid|on-?site|anywhere|work from home|wfh)$/i.test(parts[0])) return result;
+    result.city = parts[0];
+    if (parts.length === 2) result.state = parts[1];
+    if (parts.length >= 3) {
+        result.state = parts[1];
+        result.country = parts[parts.length - 1];
+    }
+    if (/^(remote|hybrid|on-?site)$/i.test(result.city)) {
+        result.city = '';
+        result.state = '';
+    }
+    return result;
+}
+
+function pickLink(links, pattern) {
+    for (const link of links || []) {
+        const url = String((link && link.url) || '');
+        if (url && pattern.test(url)) return url;
+    }
+    return '';
+}
+
+function estimateExperienceYears(experience, now) {
+    const list = Array.isArray(experience) ? experience : [];
+    let earliest = 0;
+    for (const entry of list) {
+        const match = String((entry && entry.period) || '').match(/(\d{4})/);
+        if (!match) continue;
+        const year = Number(match[1]);
+        if (!Number.isFinite(year) || year < 1950 || year > 2100) continue;
+        if (!earliest || year < earliest) earliest = year;
+    }
+    if (!earliest) return 0;
+    const years = now.getUTCFullYear() - earliest;
+    if (years <= 0) return 0;
+    return Math.min(years, 40);
+}
+
+// Deterministic resume -> applicationProfile mapping. Only what the resume
+// actually states: no work authorization, no EEO, no salary, no street address.
+export function profileFromResume(resumeProfile, options = {}) {
+    const source = resumeProfile && typeof resumeProfile === 'object' ? resumeProfile : {};
+    const now = options.now instanceof Date ? options.now : new Date();
+    const contact = splitContactParts(source);
+    const name = splitNameParts(source.name);
+    const location = splitLocationParts(contact.location);
+    const links = Array.isArray(contact.links) ? contact.links : [];
+    const linkedin = pickLink(links, /linkedin\.com/i);
+    const github = pickLink(links, /github\.com/i);
+    const website = links
+        .map((link) => String((link && link.url) || ''))
+        .find((url) => url && !/linkedin\.com|github\.com/i.test(url)) || '';
+
+    return {
+        firstName: name.firstName,
+        lastName: name.lastName,
+        email: contact.email || '',
+        phone: contact.phone || '',
+        streetAddress: '',
+        addressLine2: '',
+        city: location.city,
+        state: location.state,
+        postalCode: '',
+        country: location.country,
+        linkedin,
+        website,
+        github,
+        yearsExperience: estimateExperienceYears(source.experience, now)
+    };
 }

@@ -15,10 +15,18 @@
 - **3 Resume Layouts** — Professional, Double Sided (dense two-column, always one page), Academic CV (multi-page)
 - **A cover letter per resume** — each saved resume keeps its own letter with `{{company}}`, `{{role}}`, and `{{recipient}}` filled from the posting. Write it yourself, click **Generate letter** for a short general draft, or copy the prompt into any assistant
 - **Job Tracker** — every generation drops a card with the job URL, company, and role. Pipeline board + analytics, no extra calls
+- **Form Filler** — fills the empty fields on an application form from answers you save once. Fully local: no AI, no upload. Questions with no saved answer stay empty and are highlighted for you. Never submits, never overwrites a field you filled
 - **Quick Download** — re-download your saved resume as a professional PDF without reading the page
 - **PDF Export** — clean, print-ready PDFs via jsPDF for every layout
 - **Multi-Profile** — save up to 3 master profiles and switch between them
 - **Privacy First** — resumes stay in `chrome.storage.local`; the engine makes no network requests
+
+### What's New in v10.11.0
+
+- **Form Filler is back.** The tape is off the button: it fills an application form from the answers you saved once in Settings → Form filler.
+- **One click from your resume.** *Auto-fill from my resume* reads your name, email, phone, city, links and years of experience out of the resume you already built — locally, with no provider call.
+- **Nothing is guessed.** A question with no saved answer is left empty and outlined in amber. The popup lists them and copies them for you.
+- **It never submits.** Consent boxes, terms and captchas are left alone.
 
 ### What's New in v10.10.1
 
@@ -56,6 +64,7 @@ npm install
 3. Paste your resume text into **Paste an existing resume** → **Parse resume** (once the resume has content, the paste box is replaced by a **Paste / import an existing resume** link)
 4. Fix anything the parser missed in the form → **Looks right — confirm** → **Save Settings**
 5. Optional: add a cover letter under **Cover letter** — it saves with the resume you are editing
+6. Optional: set up the **Form filler** answers (name, contact, work eligibility, salary, and the questions forms keep asking) so **Fill Form** can fill application forms later
 
 ## Usage
 
@@ -63,12 +72,19 @@ npm install
 2. Click PocketResume icon → choose resume style
 3. Click **Generate Resume** — the job details dialog opens, the PDF downloads and a Job Tracker card is created
 4. Click **Generate Cover Letter** for the matching letter (uses the selected resume's saved letter)
+5. Optional: click **Fill Form** on an application page — it fills the empty fields from the answers you saved in Settings
 
 The job details dialog shows what was read from the posting — job title, company, location, recipient — and the keywords it matched. Correct anything that is wrong; the fix goes into the PDF, the resume header and the Job Tracker card, and is remembered for that posting so the cover letter picks it up. If nobody answers it, it saves after 30 seconds; typing in a field stops the countdown. Cancel saves nothing. Turn it off with **Don't ask again**, or **Review extracted job details** in Settings → Interface.
 
 If generation fails, the popup stays red — click the **?** button (top right) for a readable message plus copyable raw details. The error clears when you close the popup or retry.
 
-Refine Resume, Check ATS, Profile Autofill, and Form Filler are disabled with a **Soon** badge while they are rebuilt without AI. The Form Filler setup section is hidden in Settings until then.
+## Form Filler
+
+**Fill Form** (next to the Job Tracker button) fills the empty fields on an application form from answers you save once in Settings → **Form filler**: name, contact details, location, work eligibility, salary expectation, start date, links, and your own answers for the questions forms keep asking. *Auto-fill from my resume* pulls the name, email, phone, city, links and years of experience straight out of the resume you already built.
+
+It runs entirely in your browser — no AI, no upload, no provider call. A question with no saved answer is **left empty and highlighted** with a dashed amber outline; the popup lists those questions and copies them to the clipboard. It never overwrites a field you already filled, never touches consent boxes, terms or captchas, and **never submits the form**. It is a Pro feature, like the Job Tracker.
+
+Refine Resume and Check ATS are still disabled with a **Soon** badge while they are rebuilt without AI.
 
 ## Configuration
 

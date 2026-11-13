@@ -13,6 +13,7 @@ Pocket Resume collects and processes the following user data to provide its core
 ### Data Collected
 
 * **User Profile Information**: Professional details you enter in the extension settings (such as work experience, education, skills, and contact information)
+* **Application Answers**: The Form Filler answers you save in Settings (name, contact details, location, work eligibility, salary expectation, start date, links, and any custom question/answer pairs)
 * **Job Description Content**: Text extracted from job posting web pages you are viewing
 * **Job Details**: The job title, company, location, and recipient read from a posting, plus any correction you make to them in the review dialog
 
@@ -23,6 +24,8 @@ This data is used solely to generate tailored resumes and cover letters based on
 ## Data Transmission
 
 **Resume generation is local.** Resume generation runs inside the extension: your saved resume and the job posting text stay in the browser, and the resume is aligned to the posting with deterministic rules. The extension does not ask for or store API keys.
+
+**Form filling is local.** The Form Filler runs entirely in your browser. It reads the answers you saved in Settings, matches them against the fields on the page you are looking at, and types them in. It never sends your answers anywhere, never reads the contents of a form you did not ask it to fill, and never submits a form for you. Questions with no saved answer are left empty.
 
 **Optional AI features.** Two features can send data to an AI provider, and only after you start them:
 
@@ -49,6 +52,7 @@ To recognise skills in job descriptions, the extension downloads a public skill 
 Pocket Resume stores the following data locally on your device using Chrome's built-in storage APIs:
 
 * Your resume profiles (structured JSON form data), each with its own cover letter
+* Your Form Filler answers (the application questions you saved in Settings), kept on this device only and never synced to the cloud
 * Your preferences (selected resume style, tracker capture toggle)
 * Generated resumes, cover letters, and captured job applications
 * Job details you correct in the review dialog (job title, company, location, recipient), remembered per posting URL so the same posting does not need the same edit twice. The URL is stored with tracking parameters removed, and nothing about the posting's page content is kept
@@ -67,15 +71,15 @@ This locally stored data:
 
 Pocket Resume requests only the permissions necessary for core functionality:
 
-* **Active Tab**: To read the job posting in the tab you are generating for
-* **Storage**: To save your resume profiles, preferences, tracker cards, and generated documents locally
-* **Scripting**: To extract text content from the job posting page when the content script is not already present
+* **Active Tab**: To read the job posting in the tab you are generating for, and to fill an application form in the tab you are filling
+* **Storage**: To save your resume profiles, Form Filler answers, preferences, tracker cards, and generated documents locally
+* **Scripting**: To extract text content from the job posting page when the content script is not already present, and to fill application form fields on the page you ask it to fill
 * **Alarms**: To schedule the daily skill-vocabulary check; no browsing data is read
 * **Downloads**: To save generated resume and cover-letter PDFs reliably
 * **Host Permissions**: To reach Clerk (sign-in), Convex (optional resume sync), Pollinations (opt-in Resume health check and Generate letter), and the public O*NET skill vocabulary (`onetcenter.org`)
 * **Optional Host Permissions**: Requested only when you turn on the local Ollama fallback — `http://localhost:11434`. Chrome asks for your explicit consent before granting it; you can revoke it at any time in Chrome's extension settings.
 
-These permissions are used exclusively to enable the resume and cover letter generation features and are not used to collect data for other purposes.
+These permissions are used exclusively to enable the resume, cover letter, and form-filling features and are not used to collect data for other purposes.
 
 ## Data Retention
 

@@ -1,4 +1,5 @@
 import { parseResumeText, normalizeResumeProfile, splitContactParts, buildContactString, resumeProfileWarnings, estimateResumePages } from './resume-parse.js';
+import { profileFromResume } from './form-profile.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const saveButton = document.getElementById('save');
@@ -1227,13 +1228,16 @@ My resume:
     }
     appProfileAutofilling = true;
     if (profileAutofillBtn) profileAutofillBtn.disabled = true;
-    showStatus('Extracting your answers from your resume...', 'loading', 0);
+    showStatus('Reading your resume...', 'loading', 0);
     try {
-      const response = await sendRuntimeMessage({ type: 'PROFILE_AUTOFILL', payload: { sourceText } });
-      if (!response || response.status !== 'success' || !response.data) {
-        throw new Error(response?.message || 'Unknown extraction error');
+      let parsed = null;
+      try {
+        parsed = JSON.parse(sourceText);
+      } catch {
+        parsed = parseResumeText(sourceText);
       }
-      const extracted = response.data;
+      if (!parsed || typeof parsed !== 'object') throw new Error('Could not read that resume.');
+      const extracted = profileFromResume(parsed);
       let offered = 0;
       let filled = 0;
       for (const [id, key] of APP_PROFILE_FIELDS) {
@@ -1258,6 +1262,10 @@ My resume:
       appProfileAutofilling = false;
       if (profileAutofillBtn) profileAutofillBtn.disabled = false;
     }
+  }
+
+  if (profileAutofillBtn) {
+    profileAutofillBtn.addEventListener('click', handleProfileAutofill);
   }
 
 

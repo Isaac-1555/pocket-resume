@@ -3,12 +3,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const generateBtn = document.getElementById('generateBtn');
   const fillFormBtn = document.getElementById('fillFormBtn');
   const fillFormLabel = document.getElementById('fillFormLabel');
+  const fillProCard = document.getElementById('fillProCard');
+  const fillProTitle = document.getElementById('fillProTitle');
+  const fillProText = document.getElementById('fillProText');
+  const fillProPlansBtn = document.getElementById('fillProPlansBtn');
+  const fillProAuthBtn = document.getElementById('fillProAuthBtn');
+  const fillProfileCard = document.getElementById('fillProfileCard');
+  const fillProfileSetupBtn = document.getElementById('fillProfileSetupBtn');
+  const fillResultCard = document.getElementById('fillResultCard');
+  const fillResultTitle = document.getElementById('fillResultTitle');
+  const fillResultText = document.getElementById('fillResultText');
+  const fillUnansweredList = document.getElementById('fillUnansweredList');
+  const fillCopyRow = document.getElementById('fillCopyRow');
+  const fillCopyBtn = document.getElementById('fillCopyBtn');
   let statusTimer = null;
   let scrambleTimer = null;
   let letterScrambleTimer = null;
   let letterStatusTimer = null;
   let motionPreference = true;
   let fillStatusTimer = null;
+  let fillRunning = false;
+  let fillPromoActive = false;
+  let lastFillUnanswered = [];
   let lastError = '';
   let lastErrorRaw = '';
   const settingsBtn = document.getElementById('settingsBtn');
@@ -1068,6 +1084,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function applyGateUi() {
     hideGateCards();
+    hideFillCards();
     if (gate.state === 'signin') {
       if (signinCard) signinCard.style.display = 'block';
       setGenerateEnabled(false);
@@ -1354,10 +1371,184 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function hideFillCards() {
+    if (fillProCard) fillProCard.style.display = 'none';
+    if (fillProfileCard) fillProfileCard.style.display = 'none';
+    if (fillResultCard) fillResultCard.style.display = 'none';
+  }
+
+  function showFillProCard(access) {
+    hideFillCards();
+    if (!fillProCard) return;
+    const promo = !!(access && (access.promoActive || access.withinWindow));
+    const signedIn = !!(access && access.signedIn);
+    fillPromoActive = promo && !signedIn;
+    if (fillProTitle) {
+      fillProTitle.textContent = signedIn ? 'Form Filler needs a Pro plan' : 'Create an account to use Form Filler';
+    }
+    if (fillProText) {
+      fillProText.textContent = signedIn
+        ? 'A Pro plan is $4/month (about $1/week) or $47/year. It keeps Form Filler, the resume engine, cover letters, and the Job Tracker unlocked.'
+        : promo
+          ? 'Your resume engine runs in this browser, but an account keeps Form Filler, the Job Tracker, and cloud sync unlocked. Free to try until Dec 31.'
+          : 'Sign in to use Form Filler. Your resume and tracker data stay on this device until you do.';
+    }
+    if (fillProAuthBtn) {
+      fillProAuthBtn.style.display = signedIn ? 'none' : '';
+      const label = fillProAuthBtn.querySelector('span');
+      if (label) label.textContent = promo ? 'Create a free account' : 'Sign in';
+    }
+    fillProCard.style.display = '';
+  }
+
+  function showFillProfileCard() {
+    hideFillCards();
+    if (fillProfileCard) fillProfileCard.style.display = '';
+  }
+
+  function fieldTypeLabel(tag) {
+    const value = String(tag || '').toLowerCase();
+    if (value === 'select') return 'dropdown';
+    if (value === 'radio' || value === 'checkbox-group') return 'choice';
+    if (value === 'checkbox') return 'checkbox';
+    return 'text';
+  }
+
+  function renderFillResult(response) {
+    hideFillCards();
+    if (!fillResultCard) return;
+    const filled = Number(response?.filled) || 0;
+    const total = Number(response?.total) || 0;
+    const unanswered = Array.isArray(response?.unresolved) ? response.unresolved : [];
+    lastFillUnanswered = unanswered;
+    if (fillResultTitle) {
+      fillResultTitle.textContent = total ? `Filled ${filled} of ${total} fields` : 'No fields to fill';
+    }
+    if (fillResultText) {
+      fillResultText.textContent = total
+        ? (unanswered.length === 1
+          ? '1 question had no saved answer. It is highlighted on the page.'
+          : unanswered.length
+            ? `${unanswered.length} questions had no saved answer. They are highlighted on the page.`
+            : 'Every empty field had a saved answer.')
+        : 'No empty application fields were found on this page.';
+    }
+    if (fillUnansweredList) {
+      fillUnansweredList.innerHTML = '';
+      for (const item of unanswered) {
+        const li = document.createElement('li');
+        li.textContent = item.question ? item.question : 'Untitled question';
+        fillUnansweredList.appendChild(li);
+      }
+    }
+    if (fillCopyRow) fillCopyRow.style.display = unanswered.length ? '' : 'none';
+    fillResultCard.style.display = '';
+  }
+
+  async function runFillForm() {
+    if (fillRunning) return;
+    fillRunning = true;
+    hideFillCards();
+    try {
+      const access = await checkProAccess();
+      if (!access || !access.allowed) {
+        fillRunning = false;
+        showFillProCard(access || {});
+        return;
+      }
+      const stored = await chrome.storage.local.get('applicationProfile');
+      const profile = stored.applicationProfile;
+      if (!profile || !String(profile.firstName || '').trim() || !String(profile.lastName || '').trim()) {
+        fillRunning = false;
+        showFillProfileCard();
+        return;
+      }
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab || !tab.id) {
+        fillRunning = false;
+        setError('No active tab found. Open the application form and try again.', 'fill');
+        return;
+      }
+      setFillStatus('filling');
+      if (fillFormLabel) fillFormLabel.textContent = 'Filling\u2026';
+      chrome.runtime.sendMessage({
+        type: 'FILL_APPLICATION_FORM',
+        payload: { tabId: tab.id }
+      }, (response) => {
+        fillRunning = false;
+        if (chrome.runtime.lastError) {
+          setError(chrome.runtime.lastError.message || 'Could not reach the background service.', 'fill');
+          return;
+        }
+        if (!response) {
+          setError('Form Filler did not answer.', 'fill');
+          return;
+        }
+        if (response.status === 'signin_required' || response.status === 'plan_required') {
+          setFillStatus(null);
+          if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
+          showFillProCard(response);
+          return;
+        }
+        if (response.status === 'profile_incomplete') {
+          setFillStatus(null);
+          if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
+          showFillProfileCard();
+          return;
+        }
+        if (response.status === 'error') {
+          if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
+          setError(response.message || 'Form Filler failed.', 'fill');
+          return;
+        }
+        setFillStatus('fill-success');
+        if (fillFormLabel) fillFormLabel.textContent = `Filled ${response.filled}/${response.total}`;
+        renderFillResult(response);
+      });
+    } catch (error) {
+      fillRunning = false;
+      setError(error.message || 'Form Filler failed.', 'fill');
+    }
+  }
+
   if (fillFormBtn) {
     fillFormBtn.addEventListener('click', (event) => {
       event.preventDefault();
-      setError('Form Filler is being rebuilt. It will return in a later update.');
+      runFillForm();
+    });
+  }
+
+  if (fillProPlansBtn) {
+    fillProPlansBtn.addEventListener('click', () => openPricing());
+  }
+
+  if (fillProAuthBtn) {
+    fillProAuthBtn.addEventListener('click', () => {
+      openAccountAuth(fillPromoActive ? 'signUp' : 'signIn');
+    });
+  }
+
+  if (fillProfileSetupBtn) {
+    fillProfileSetupBtn.addEventListener('click', () => {
+      chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
+        chrome.runtime.openOptionsPage();
+      });
+    });
+  }
+
+  if (fillCopyBtn) {
+    fillCopyBtn.addEventListener('click', async () => {
+      const lines = lastFillUnanswered.map((item, index) =>
+        `${index + 1}. "${item.question || 'Untitled question'}" (${fieldTypeLabel(item.tag)})`);
+      const text = lines.join('\n');
+      try {
+        await navigator.clipboard.writeText(text);
+        const original = fillCopyBtn.innerHTML;
+        fillCopyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Copied!</span>';
+        setTimeout(() => { fillCopyBtn.innerHTML = original; }, 1500);
+      } catch (error) {
+        console.warn('[Popup] Copy failed:', error);
+      }
     });
   }
 
@@ -1416,8 +1607,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.10.1';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.10.1';
+  const ANNOUNCEMENT_VERSION = '10.11.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.11.0';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
@@ -1440,7 +1631,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (whatsNewPlansBtn) {
     whatsNewPlansBtn.addEventListener('click', () => {
       dismissWhatsNew();
-      chrome.tabs.create({ url: chrome.runtime.getURL('options.html') });
+      startProfileSetup();
     });
   }
 
@@ -1789,6 +1980,7 @@ document.addEventListener('DOMContentLoaded', () => {
     lastError = mapErrorMessage(message);
     if (errorInfoBtn) errorInfoBtn.style.display = 'flex';
     if (target === 'letter') setLetterStatus('failure');
+    else if (target === 'fill') setFillStatus('fill-failure');
     else setStatus('error');
   }
 

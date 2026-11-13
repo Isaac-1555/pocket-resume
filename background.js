@@ -20,6 +20,7 @@ import {
 import { SKILL_LEXICON_BASE } from './libs/skills-lexicon.js';
 import { checkResumeHealth } from './resume-health.js';
 import { generateCoverLetterBody, COVER_LETTER_COOLDOWN_MS } from './resume-letter.js';
+import { resolveFormAnswers, normalizeFormAnswers } from './form-profile.js';
 
 async function setCoverLetterCooldown(resumeId, cooldownUntil) {
     if (!resumeId) return;
@@ -338,6 +339,118 @@ function buildJobMeta(jd, resume) {
     };
 }
 
+// --- Form filler (deterministic, saved answers only) ---
+
+const FORM_FIELD_LIMIT = 30;
+
+async function injectFormFiller(tabId) {
+    try {
+        await chrome.scripting.executeScript({
+            target: { tabId, allFrames: true },
+            files: ['form-filler.js']
+        });
+        return true;
+    } catch (error) {
+        console.warn('[FormFill] Could not inject the form filler:', error);
+        return false;
+    }
+}
+
+async function runInFrames(tabId, func, args) {
+    try {
+        const results = await chrome.scripting.executeScript({
+            target: { tabId, allFrames: true },
+            func,
+            args: args || []
+        });
+        return (results || [])
+            .map((entry) => entry && entry.result)
+            .filter((value) => value !== undefined && value !== null);
+    } catch (error) {
+        console.warn('[FormFill] Frame script failed:', error);
+        return [];
+    }
+}
+
+async function toastInMainFrame(tabId, message) {
+    try {
+        await chrome.scripting.executeScript({
+            target: { tabId, frameIds: [0] },
+            func: (text) => {
+                const api = globalThis.__PocketResumeForm;
+                if (api && typeof api.toast === 'function') api.toast(text);
+            },
+            args: [message]
+        });
+    } catch (error) {
+        console.warn('[FormFill] Toast failed:', error);
+    }
+}
+
+async function fillApplicationForm(tabId, profile) {
+    const injected = await injectFormFiller(tabId);
+    if (!injected) {
+        return { status: 'error', message: 'Could not reach the page. Reload the tab and try again.' };
+    }
+
+    const detected = await runInFrames(tabId, (limit) => {
+        const api = globalThis.__PocketResumeForm;
+        if (!api || typeof api.detect !== 'function') return [];
+        return api.detect(limit);
+    }, [FORM_FIELD_LIMIT]);
+
+    const fields = [];
+    for (const group of detected) {
+        if (Array.isArray(group)) fields.push(...group);
+    }
+    if (!fields.length) {
+        await toastInMainFrame(tabId, 'No empty application fields found on this page.');
+        return { status: 'success', filled: 0, total: 0, cached: 0, unresolved: [], noFields: true };
+    }
+
+    const { resolved, unresolved } = resolveFormAnswers(fields, profile);
+    const answers = normalizeFormAnswers(resolved);
+
+    const fillResults = await runInFrames(tabId, (list) => {
+        const api = globalThis.__PocketResumeForm;
+        if (!api || typeof api.fill !== 'function') return { attempted: 0, filled: 0 };
+        return api.fill(list);
+    }, [answers]);
+
+    let filled = 0;
+    for (const result of fillResults) {
+        filled += Number((result && result.filled) || 0);
+    }
+
+    const unansweredIds = unresolved.map((field) => field.id);
+    if (unansweredIds.length) {
+        await runInFrames(tabId, (ids) => {
+            const api = globalThis.__PocketResumeForm;
+            if (!api || typeof api.flag !== 'function') return 0;
+            return api.flag(ids);
+        }, [unansweredIds]);
+    }
+
+    const needYou = unresolved.length;
+    const message = needYou
+        ? `Filled ${filled} of ${fields.length} fields (${answers.length} from saved answers). ${needYou} ${needYou === 1 ? 'needs' : 'need'} you.`
+        : `Filled ${filled} of ${fields.length} fields from your saved answers.`;
+    await toastInMainFrame(tabId, message);
+    console.log(`[FormFill] Filled ${filled} of ${fields.length} fields. (${answers.length} saved, ${needYou} need you)`);
+
+    return {
+        status: 'success',
+        filled,
+        total: fields.length,
+        cached: answers.length,
+        unresolved: unresolved.slice(0, 12).map((field) => ({
+            id: field.id,
+            question: field.question || '',
+            tag: field.tag || ''
+        }))
+    };
+}
+
 function buildCoverLetterPayload(template, resume, jobMeta) {
     if (!template || !String(template.body || '').trim()) return { status: 'no_template', data: null };
     const letter = buildCoverLetterFromTemplate(template, {
@@ -595,6 +708,40 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    if (message.type === 'FILL_APPLICATION_FORM') {
+        (async () => {
+            try {
+                const access = await getGenerationAccess();
+                if (!access.allowed) {
+                    sendResponse({ status: access.reason || 'signin_required', ...access });
+                    return;
+                }
+                const payload = message.payload || {};
+                const tabId = payload.tabId;
+                if (!tabId) throw new Error('Open the application form tab first.');
+
+                const stored = await chrome.storage.local.get(['applicationProfile']);
+                const profile = stored.applicationProfile || null;
+                if (!profile || !String(profile.firstName || '').trim() || !String(profile.lastName || '').trim()) {
+                    sendResponse({
+                        status: 'profile_incomplete',
+                        message: 'Answer the setup questions in Settings first.',
+                        ...access
+                    });
+                    return;
+                }
+
+                const result = await fillApplicationForm(tabId, profile);
+                sendResponse({ ...result, ...access });
+            } catch (error) {
+                console.error('[FormFill] Failed:', error);
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+
+        return true;
+    }
+
     if (message.type === 'CHECK_RESUME_HEALTH') {
         (async () => {
             try {
@@ -615,9 +762,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     const unavailable = {
         START_GENERATION: 'ai_generation',
-        EXTRACT_RESUME_JSON: 'extraction',
-        PROFILE_AUTOFILL: 'form_filler',
-        FILL_APPLICATION_FORM: 'form_filler'
+        EXTRACT_RESUME_JSON: 'extraction'
     };
     if (unavailable[message.type]) {
         sendResponse({

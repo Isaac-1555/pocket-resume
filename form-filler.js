@@ -26,6 +26,8 @@
 
     const FRAME_TOKEN = 'pf' + Math.random().toString(36).slice(2, 8);
     const ID_ATTR = 'data-pocketresume-id';
+    const FLAG_ATTR = 'data-pocketresume-flag';
+    const FLAG_STYLE_ID = 'pocketresume-flag-style';
 
     function cleanText(text) {
         return (text || '').replace(/\s+/g, ' ').trim();
@@ -486,6 +488,39 @@
         return { attempted, filled };
     }
 
+    function ensureFlagStyle() {
+        if (document.getElementById(FLAG_STYLE_ID)) return;
+        const style = document.createElement('style');
+        style.id = FLAG_STYLE_ID;
+        style.textContent = '.pr-flag{outline:2px dashed rgba(245,158,11,.9)!important;outline-offset:2px;background:rgba(245,158,11,.07)!important;}';
+        (document.head || document.documentElement).appendChild(style);
+    }
+
+    // Marks fields that no saved answer could fill. Nothing is typed into them.
+    function flag(ids) {
+        ensureFlagStyle();
+        let count = 0;
+        for (const id of Array.isArray(ids) ? ids : []) {
+            const key = String(id || '');
+            if (!key) continue;
+            const nodes = document.querySelectorAll(`[${ID_ATTR}="${CSS.escape(key)}"]`);
+            nodes.forEach((node) => {
+                node.setAttribute(FLAG_ATTR, '1');
+                node.classList.add('pr-flag');
+                count++;
+            });
+        }
+        return count;
+    }
+
+    function unflag() {
+        document.querySelectorAll(`[${FLAG_ATTR}]`).forEach((node) => {
+            node.removeAttribute(FLAG_ATTR);
+            node.classList.remove('pr-flag');
+        });
+        return true;
+    }
+
     function toast(message) {
         const existing = document.getElementById('pocketresume-form-toast');
         if (existing) existing.remove();
@@ -521,5 +556,5 @@
         setTimeout(() => el.remove(), 5200);
     }
 
-    globalThis.__PocketResumeForm = { detect, fill, toast };
+    globalThis.__PocketResumeForm = { detect, fill, toast, flag, unflag };
 })();
