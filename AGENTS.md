@@ -96,7 +96,7 @@ Requires `CONVEX_DEPLOYMENT` in `.env.local`. Generated code goes to `convex/_ge
 
 ### Tests / lint
 
-`npm run test:align` (determinism, no-invented-numbers, parser fixtures, normalization), `npm run test:render` (Double Sided one-page fit, no text below the page margin, Academic CV pagination + footer, no duplicated projects), `npm run test:formfill` (form filler matchers and the resume → profile map) and `npm run test:pdfstore` (file shelf URL keys and eviction rules) are the automated checks. No linter. Otherwise: load unpacked, generate with a real account, inspect the PDF + the service worker console.
+`npm run test:align` (determinism, no-invented-numbers, parser fixtures, normalization), `npm run test:render` (Double Sided one-page fit, no text below the page margin, Academic CV pagination + footer, no duplicated projects), `npm run test:formfill` (form filler matchers and the resume → profile map), `npm run test:pdfstore` (file shelf URL keys and eviction rules) and `npm run test:feedback` (feedback validation, payload, error mapping) are the automated checks. No linter. Otherwise: load unpacked, generate with a real account, inspect the PDF + the service worker console.
 
 ### Versioning & changelog
 
@@ -111,7 +111,7 @@ Requires `CONVEX_DEPLOYMENT` in `.env.local`. Generated code goes to `convex/_ge
 
 Chrome Web Store upload = a zip with `manifest.json` at the root and **only runtime files**. Include:
 
-`manifest.json`, `background.js`, `content.js`, `form-filler.js`, `form-profile.js`, `sidebar.html`, `sidebar.js`, `pdf-store.js`, `options.html`, `options.js`, `tracker.html`, `tracker.js`, `resume-renderers.js`, `resume-align.js`, `resume-parse.js`, `resume-health.js`, `resume-letter.js`, `skill-lexicon.js`, `feature-video.js`, `feature-video.css`, `cloud-sync.js`, `cloud-sync-core.js`, `icon.png`, `libs/` (jsPDF, ldrs loader, animations, skills lexicon), `assets/tour/`.
+`manifest.json`, `background.js`, `content.js`, `form-filler.js`, `form-profile.js`, `feedback.js`, `sidebar.html`, `sidebar.js`, `pdf-store.js`, `options.html`, `options.js`, `tracker.html`, `tracker.js`, `resume-renderers.js`, `resume-align.js`, `resume-parse.js`, `resume-health.js`, `resume-letter.js`, `skill-lexicon.js`, `feature-video.js`, `feature-video.css`, `cloud-sync.js`, `cloud-sync-core.js`, `icon.png`, `libs/` (jsPDF, ldrs loader, animations, skills lexicon), `assets/tour/`.
 
 Exclude: `node_modules/`, `dist/`, `.git`, `.github/`, `convex/`, `scripts/`, `src/`, `store-assets/`, `redesign/`, `models/`, `*.md`, `package*.json`, `.env*`. Output to `dist/pocketresume-vX.Y.zip`.
 
@@ -169,12 +169,15 @@ Panel order (top → bottom): style picker → Generate Resume → Generate Cove
 - `pdf-store.js` (ESM module, also exposes `window.PocketResumePdfStore`) owns the shelf. Storage key `generatedPdfs` = `{ version, urlKey, url, title, company, items: [{ id, kind: 'resume' | 'cover-letter', filename, mime, size, dataUrl, createdAt }] }` in `chrome.storage.local` (base64 data URL; the manifest carries `unlimitedStorage`).
 - `savePdfDocument(doc, filename, meta)` in `sidebar.js` is the single write path (also `window.PocketResumeSavePdf`, used by `resume-renderers.js`). It stores the blob, optionally downloads it (see below) and re-renders the shelf. `downloadPdfDocument(doc, filename)` is the old `chrome.downloads` path, used by *Quick Download* and by the *Download too* toggle.
 - **Eviction rule** (`planStore` in `pdf-store.js`): the shelf holds **one posting at a time**. Same posting URL → only the same kind is replaced (a new resume replaces the old resume, the letter stays). Different posting URL → the whole previous set is dropped and the new file is stored. The URL key is `origin + path + query` with tracking params stripped (`normalizeUrlKey`), the same rule as `jdUrlKey`.
+- **A new posting never inherits the old label** (`savePdf` in `pdf-store.js`): when the posting changes, `url` / `title` / `company` come from the new file only. An empty title or company means *unknown*, never *the company from the last posting* — otherwise the shelf keeps naming the previous job.
+- **The shelf title** (`#filesTitle` in `sidebar.html`) shows `company · title` for the posting the files belong to. `setFilesTitle()` in `sidebar.js` **typewrites** it whenever it changes, with a blinking caret (`#filesCaret`); `filesTitleValue` guards against re-animating on every render. `#filesHint` carries the status line under it ("Drag a file onto the page to attach it." / "Not this page — these files belong to the posting above.").
+- **Swap feedback**: when the posting changes, `renderFiles()` sets `.replaced` on `#filesList` (the cards animate in with `fileCardIn`, staggered), the title flashes (`filesTitleSwap`), and the hint shows "Replaced the files from the previous posting." for 4 s. `filesSeen` keeps the first paint of a panel session from counting as a swap.
 - **Drag out**: each card is `draggable`; `dragstart` puts a real `File` on the data transfer (`dataTransfer.items.add(file)`) so it drops into a page's file input, plus a private `application/x-pocketresume-file` id for the panel's own drop target.
 - **Delete zone**: `#dropZone` in the pinned footer. Dragging a card onto it removes the file from storage. Every card also has a `×` button, and the section has a *Clear* button.
 - **Download too**: `downloadOnGenerate` (boolean, default false). The toggle sits next to the file list and in Settings → Interface → *Also download the PDF*. When true, generation writes the PDF to disk **and** keeps it in the panel.
 - `GET_ACTIVE_PAGE` (background) returns the active tab's URL from the content script, so the panel can flag files that belong to another posting without the `tabs` permission.
 
-Tests: `npm run test:pdfstore` (`scripts/test-pdfstore.mjs`) covers the URL key and the eviction rules.
+Tests: `npm run test:pdfstore` (`scripts/test-pdfstore.mjs`) covers the URL key, the eviction rules, and the no-inherited-label rule.
 
 ### Side panel status channels (v10.9)
 
@@ -208,6 +211,29 @@ Frames were captured against the old BYOK UI and the entry points (`#featureVide
 ### Resume Health Check (Beta)
 
 Opt-in rule-based checker in the Settings sidebar (`#resumeHealthDetails` → `#healthPanel`). Sends redacted `jsonContent` to a hardcoded provider chain — **Pollinations** (`https://text.pollinations.ai/openai`, no key, `reasoning_effort: low`) first, then local **Ollama** (`http://localhost:11434/v1/chat/completions`, model `llama3.2`). Endpoints, model, and fallback order are constants in `resume-health.js` — there is no provider UI and nothing user-editable. Enabling the check is the only consent step; it requests the `http://localhost:11434/*` optional origin for the fallback. Failures on the first provider fall through automatically (each provider gets its own 60 s timeout). Results are stored per resume as `healthReport` (`baseScore` + live `score`, `provider`, `providerLabel`, `model`, `issues[]` with `status: 'fixed'` tracking). Marking an issue fixed bumps the score locally (critical +8, warning +5, suggestion +3, capped at 100) and hides it; fixed issues never re-render. A re-check is blocked while any issue is open — the button says "Mark the remaining issues fixed" and no request goes out — and only unlocks when all issues are fixed (or the report went stale because the resume was edited). `resume.healthCooldownUntil` enforces a persisted 60 s cooldown per resume across reloads. No sign-in required.
+
+### Feedback box (v10.13.0)
+
+Settings → **Feedback** (`#feedbackDetails` in `options.html`) takes an email address and a message and sends them to the developer. No sign-in required, no plan check, and **nothing is written to `chrome.storage.local`** — the message is not persisted locally.
+
+Path:
+
+1. `feedback.js` (runtime ESM module) — `validateFeedback` → `buildFeedbackPayload` → `sendFeedback`. `mountFeedbackForm()` wires the Settings form: prefill from `applicationProfile.email`, else from the Clerk account when signed in, submit handler, status line, honeypot field, mailto fallback.
+2. `CloudSync.sendFeedback(payload)` in `src/cloud-sync.js` → a **separate `ConvexHttpClient` with no auth** (feedback must work signed out, and must never wait on Clerk) → `client.action('feedback:submit', …)`.
+3. `convex/feedback.ts` — the public `submit` action: honeypot check, email/message validation, rate limits, stores the row, then emails it through **Resend**.
+
+Rules that matter:
+
+- **The backend owns the inbox.** `convex/feedback.ts` stores every accepted message in the `feedback` table **and** emails it. The mail is a copy, not the source of truth — if Resend is down, the row is still there.
+- **Actions have no `ctx.db`.** Convex actions cannot touch the database directly. `submit` reads the counts through `ctx.runQuery(internal.feedback.recentCount, …)` and writes through `ctx.runMutation(internal.feedback.store, …)` / `internal.feedback.markEmailed`. Those helpers must be **exported** for `internal.feedback.*` to resolve.
+- **Internal helpers stay internal.** `recentCount`, `store` and `markEmailed` are `internalQuery` / `internalMutation` so a client cannot insert rows or read the table directly.
+- **Abuse controls**: a hidden honeypot input (`#feedbackCompany`, off-screen — never `display: none`), 3 messages per email per hour, 20 messages per hour in total. Exceeding a limit throws `rate_limited`, which the UI maps to a friendly message.
+- **What is sent**: the email, the message, the extension version and the browser user agent, plus the **page URL only if the user ticks *Include the page I'm on***. Never resume content, job-posting text, or page content.
+- **No new permission.** `https://*.convex.cloud/*` is already a host permission, and the same deployment URL is reused, so `manifest.json` does not change. No `CONVEX_SITE_URL`, no new build-time env var.
+- **Owner setup** (server side, never in the bundle): `npx convex env set RESEND_API_KEY re_…`, `npx convex env set FEEDBACK_TO_EMAIL you@example.com`, optional `FEEDBACK_FROM_EMAIL` (defaults to `onboarding@resend.dev`, which Resend only allows to send to the account's own address), then `npx convex deploy`.
+- **Fallback**: if the backend is unreachable or not configured, the form offers a prefilled `mailto:` to the owner address (`FEEDBACK_OWNER_EMAIL` in `feedback.js`).
+
+Tests: `npm run test:feedback` (`scripts/test-feedback.mjs`) covers validation, payload build, error mapping and the mailto fallback.
 
 ### Skill directory (v9.1, silent daily refresh in v10.8)
 
@@ -353,8 +379,9 @@ Architecture:
 - `sidebar.js` — `refreshGate()` resolves `signin` / `setup` / `review` / `plan` / `ready` from `checkProAccess()` and the stored resume, then `applyGateUi()` shows one card at a time. `#accountBtn` reads Sign in / Start free trial / Trial · Nd / Pro / Free until Dec 31. The sign-in card buttons write `openAuth` and open Settings — they must never call `CloudSync.signIn()`/`signUp()`, because the side panel bundle has no Clerk UI. `checkProAccess()` prefers the side panel's own in-page `getAccessState()` (2.5 s timeout), falls back to `CHECK_PRO_ACCESS`, and retries once on `chrome.runtime.lastError`.
 - `tracker.js` — `checkAccess()` gates the Job Tracker via `window.CloudSync.getAccessState()`; caches the result in `trackerPlanCache`
 - `convex/auth.config.ts` — Clerk → Convex auth wiring; requires `CLERK_FRONTEND_API_URL` env var
-- `convex/schema.ts` — `resumes` table shape (`jsonContent` + optional `coverLetter` JSON string)
+- `convex/schema.ts` — `resumes` table shape (`jsonContent` + optional `coverLetter` JSON string) and the `feedback` table
 - `convex/resumes.ts` — `list`, `upsert`, `remove` queries/mutations
+- `convex/feedback.ts` — public `submit` action: stores the message and emails it via Resend (see "Feedback box")
 - `convex/billing.ts` — `extendEarlyTrial` action: authenticated self-serve call that uses `CLERK_SECRET_KEY` (Convex env) to extend a pre-Dec-31 subscriber's trial to Jan 7, 2027
 
 Sign-in behavior: all Clerk redirects (`signInForceRedirectUrl`, `signUpForceRedirectUrl`, `afterSignOutUrl`, `signOut redirectUrl`) point at `options.html` — never `sidebar.html` (navigating the Settings tab to the side panel breaks the React tree with `removeChild` errors). The sign-in modal is themed dark via `appearance.variables` passed to `clerk.load(...)` — explicit input colors are required or typed text inherits the page's light color and becomes invisible inside Clerk's light-styled inputs.
@@ -370,6 +397,7 @@ PocketResume/
 ├── content.js               # Content script: page text extraction
 ├── form-filler.js           # Injected form detect/fill/flag/toast (deterministic Form Filler)
 ├── form-profile.js          # Saved-answer resolver: canonical matchers + custom Q&A + resume → profile
+├── feedback.js              # Feedback form: validation, payload, Convex send + mailto fallback
 ├── sidebar.html / sidebar.js    # Side panel UI + PocketResume PDF generation
 ├── pdf-store.js            # Generated-PDF shelf: storage, URL keys, eviction rules
 ├── feature-video.js / feature-video.css  # Cursor-follow feature tour over real screenshots (panel-only)
@@ -388,6 +416,7 @@ PocketResume/
 │   ├── auth.config.ts
 │   ├── schema.ts
 │   ├── resumes.ts
+│   ├── feedback.ts
 │   └── _generated/          # [generated, gitignored]
 ├── libs/jspdf.umd.min.js    # Vendored jsPDF
 ├── libs/ldrs-newtons-cradle.js # Vendored ldrs Newton's Cradle web component
@@ -417,6 +446,7 @@ PocketResume/
 - **Change the cover letter**: `options.html`/`options.js` (Cover letter section: Generate letter + 60 s cooldown gate, prompt, sample, per-resume editor) + `resume-letter.js` (`generateCoverLetterBody`, `buildCoverLetterBodyPrompt`, `sanitizeLetter`, `COVER_LETTER_COOLDOWN_MS`) + `buildCoverLetterFromTemplate` in `resume-align.js` + `background.js` (`BUILD_AI_COVER_LETTER` gate + cooldown write).
 - **Change saved-answer resolution / canonical matchers**: `form-profile.js` (`CANONICAL_MATCHERS`, `resolveFormAnswers`, `normalizeFormAnswers`, `profileFromResume`) + `scripts/test-formfill.mjs`.
 - **Change Form Filler onboarding / application profile**: `options.html` + `options.js` (`#appProfileDetails` section, `APP_PROFILE_FIELDS`, `PROFILE_TOUR_STEPS`, `handleProfileAutofill`), `form-profile.js` (`profileFromResume`), panel gating in `sidebar.js` (`#fillProCard` / `#fillProfileCard`).
+- **Change the feedback box**: `feedback.js` (`validateFeedback` / `buildFeedbackPayload` / `sendFeedback` / `mountFeedbackForm`) + `options.html` (`#feedbackDetails` section) + `src/cloud-sync.js` (`sendFeedback` → Convex) + `convex/feedback.ts` (validation, rate limits, Resend mail).
 - **Change PocketResume PDF layout**: `sidebar.js` (`generatePDF` / `generateCoverLetterPDF`).
 - **Change Double Sided / Academic CV PDF layouts**: `resume-renderers.js` (`renderDeedyLayout` / `renderAcademicCvLayout`).
 - **Change settings UI / resume management / form editor**: `options.js` (`renderTabContent`, `resumeDraft`, `serializeProfile`) / `options.html`.
@@ -427,7 +457,7 @@ PocketResume/
 - **Change the long-resume warning**: `resume-parse.js` (`estimateResumePages`), `options.js` (`#rfFitNotice`, per-resume `fitNoticeDismissed*`), `sidebar.js` (`buildProfessionalPdf`, `confirmLongResume`, `resumeFitWarningHidden`), `sidebar.html` (`#fitWarningModal`). Only the Professional layout can spill to two pages; Double Sided self-fits and Academic CV paginates by design.
 - **Change permissions or extension wiring**: `manifest.json`.
 - **Change Pro auth / plan gating / pricing / resume sync**: `src/cloud-sync.js` (then `npm run build:clerk`), `options.js` (account card + auto-sync), `background.js` (`CHECK_PRO_ACCESS`), `tracker.js` (`checkAccess`), `sidebar.js` (`checkProAccess`).
-- **Change Convex schema or functions**: `convex/schema.ts`, `convex/resumes.ts`, `convex/billing.ts`, `convex/auth.config.ts` (then `npx convex dev`).
+- **Change Convex schema or functions**: `convex/schema.ts`, `convex/resumes.ts`, `convex/feedback.ts`, `convex/billing.ts`, `convex/auth.config.ts` (then `npx convex dev`).
 
 ## Coding conventions
 
@@ -468,6 +498,7 @@ Buttons use semantic accent tokens so paired actions both read as intentional (n
 - **Chrome extension service workers can be killed** between messages. Do not store in-memory state across calls — read from `chrome.storage.local` each time.
 - **Content script CSP**: avoid inline scripts / eval in `content.js`. The page's CSP applies.
 - **Client-rendered job boards need the JSON-LD path.** Sites like `careers.atb.com` serve a 650-character shell at `domcontentloaded` ("We didn't find any …") and hydrate the posting a moment later; the only lexicon word in that shell is a footer link (`LinkedIn`). `content.js` waits up to 4 s for the body to fill in, and `background.js` merges `JobPosting.description` from the schema.org block, which is present in the initial HTML. Never rely on `document.body.innerText` alone for a JD.
+- **Convex actions have no `ctx.db`.** An action cannot read or write the database directly; use `ctx.runQuery(internal.module.fn, …)` / `ctx.runMutation(internal.module.fn, …)`. The internal helpers must be **exported** from their file, or `internal.<module>.<fn>` does not resolve at runtime (the failure shows up as "Couldn't resolve api.<module>.<fn>", not as a type error).
 - **Do not commit** `cloud-sync.js` / `cloud-sync-core.js` (build artifacts), `convex/_generated/`, or anything from `.env.local`. See `.gitignore`.
 
 ## Privacy posture
@@ -478,3 +509,4 @@ PocketResume is privacy-first by default. See `privacy-policy.md` for the full p
 - Keeps the PDFs it generates in the side panel, in the browser's local storage only (`generatedPdfs`). They are never uploaded, and the shelf is emptied when a new posting is generated or when a file is dropped on the delete zone
 - Makes no AI requests except opt-in features the user starts: the Resume Health Check (redacted `jsonContent` to Pollinations, or local Ollama on fallback) and Generate letter (redacted resume profile to the same chain). Resume generation and filling stay local.
 - Sends nothing to Clerk/Convex unless you sign in, and then only resumes you sync
+- Sends one thing without a sign-in: the feedback message you type in Settings → Feedback, with your email address, the extension version, the browser string and (only if you tick the box) the page address. It goes to the developer's own Convex deployment and is emailed to the developer. Nothing is kept in local storage

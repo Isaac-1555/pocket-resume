@@ -3,7 +3,7 @@
 // No framework, no network, no browser.
 
 import assert from 'node:assert/strict';
-import { normalizeUrlKey, planStore } from '../pdf-store.js';
+import { normalizeUrlKey, planStore, getState, savePdf } from '../pdf-store.js';
 
 const item = (id, kind) => ({ id, kind, filename: `${id}.pdf`, dataUrl: 'data:application/pdf;base64,AA==', size: 10 });
 
@@ -56,5 +56,60 @@ assert.deepEqual(deduped.items.map((entry) => entry.id), ['r3']);
 // --- Empty state is safe ---
 const empty = planStore(null, { urlKey: 'https://a.test/1', kind: 'resume', item: item('r1', 'resume') });
 assert.deepEqual(empty.items.map((entry) => entry.id), ['r1']);
+
+// --- The shelf label never survives a posting change ---
+const mem = {};
+globalThis.chrome = {
+    storage: {
+        local: {
+            get: async (key) => (key in mem ? { [key]: mem[key] } : {}),
+            set: async (payload) => Object.assign(mem, payload)
+        }
+    }
+};
+
+await savePdf({
+    kind: 'resume',
+    filename: 'Resume_Ada.pdf',
+    dataUrl: 'data:application/pdf;base64,AA==',
+    size: 10,
+    url: 'https://careers.atb.com/jobs/1',
+    title: 'Software Developer',
+    company: 'ATB'
+});
+const afterAtb = await getState();
+assert.equal(afterAtb.title, 'Software Developer');
+assert.equal(afterAtb.company, 'ATB');
+assert.equal(afterAtb.items.length, 1);
+
+// A new posting with no company must not inherit ATB.
+await savePdf({
+    kind: 'resume',
+    filename: 'Resume_Ada.pdf',
+    dataUrl: 'data:application/pdf;base64,AQ==',
+    size: 10,
+    url: 'https://helcim.example.com/jobs/2',
+    title: 'Software Developer',
+    company: ''
+});
+const afterHelcim = await getState();
+assert.equal(afterHelcim.company, '', 'the previous posting company must not leak into the new one');
+assert.equal(afterHelcim.title, 'Software Developer');
+assert.equal(afterHelcim.items.length, 1);
+
+// The same posting keeps the label when a later file arrives without one.
+await savePdf({
+    kind: 'cover-letter',
+    filename: 'Letter_Ada.pdf',
+    dataUrl: 'data:application/pdf;base64,Ag==',
+    size: 10,
+    url: 'https://helcim.example.com/jobs/2',
+    title: '',
+    company: ''
+});
+const afterLetter = await getState();
+assert.equal(afterLetter.title, 'Software Developer', 'the same posting keeps its title');
+assert.equal(afterLetter.company, '');
+assert.equal(afterLetter.items.length, 2);
 
 console.log('test:pdfstore — ok');

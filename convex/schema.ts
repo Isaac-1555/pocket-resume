@@ -13,4 +13,14 @@ export default defineSchema({
   })
     .index('by_userId', ['userId'])
     .index('by_user_resume', ['userId', 'resumeId']),
+  feedback: defineTable({
+    email: v.string(),
+    message: v.string(),
+    pageUrl: v.optional(v.string()),
+    appVersion: v.optional(v.string()),
+    browser: v.optional(v.string()),
+    userId: v.optional(v.string()),
+    emailed: v.boolean(),
+    createdAt: v.number(),
+  }).index('by_createdAt', ['createdAt']),
 });

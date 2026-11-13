@@ -199,6 +199,7 @@
     input[type="text"],
     input[type="password"],
     input[type="number"],
+    input[type="email"],
     textarea {
       width: 100%;
       padding: 10px 12px;
@@ -241,6 +242,7 @@
     input[type="text"]:focus,
     input[type="password"]:focus,
     input[type="number"]:focus,
+    input[type="email"]:focus,
     select:focus,
     textarea:focus {
       outline: none;
@@ -251,6 +253,7 @@
     input[type="text"]::placeholder,
     input[type="password"]::placeholder,
     input[type="number"]::placeholder,
+    input[type="email"]::placeholder,
     textarea::placeholder {
       color: var(--text-faint);
     }
@@ -2362,6 +2365,20 @@
       padding: 1px 4px;
       border-radius: 4px;
     }
+
+    .feedback-honeypot {
+      position: absolute;
+      left: -9999px;
+      top: auto;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .feedback-status-ok { color: var(--accent-green); }
+    .feedback-status-error { color: var(--accent-red); }
   </style>
 </head>
 <body>
@@ -2729,6 +2746,43 @@
         <summary>Resume health <span id="healthScorePill" class="cloud-status-pill">Not checked</span></summary>
         <div class="app-profile-body">
           <div id="healthPanel"></div>
+        </div>
+      </details>
+
+      <details class="cloud-sync-details" id="feedbackDetails">
+        <summary>Feedback <span id="feedbackStatePill" class="cloud-status-pill">Send a message</span></summary>
+        <div class="app-profile-body">
+          <small class="resume-help">Bugs, ideas, anything that annoys you. Your email and message go to the developer's own server and are emailed straight to them. No account needed.</small>
+
+          <div class="app-profile-grid">
+            <div class="app-profile-field span2">
+              <label for="feedbackEmail">Your email</label>
+              <input type="email" id="feedbackEmail" placeholder="you@example.com" autocomplete="email">
+            </div>
+          </div>
+
+          <div class="app-profile-field">
+            <label for="feedbackMessage">Message</label>
+            <textarea id="feedbackMessage" rows="5" maxlength="2000" placeholder="What happened, or what would make it better?"></textarea>
+          </div>
+
+          <div class="tracker-toggle-row">
+            <div class="tracker-toggle-text">
+              <p>Include the page I'm on</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="feedbackIncludeUrl">
+              <span class="toggle-slider"><span class="toggle-state">OFF</span></span>
+            </label>
+          </div>
+          <small class="resume-help">Only the address of the page, never what is written on it. Your resume and job postings are never included.</small>
+
+          <div class="app-profile-actions">
+            <button type="button" id="feedbackSendBtn" class="secondary-action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg><span>Send feedback</span></button>
+            <button type="button" id="feedbackMailtoBtn" class="ghost-btn" style="display: none;">Open in your mail app</button>
+          </div>
+          <small id="feedbackStatus" class="resume-help"></small>
+          <input type="text" id="feedbackCompany" class="feedback-honeypot" tabindex="-1" autocomplete="off" aria-hidden="true">
         </div>
       </details>
 

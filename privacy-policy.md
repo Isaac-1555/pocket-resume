@@ -2,7 +2,7 @@
 
 **Last updated:** November 2026
 
-Pocket Resume is a Chrome extension designed to help users create, store, and view resumes and cover letters directly within their browser, using an on-device resume engine. Optional features you start — the Resume health check and Generate letter — use a third-party AI provider; nothing is sent unless you click their buttons.
+Pocket Resume is a Chrome extension designed to help users create, store, and view resumes and cover letters directly within their browser, using an on-device resume engine. Optional features you start — the Resume health check, Generate letter, and the feedback box — send data only after you click their buttons; nothing is sent unless you do.
 
 Your privacy is important. This policy explains what data Pocket Resume collects, how it is used, and how it is transmitted.
 
@@ -43,6 +43,14 @@ Signing in is optional for editing and required for generation. If you create an
 - No job-posting text, page content, or browsing history is sent to Clerk or Convex.
 - Signing out stops sync; deleting a resume records a local tombstone that is also removed from the cloud.
 
+### Feedback (optional)
+
+Settings → Feedback lets you send a message to the developer. It works whether or not you are signed in, and nothing is sent until you press *Send feedback*. The message is sent to the developer's own [Convex](https://convex.dev) deployment, which stores it and emails it to the developer through [Resend](https://resend.com), with your email address set as the reply-to so the answer reaches you.
+
+- **What is sent:** the email address you type, the message you type, the extension version and your browser's user-agent string, and — only if you tick *Include the page I'm on* — the address of the page you were looking at.
+- **What is never sent:** your resume, your cover letters, your saved Form Filler answers, job-posting text, or anything written on the page you were on.
+- **What is kept:** the message is stored in the developer's Convex database and in the developer's inbox. The extension itself keeps nothing — the message is not written to your browser's local storage.
+
 ## Skill Directory Download
 
 To recognise skills in job descriptions, the extension downloads a public skill vocabulary from the O*NET Resource Center (`onetcenter.org`) — the U.S. Department of Labor occupational database, licensed CC BY 4.0. This is a plain GET for a public data file. **No personal data, resume content, job text, or identifiers are sent.** The file is parsed locally and the result is stored in your browser. The vocabulary is checked once a day when the extension starts or Settings is opened, and the CSV files are only re-downloaded when O*NET publishes a new release. There is no toggle; the extension also ships a bundled snapshot so the engine works before the first download.
@@ -79,7 +87,7 @@ Pocket Resume requests only the permissions necessary for core functionality:
 * **Scripting**: To extract text content from the job posting page when the content script is not already present, and to fill application form fields on the page you ask it to fill
 * **Alarms**: To schedule the daily skill-vocabulary check; no browsing data is read
 * **Downloads**: To save generated resume and cover-letter PDFs to your computer when you turn on *Download too*
-* **Host Permissions**: To reach Clerk (sign-in), Convex (optional resume sync), Pollinations (opt-in Resume health check and Generate letter), and the public O*NET skill vocabulary (`onetcenter.org`)
+* **Host Permissions**: To reach Clerk (sign-in), Convex (optional resume sync, and the feedback box), Pollinations (opt-in Resume health check and Generate letter), and the public O*NET skill vocabulary (`onetcenter.org`)
 * **Optional Host Permissions**: Requested only when you turn on the local Ollama fallback — `http://localhost:11434`. Chrome asks for your explicit consent before granting it; you can revoke it at any time in Chrome's extension settings.
 
 These permissions are used exclusively to enable the resume, cover letter, and form-filling features and are not used to collect data for other purposes.
@@ -103,7 +111,9 @@ If the privacy policy changes, updates will be posted on this page with a revise
 
 ## Contact
 
-If you have questions about this privacy policy, you can contact the developer via the website or the GitHub repository:
+The quickest way to reach the developer is the **Feedback** box in PocketResume Settings: enter your email, write your message, and press *Send feedback*. It goes straight to the developer's inbox.
+
+You can also contact the developer via the website or the GitHub repository:
 
 https://pocket-resume.xyz
 

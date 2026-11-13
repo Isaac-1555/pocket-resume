@@ -1,5 +1,6 @@
 import { parseResumeText, normalizeResumeProfile, splitContactParts, buildContactString, resumeProfileWarnings, estimateResumePages } from './resume-parse.js';
 import { profileFromResume } from './form-profile.js';
+import { mountFeedbackForm } from './feedback.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const saveButton = document.getElementById('save');
@@ -768,6 +769,14 @@ My resume:
       chrome.storage.local.set({ downloadOnGenerate: downloadOnGenerateToggle.checked });
     });
   }
+
+  const feedbackIncludeUrl = document.getElementById('feedbackIncludeUrl');
+  if (feedbackIncludeUrl) {
+    syncToggleState(feedbackIncludeUrl);
+    feedbackIncludeUrl.addEventListener('change', () => syncToggleState(feedbackIncludeUrl));
+  }
+
+  mountFeedbackForm();
 
   function requestEndpointPermission(origin) {
     return chrome.permissions.request({ origins: [origin] }).catch(() => false);

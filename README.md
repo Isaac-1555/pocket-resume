@@ -17,9 +17,17 @@
 - **Job Tracker** — every generation drops a card with the job URL, company, and role. Pipeline board + analytics, no extra calls
 - **Form Filler** — fills the empty fields on an application form from answers you save once. Fully local: no AI, no upload. Questions with no saved answer stay empty and are highlighted for you. Never submits, never overwrites a field you filled
 - **Quick Download** — re-download your saved resume as a professional PDF without reading the page
+- **Feedback box** — send a bug report or an idea from Settings, with your email so the answer can come back to you. No account needed
 - **PDF Export** — clean, print-ready PDFs via jsPDF for every layout
 - **Multi-Profile** — save up to 3 master profiles and switch between them
 - **Privacy First** — resumes stay in `chrome.storage.local`; the engine makes no network requests
+
+### What's New in v10.13.0
+
+- **Send feedback from Settings.** Settings → **Feedback** takes your email and a message and sends it to the developer. No account needed.
+- **It lands in a real inbox.** The message goes to the developer's own server, which stores it and emails it straight to them — with *Reply* pointing back at you.
+- **You choose what is attached.** The extension version and browser go along so a bug can be reproduced. The page you are on only goes if you tick *Include the page I'm on*, and then only its address.
+- **The shelf names the job you are on.** The Files section now shows the posting it holds — `Helcim · Software Developer` — and typewrites it whenever it changes. A new posting replaces the old label instead of keeping the previous company, and the swap is visible: the cards slide in and the shelf says so.
 
 ### What's New in v10.12.0
 
@@ -83,7 +91,7 @@ npm install
 4. Click **Generate Cover Letter** for the matching letter (uses the selected resume's saved letter)
 5. Optional: click **Fill Form** on an application page — it fills the empty fields from the answers you saved in Settings
 
-Drag a file card from **Files** (under the four panel buttons) onto a page to attach it — a file picker, an upload box, anywhere that takes a document. Drag it onto the delete zone at the bottom of the panel to remove it, or press the × on the card. Generating on a new posting replaces the previous files. Turn on **Download too** if you also want each PDF saved to your computer.
+Drag a file card from **Files** (under the four panel buttons) onto a page to attach it — a file picker, an upload box, anywhere that takes a document. Drag it onto the delete zone at the bottom of the panel to remove it, or press the × on the card. Generating on a new posting replaces the previous files — the shelf title typewrites the new posting's name and the cards slide in, so the swap is obvious. Turn on **Download too** if you also want each PDF saved to your computer.
 
 The job details dialog shows what was read from the posting — job title, company, location, recipient — and the keywords it matched. Correct anything that is wrong; the fix goes into the PDF, the resume header and the Job Tracker card, and is remembered for that posting so the cover letter picks it up. If nobody answers it, it saves after 30 seconds; typing in a field stops the countdown. Cancel saves nothing. Turn it off with **Don't ask again**, or **Review extracted job details** in Settings → Interface.
 
@@ -96,6 +104,14 @@ If generation fails, the panel stays red — click the **?** button (top right) 
 It runs entirely in your browser — no AI, no upload, no provider call. A question with no saved answer is **left empty and highlighted** with a dashed amber outline, and the panel tells you how many fields still need you. It never overwrites a field you already filled, never touches consent boxes, terms or captchas, and **never submits the form**. It is a Pro feature, like the Job Tracker.
 
 Refine Resume and Check ATS are still disabled with a **Soon** badge while they are rebuilt without AI.
+
+## Feedback
+
+Settings → **Feedback** sends a bug report or an idea straight to the developer. Add your email so the answer can come back to you, write the message, and press **Send feedback** — no account needed.
+
+The message goes to the developer's own server, which stores it and emails it on. Only what you typed is sent, plus the extension version and browser so a bug can be reproduced. Tick **Include the page I'm on** and the address of the page goes along too — never what is written on it. Your resume, cover letters and job postings are never included, and the extension keeps no copy.
+
+If the feedback service cannot be reached, the box hands the message to your own mail app instead.
 
 ## Configuration
 
@@ -110,6 +126,16 @@ A **free account** is required to generate and includes resume cloud sync. Every
 3. Sign in from Settings → Account & Cloud Sync; resumes sync both ways automatically while signed in
 4. For backend work: `npx convex dev` from the repo root
 
+The feedback box needs two more server-side values (they live on the Convex deployment, never in the extension bundle):
+
+```sh
+npx convex env set RESEND_API_KEY re_xxxxxxxx     # https://resend.com
+npx convex env set FEEDBACK_TO_EMAIL you@example.com
+npx convex deploy
+```
+
+Without `RESEND_API_KEY` the message is still stored in the `feedback` table, but no email is sent.
+
 `.env.local` is gitignored. **Never** commit `cloud-sync.js` (it's a build artifact) or `convex/_generated/` (regenerated by the Convex CLI).
 
 ## Tech Stack
@@ -117,7 +143,8 @@ A **free account** is required to generate and includes resume cloud sync. Every
 - **Runtime:** Vanilla HTML/CSS/JS, Manifest V3
 - **PDF:** [jsPDF](libs/jspdf.umd.min.js) (vendored)
 - **Resume engine:** deterministic in-extension parser + JD aligner (`resume-parse.js`, `resume-align.js`, `skill-lexicon.js`)
-- **Cloud (optional):** [Clerk](https://clerk.com) auth + pricing (Pro), [Convex](https://convex.dev) resume sync
+- **Cloud (optional):** [Clerk](https://clerk.com) auth + pricing (Pro), [Convex](https://convex.dev) resume sync and the feedback endpoint
+- **Feedback mail:** [Resend](https://resend.com) (server-side only, optional)
 - **Build:** esbuild (only for `cloud-sync.js` bundle); no bundler for app code
 
 ## Development
@@ -134,6 +161,7 @@ npm run test:align
 npm run test:render
 npm run test:formfill
 npm run test:pdfstore
+npm run test:feedback
 
 # Build the Chrome Web Store zip from the runtime file list
 npm run build:zip
@@ -165,7 +193,8 @@ Report vulnerabilities privately via [GitHub Security Advisories](../../security
 
 - [jsPDF](https://github.com/parallax/jsPDF) — PDF generation
 - [Clerk](https://clerk.com) — Pro auth + pricing (optional)
-- [Convex](https://convex.dev) — resume sync
+- [Convex](https://convex.dev) — resume sync and the feedback endpoint
+- [Resend](https://resend.com) — delivery of feedback email (optional)
 - [Pollinations](https://pollinations.ai) and [Ollama](https://ollama.com) — opt-in AI for the Resume health check and Generate letter
 - [O*NET](https://www.onetcenter.org/) — skill vocabulary (CC BY 4.0)
 

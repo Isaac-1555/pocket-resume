@@ -16,6 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const fillManualCount = document.getElementById('fillManualCount');
   const filesList = document.getElementById('filesList');
   const filesHint = document.getElementById('filesHint');
+  const filesTitle = document.getElementById('filesTitle');
+  const filesTitleText = document.getElementById('filesTitleText');
+  const filesCaret = document.getElementById('filesCaret');
   const clearFilesBtn = document.getElementById('clearFilesBtn');
   const downloadOnGenerateToggle = document.getElementById('downloadOnGenerateToggle');
   const dropZone = document.getElementById('dropZone');
@@ -32,6 +35,12 @@ document.addEventListener('DOMContentLoaded', () => {
   let downloadOnGenerate = false;
   let pendingPdfSave = Promise.resolve();
   let pdfContext = { url: '', title: '', company: '' };
+  let filesTitleTimer = null;
+  let filesTitleValue = '';
+  let filesHintTimer = null;
+  let filesState = null;
+  let filesSeen = false;
+  let lastFilesUrlKey = '';
   let activePageUrl = '';
   let activePageTitle = '';
   const settingsBtn = document.getElementById('settingsBtn');
@@ -228,6 +237,52 @@ document.addEventListener('DOMContentLoaded', () => {
     return kind === 'cover-letter' ? 'Cover letter' : 'Resume';
   }
 
+  function filesLabel(state) {
+    return [state && state.company, state && state.title].filter(Boolean).join(' · ');
+  }
+
+  function stopFilesTitle() {
+    if (filesTitleTimer) {
+      clearInterval(filesTitleTimer);
+      filesTitleTimer = null;
+    }
+  }
+
+  function setFilesTitle(text, { flash = false } = {}) {
+    const next = String(text || '').trim();
+    if (!filesTitle) return;
+    if (next === filesTitleValue) return;
+    filesTitleValue = next;
+    stopFilesTitle();
+    if (!next) {
+      filesTitle.classList.add('hidden');
+      if (filesTitleText) filesTitleText.textContent = '';
+      return;
+    }
+    filesTitle.classList.remove('hidden');
+    if (!motionOn()) {
+      if (filesTitleText) filesTitleText.textContent = next;
+      if (filesCaret) filesCaret.classList.add('done');
+      return;
+    }
+    if (filesTitleText) filesTitleText.textContent = '';
+    if (filesCaret) filesCaret.classList.remove('done');
+    let index = 0;
+    filesTitleTimer = setInterval(() => {
+      index += 1;
+      if (filesTitleText) filesTitleText.textContent = next.slice(0, index);
+      if (index >= next.length) {
+        stopFilesTitle();
+        if (filesCaret) filesCaret.classList.add('done');
+      }
+    }, 26);
+    if (flash) {
+      filesTitle.classList.remove('swap');
+      void filesTitle.offsetWidth;
+      filesTitle.classList.add('swap');
+    }
+  }
+
   function updateFilesHint(state) {
     if (!filesHint) return;
     const items = (state && state.items) || [];
@@ -236,18 +291,30 @@ document.addEventListener('DOMContentLoaded', () => {
       filesHint.classList.remove('stale');
       return;
     }
-    const label = [state.company, state.title].filter(Boolean).join(' · ');
-    const base = label ? `For ${label}` : 'Drag a file onto the page to attach it.';
     const store = window.PocketResumePdfStore;
     const storedKey = state.urlKey || '';
     const activeKey = store ? store.normalizeUrlKey(activePageUrl) : '';
     if (storedKey && activeKey && storedKey !== activeKey) {
-      filesHint.textContent = `${base} — not this page.`;
+      filesHint.textContent = 'Not this page — these files belong to the posting above.';
       filesHint.classList.add('stale');
       return;
     }
-    filesHint.textContent = base;
+    filesHint.textContent = 'Drag a file onto the page to attach it.';
     filesHint.classList.remove('stale');
+  }
+
+  function flashFilesHint(text) {
+    if (!filesHint) return;
+    if (filesHintTimer) {
+      clearTimeout(filesHintTimer);
+      filesHintTimer = null;
+    }
+    filesHint.textContent = text;
+    filesHint.classList.remove('stale');
+    filesHintTimer = setTimeout(() => {
+      filesHintTimer = null;
+      updateFilesHint(filesState);
+    }, 4000);
   }
 
   function fileButton(label, icon, onClick, danger) {
@@ -284,7 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const sub = document.createElement('p');
     sub.className = 'file-sub';
-    const label = [state.company, state.title].filter(Boolean).join(' · ');
+    const label = filesLabel(state);
     sub.textContent = [fileKindLabel(item.kind), label, formatBytes(item.size)].filter(Boolean).join(' · ');
 
     meta.appendChild(name);
@@ -335,12 +402,21 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('[Files] read failed:', error);
       return;
     }
+    filesState = state;
+    const urlKey = state.urlKey || '';
+    const firstPaint = !filesSeen;
+    filesSeen = true;
+    const replaced = !firstPaint && !!urlKey && urlKey !== lastFilesUrlKey;
+    lastFilesUrlKey = urlKey;
     filesList.innerHTML = '';
+    filesList.classList.toggle('replaced', replaced);
     for (const item of state.items || []) {
       filesList.appendChild(buildFileCard(item, state));
     }
     if (clearFilesBtn) clearFilesBtn.style.display = (state.items || []).length ? '' : 'none';
-    updateFilesHint(state);
+    setFilesTitle((state.items || []).length ? filesLabel(state) : '', { flash: replaced });
+    if (replaced) flashFilesHint('Replaced the files from the previous posting.');
+    else if (!filesHintTimer) updateFilesHint(state);
   }
 
   async function removeStoredPdf(id) {
@@ -1902,8 +1978,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.12.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.12.0';
+  const ANNOUNCEMENT_VERSION = '10.13.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.13.0';
 
   function dismissWhatsNew() {
     chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_SEEN_VALUE });

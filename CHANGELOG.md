@@ -1,5 +1,20 @@
 # Changelog
 
+## [10.13.0] — 2026-11-13
+### Added
+- **A feedback box in Settings.** Settings → Feedback takes your email and a message and sends them to the developer. No account needed — signed-out users can send too.
+- **The message lands in a real inbox.** Feedback goes to the developer's own server, which stores it and emails it straight to the developer with *Reply* pointing at the sender's address.
+- **You choose what is attached.** The extension version and browser are included so a bug report can be acted on. The page you are on is only included if you tick *Include the page I'm on*, and only its address — never what is written on it. Resume content and job postings are never included.
+- **A mail app fallback.** If the feedback service is unreachable, the box offers to open your own mail app with the message written out for you.
+- **The shelf names the job you are on.** The Files section now has a title line — `Helcim · Software Developer` — that **typewrites** itself whenever it changes, with a blinking caret.
+
+### Fixed
+- **The old job name no longer sticks.** Generating for a new posting no longer leaves the previous posting's company and title on the stored files. A new posting's label replaces the old one outright — an empty company now means *unknown*, not *the company from the last job*.
+- **You can see the swap.** When the files are replaced, the new cards slide in, the title flashes, and the shelf says *Replaced the files from the previous posting.* for a few seconds.
+
+### Changed
+- Nothing else. Generation, the side panel and the Form Filler behave exactly as before.
+
 ## [10.12.0] — 2026-11-13
 ### Added
 - **PocketResume now lives in a side panel.** Click the toolbar button and the panel stays open next to the page while you work — no more popup that closes when you look away.

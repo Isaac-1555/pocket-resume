@@ -503,6 +503,41 @@
     }
   }
 
+  // --- Feedback ---
+  // Feedback is anonymous, so it uses a separate client with no auth: it must
+  // work for a signed-out user and must not wait on Clerk.
+  let feedbackClient = null;
+
+  async function getFeedbackClient() {
+    if (feedbackClient) return feedbackClient;
+    const url = await getConvexUrl();
+    if (!url) return null;
+    try {
+      const { ConvexHttpClient } = await import('convex/browser');
+      feedbackClient = new ConvexHttpClient(url);
+      return feedbackClient;
+    } catch (err) {
+      console.warn('[CloudSync] Feedback client failed:', err);
+      return null;
+    }
+  }
+
+  async function sendFeedback(payload) {
+    const client = await getFeedbackClient();
+    if (!client) throw new Error('Feedback is not configured in this build.');
+    const args = {
+      email: String(payload.email || ''),
+      message: String(payload.message || ''),
+    };
+    if (payload.pageUrl) args.pageUrl = String(payload.pageUrl);
+    if (payload.appVersion) args.appVersion = String(payload.appVersion);
+    if (payload.browser) args.browser = String(payload.browser);
+    if (payload.userId) args.userId = String(payload.userId);
+    if (payload.company) args.company = String(payload.company);
+    const result = await client.action('feedback:submit', args);
+    return result && typeof result === 'object' ? result : { ok: true, emailed: false };
+  }
+
   // --- Public API ---
 
   // Memoized so concurrent callers share one in-flight load: `initClerk()` sets
@@ -940,5 +975,6 @@
     syncResumes,
     onLocalResumesChanged,
     startAutoSync,
+    sendFeedback,
   };
 })();

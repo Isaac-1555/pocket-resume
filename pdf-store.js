@@ -87,12 +87,15 @@ export async function savePdf(entry) {
         createdAt: Date.now()
     };
     const plan = planStore(state, { urlKey, kind: item.kind, item });
+    // A new posting never inherits the previous posting's label: an empty
+    // title or company means "unknown", not "the company from last time".
+    const samePosting = !plan.wipeAll;
     const payload = {
         version: PDF_STORE_VERSION,
         urlKey: plan.urlKey || state.urlKey,
-        url: entry.url || state.url || '',
-        title: entry.title || state.title || '',
-        company: entry.company || state.company || '',
+        url: entry.url || (samePosting ? state.url : '') || '',
+        title: entry.title || (samePosting ? state.title : '') || '',
+        company: entry.company || (samePosting ? state.company : '') || '',
         items: plan.items
     };
     await chrome.storage.local.set({ [PDF_STORE_KEY]: payload });

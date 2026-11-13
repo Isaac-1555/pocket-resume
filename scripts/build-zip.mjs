@@ -10,6 +10,7 @@ const RUNTIME_FILES = [
   'content.js',
   'form-filler.js',
   'form-profile.js',
+  'feedback.js',
   'sidebar.html',
   'sidebar.js',
   'pdf-store.js',

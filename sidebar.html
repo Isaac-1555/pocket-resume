@@ -1042,6 +1042,68 @@
       color: #ffb06b;
     }
 
+    .files-title {
+      margin: 0 0 3px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      min-height: 16px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .files-title > span:first-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .files-title.hidden {
+      display: none;
+    }
+
+    .files-title.swap {
+      animation: filesTitleSwap 0.6s ease-out;
+    }
+
+    .files-caret {
+      flex: 0 0 auto;
+      width: 2px;
+      height: 12px;
+      border-radius: 1px;
+      background: var(--orange);
+      animation: filesCaretBlink 0.9s steps(2, start) infinite;
+    }
+
+    .files-caret.done {
+      display: none;
+    }
+
+    @keyframes filesCaretBlink {
+      0%, 49.9% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
+
+    @keyframes filesTitleSwap {
+      0% { color: var(--orange); }
+      100% { color: var(--text); }
+    }
+
+    .files-list.replaced .file-card {
+      animation: fileCardIn 0.34s ease-out both;
+    }
+
+    .files-list.replaced .file-card:nth-child(2) { animation-delay: 0.06s; }
+    .files-list.replaced .file-card:nth-child(3) { animation-delay: 0.12s; }
+    .files-list.replaced .file-card:nth-child(4) { animation-delay: 0.18s; }
+
+    @keyframes fileCardIn {
+      from { opacity: 0; transform: translateY(10px) scale(0.98); }
+      to { opacity: 1; transform: none; }
+    }
+
     .files-list {
       display: flex;
       flex-direction: column;
@@ -2438,6 +2500,7 @@
         <button type="button" id="clearFilesBtn" class="files-clear" style="display: none;">Clear</button>
       </div>
     </div>
+    <p class="files-title hidden" id="filesTitle"><span id="filesTitleText"></span><span class="files-caret done" id="filesCaret"></span></p>
     <p class="files-hint" id="filesHint">Generate a resume to keep it here — then drag it onto any page.</p>
     <div class="files-list" id="filesList"></div>
   </section>
@@ -2573,17 +2636,17 @@
       <div class="onboarding-icon" aria-hidden="true">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m5.6 5.6 2.8 2.8"/><path d="m15.6 15.6 2.8 2.8"/><path d="m18.4 5.6-2.8 2.8"/><path d="m8.4 15.6-2.8 2.8"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> — a side panel that keeps your files</h2>
+      <h2>New in <span id="whatsNewVersion"></span> &mdash; tell us what to fix</h2>
       <p class="error-message">
-        The toolbar button now opens a side panel that stays with you while you work. Generated PDFs stay in that panel, ready to drag onto the page.
+        Settings has a feedback box now. Send a bug report or an idea with your email address and it lands in the developer's inbox.
       </p>
       <ul class="whatsnew-collected">
-        <li><strong>A side panel, not a popup.</strong> Click the icon once and the panel stays open while you move between tabs.</li>
-        <li><strong>Your PDFs stay here.</strong> The resume and cover letter you generate are kept in the panel instead of piling up in your Downloads folder.</li>
-        <li><strong>Drag it anywhere.</strong> Pull a file card onto a page — a file picker, an upload box, anywhere that takes a document.</li>
-        <li><strong>One posting at a time.</strong> Generate on a new job posting and the previous files are replaced, so the panel never fills up with old versions.</li>
-        <li><strong>Throw one away.</strong> Drag a card onto the delete zone at the bottom of the panel, or press the × on the card.</li>
-        <li><strong>A download when you want one.</strong> Switch on <strong>Download too</strong> and every generated PDF is saved to your computer as well.</li>
+        <li><strong>Send feedback from Settings.</strong> Settings &rarr; Feedback takes your email and a message. No account needed &mdash; signed-out users can send too.</li>
+        <li><strong>The answer comes back to you.</strong> The message is emailed to the developer with your address as the reply-to, so the reply lands in your inbox.</li>
+        <li><strong>You decide what is attached.</strong> The extension version and browser always go along, so a bug can be reproduced. The page you are on only goes if you tick <strong>Include the page I'm on</strong>, and then only its address.</li>
+        <li><strong>Never your resume.</strong> No resume content, no job posting text, no browsing history &mdash; just what you typed.</li>
+        <li><strong>A mail app fallback.</strong> If the feedback service cannot be reached, the box writes the message out for you in your own mail app.</li>
+        <li><strong>The shelf names the job you are on.</strong> The Files section now shows the posting it holds &mdash; <strong>Helcim &middot; Software Developer</strong> &mdash; and typewrites it when it changes. A new posting replaces the old label instead of keeping the previous company.</li>
       </ul>
       <div class="onboarding-actions">
         <button id="whatsNewPlansBtn" class="cloud-primary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Open Settings</span></button>
