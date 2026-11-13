@@ -62,32 +62,58 @@
     html, body {
       margin: 0;
       padding: 0;
-      background: transparent;
+      height: 100%;
+      background: #0b0b0e;
     }
 
     html {
-      overflow-x: hidden;
+      overflow: hidden;
     }
 
     body {
-      width: 380px;
-      min-height: 120px;
-      padding: 18px 14px 14px;
+      width: 100%;
+      min-height: 100vh;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, Helvetica, Arial, sans-serif;
       color: var(--text);
       -webkit-font-smoothing: antialiased;
-      overflow-x: hidden;
+      overflow: hidden;
       position: relative;
-      border-radius: 24px;
       background:
         radial-gradient(120% 60% at 50% -12%, rgba(255, 255, 255, 0.09), transparent 55%),
         radial-gradient(80% 50% at 12% 0%, rgba(244, 147, 59, 0.12), transparent 60%),
         radial-gradient(80% 50% at 88% 100%, rgba(74, 158, 255, 0.10), transparent 60%),
-        rgba(12, 12, 15, 0.86);
-      backdrop-filter: blur(28px) saturate(160%);
-      -webkit-backdrop-filter: blur(28px) saturate(160%);
-      border: 1px solid var(--glass-border);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 24px 60px rgba(0, 0, 0, 0.55);
+        #0b0b0e;
+    }
+
+    /* Side panel shell: fixed header, scrolling middle, pinned footer. */
+    .shell {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 16px 14px 10px;
+    }
+
+    .main-scroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-bottom: 10px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+    }
+
+    .main-scroll::-webkit-scrollbar { width: 8px; }
+
+    .main-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+    }
+
+    .app-footer {
+      flex-shrink: 0;
     }
 
     button {
@@ -923,32 +949,230 @@
       overflow: hidden;
     }
 
-    .fill-unanswered {
-      margin: 8px 0 0;
-      padding: 0;
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      max-height: 150px;
-      overflow-y: auto;
-    }
-
-    .fill-unanswered li {
-      font-size: 11.5px;
-      line-height: 1.45;
-      color: var(--text-dim);
-      padding: 5px 8px;
+    .fill-manual-count {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 10px 0 0;
+      padding: 6px 11px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #f5b74a;
       border: 1px dashed rgba(245, 158, 11, 0.45);
-      border-radius: 8px;
       background: rgba(245, 158, 11, 0.07);
     }
 
-    .fill-actions {
+    /* ============================
+       Files Shelf — generated PDFs
+       ============================ */
+    .files-section {
+      margin-top: var(--space-4);
+    }
+
+    .files-head {
       display: flex;
-      gap: 8px;
       align-items: center;
-      margin-top: 10px;
+      justify-content: space-between;
+      gap: var(--space-2);
+      row-gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: var(--space-2);
+    }
+
+    .files-head .section-label {
+      margin: 0;
+      flex: 0 0 auto;
+    }
+
+    .files-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .files-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      color: var(--text-dim);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+
+    .files-toggle input {
+      width: 14px;
+      height: 14px;
+      margin: 0;
+      accent-color: var(--orange);
+      cursor: pointer;
+    }
+
+    .files-clear {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-dim);
+      padding: 4px 9px;
+      border-radius: 8px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-fill);
+      cursor: pointer;
+      transition: all var(--ease);
+    }
+
+    .files-clear:hover {
+      color: var(--text);
+      background: var(--glass-fill-strong);
+    }
+
+    .files-hint {
+      margin: 0;
+      font-size: 12px;
+      color: var(--text-faint);
+      line-height: 1.45;
+    }
+
+    .files-hint.stale {
+      color: #ffb06b;
+    }
+
+    .files-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      margin-top: var(--space-2);
+    }
+
+    .file-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius-ctl);
+      background: var(--glass-fill);
+      border: 1px solid var(--glass-border);
+      cursor: grab;
+      transition: background var(--ease), border-color var(--ease), opacity var(--ease);
+    }
+
+    .file-card:hover {
+      background: var(--glass-fill-strong);
+    }
+
+    .file-card.dragging {
+      opacity: 0.45;
+      cursor: grabbing;
+    }
+
+    .file-icon {
+      flex-shrink: 0;
+      width: 30px;
+      height: 34px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #ff9d5c;
+      background: var(--orange-fill);
+      border: 1px solid var(--orange-border);
+    }
+
+    .file-meta {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .file-name {
+      margin: 0;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .file-sub {
+      margin: 2px 0 0;
+      font-size: 11px;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .file-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .file-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-dim);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all var(--ease);
+    }
+
+    .file-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .file-btn:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--glass-border);
+    }
+
+    .file-btn.danger:hover {
+      color: #ff8a8a;
+      background: var(--accent-red-fill);
+      border-color: var(--accent-red-border);
+    }
+
+    /* Delete zone — pinned to the bottom of the panel */
+    .drop-zone {
+      flex-shrink: 0;
+      margin-top: var(--space-2);
+      padding: 10px 12px;
+      border-radius: var(--radius-ctl);
+      border: 1px dashed rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-faint);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all var(--ease);
+    }
+
+    .drop-zone svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    .drop-zone.active {
+      border-color: var(--accent-red-border);
+      background: var(--accent-red-fill);
+      color: #ff8a8a;
     }
 
     .list-row:hover {
@@ -1008,6 +1232,28 @@
       padding: 2px 6px;
       font-size: 9px;
       letter-spacing: 0.04em;
+    }
+
+    /* Narrow side panels: badges float so the row labels keep their room. */
+    @media (max-width: 370px) {
+      .list-row-pair .list-row {
+        padding: 10px 11px;
+        gap: 6px;
+      }
+      .list-row-pair .list-row-label {
+        font-size: 12.5px;
+      }
+      .list-row-pair .tracker-new-badge {
+        position: absolute;
+        top: 4px;
+        right: 5px;
+        padding: 1px 5px;
+        font-size: 8px;
+        letter-spacing: 0.03em;
+      }
+      #quickDownloadBtn.has-badge .list-row-label {
+        font-size: 10.5px;
+      }
     }
 
     .list-row-left {
@@ -1946,6 +2192,7 @@
 <body data-status="idle">
   <div class="glow-bloom" aria-hidden="true"></div>
   <div class="glow-line" aria-hidden="true"></div>
+  <div class="shell">
   <header class="app-header">
     <div class="header-side header-left">
       <button id="accountBtn" class="account-btn" type="button" style="display: none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span>Sign in</span></button>
@@ -1962,6 +2209,7 @@
     </div>
   </header>
 
+  <div class="main-scroll">
   <div id="accessReminder" class="access-reminder" style="display: none;">
     <span id="accessReminderText">Free until Dec 31 — then $4/month.</span>
     <div class="access-reminder-actions">
@@ -1976,8 +2224,8 @@
     </div>
     <p class="setup-done-text">Your resume engine runs in this browser, but the account keeps it unlocked and synced. Free to try until Dec 31 — then $4/month (about $1/week) or $47/year.</p>
     <div style="display: grid; gap: 8px;">
-      <button type="button" id="popupSignUpBtn" class="setup-goto setup-goto-wide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg><span>Create account</span></button>
-      <button type="button" id="popupSignInBtn" class="setup-goto setup-goto-wide ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><path d="M15 12H3"/></svg><span>Sign in</span></button>
+      <button type="button" id="sidebarSignUpBtn" class="setup-goto setup-goto-wide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg><span>Create account</span></button>
+      <button type="button" id="sidebarSignInBtn" class="setup-goto setup-goto-wide ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><path d="M15 12H3"/></svg><span>Sign in</span></button>
     </div>
   </div>
 
@@ -2081,7 +2329,7 @@
   </div>
 
   <div id="resumeSelector">
-    <!-- Rendered dynamically by popup.js -->
+    <!-- Rendered dynamically by sidebar.js -->
   </div>
 
   <button id="generateBtn" type="button" disabled>
@@ -2173,10 +2421,36 @@
       <p class="setup-title" id="fillResultTitle">Filled</p>
     </div>
     <p class="setup-done-text" id="fillResultText"></p>
-    <ul class="fill-unanswered" id="fillUnansweredList"></ul>
-    <div class="fill-actions" id="fillCopyRow" style="display: none;">
-      <button type="button" id="fillCopyBtn" class="setup-goto setup-goto-wide ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>Copy questions</span></button>
+    <p class="fill-manual-count" id="fillManualCount" style="display: none;"></p>
+  </div>
+
+  <section class="files-section" id="filesSection">
+    <div class="files-head">
+      <div class="section-label">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        <span>Files</span>
+      </div>
+      <div class="files-actions">
+        <label class="files-toggle" title="Also save a copy of every generated PDF to your computer">
+          <input type="checkbox" id="downloadOnGenerateToggle">
+          <span>Download too</span>
+        </label>
+        <button type="button" id="clearFilesBtn" class="files-clear" style="display: none;">Clear</button>
+      </div>
     </div>
+    <p class="files-hint" id="filesHint">Generate a resume to keep it here — then drag it onto any page.</p>
+    <div class="files-list" id="filesList"></div>
+  </section>
+
+  </div>
+
+  <footer class="app-footer">
+    <div class="drop-zone" id="dropZone">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+      <span>Drop a file here to delete it</span>
+    </div>
+  </footer>
+
   </div>
 
   <!-- Error Details Modal -->
@@ -2299,19 +2573,20 @@
       <div class="onboarding-icon" aria-hidden="true">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m5.6 5.6 2.8 2.8"/><path d="m15.6 15.6 2.8 2.8"/><path d="m18.4 5.6-2.8 2.8"/><path d="m8.4 15.6-2.8 2.8"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> — Fill Form is back</h2>
+      <h2>New in <span id="whatsNewVersion"></span> — a side panel that keeps your files</h2>
       <p class="error-message">
-        Fill Form fills an application form from answers you save once. No tape, no guessing, and it never submits anything.
+        The toolbar button now opens a side panel that stays with you while you work. Generated PDFs stay in that panel, ready to drag onto the page.
       </p>
       <ul class="whatsnew-collected">
-        <li><strong>Answer once, fill every form.</strong> Your name, contact details, location, work eligibility, salary expectation, start date and links live in Settings → Form filler. The pill says Ready when they are set.</li>
-        <li><strong>Your own answers for the open questions.</strong> Add a question you meet often with the answer you always give. It matches on the question text.</li>
-        <li><strong>One click from your resume.</strong> Auto-fill from your resume reads what your resume already says into the empty boxes. It never overwrites one you filled.</li>
-        <li><strong>Nothing is invented.</strong> A question with no saved answer stays empty and gets a dashed amber outline. The popup lists those questions and copies them for you.</li>
-        <li><strong>It never submits.</strong> Consent boxes, terms and captchas are left alone, and nothing is sent for you.</li>
+        <li><strong>A side panel, not a popup.</strong> Click the icon once and the panel stays open while you move between tabs.</li>
+        <li><strong>Your PDFs stay here.</strong> The resume and cover letter you generate are kept in the panel instead of piling up in your Downloads folder.</li>
+        <li><strong>Drag it anywhere.</strong> Pull a file card onto a page — a file picker, an upload box, anywhere that takes a document.</li>
+        <li><strong>One posting at a time.</strong> Generate on a new job posting and the previous files are replaced, so the panel never fills up with old versions.</li>
+        <li><strong>Throw one away.</strong> Drag a card onto the delete zone at the bottom of the panel, or press the × on the card.</li>
+        <li><strong>A download when you want one.</strong> Switch on <strong>Download too</strong> and every generated PDF is saved to your computer as well.</li>
       </ul>
       <div class="onboarding-actions">
-        <button id="whatsNewPlansBtn" class="cloud-primary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Set up Form Filler</span></button>
+        <button id="whatsNewPlansBtn" class="cloud-primary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Open Settings</span></button>
         <button id="whatsNewGotBtn" class="cloud-secondary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Got it</span></button>
       </div>
     </div>
@@ -2320,6 +2595,7 @@
   <script src="libs/jspdf.umd.min.js"></script>
   <script src="cloud-sync-core.js"></script>
   <script src="resume-renderers.js"></script>
-  <script src="popup.js"></script>
+  <script type="module" src="pdf-store.js"></script>
+  <script src="sidebar.js"></script>
 </body>
 </html>

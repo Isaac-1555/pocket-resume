@@ -19,6 +19,7 @@
     "clean": "rm -f cloud-sync.js cloud-sync-core.js && rm -rf convex/_generated",
     "test:align": "node scripts/test-align.mjs",
     "test:formfill": "node scripts/test-formfill.mjs",
+    "test:pdfstore": "node scripts/test-pdfstore.mjs",
     "test:render": "node scripts/test-render.mjs",
     "build:zip": "node scripts/build-zip.mjs"
   }

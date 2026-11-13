@@ -228,7 +228,7 @@
 
     function saveDocument(doc, filename) {
         if (typeof window.PocketResumeSavePdf === 'function') {
-            window.PocketResumeSavePdf(doc, filename);
+            window.PocketResumeSavePdf(doc, filename, { kind: 'resume' });
             return;
         }
         doc.save(filename);

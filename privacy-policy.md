@@ -55,6 +55,7 @@ Pocket Resume stores the following data locally on your device using Chrome's bu
 * Your Form Filler answers (the application questions you saved in Settings), kept on this device only and never synced to the cloud
 * Your preferences (selected resume style, tracker capture toggle)
 * Generated resumes, cover letters, and captured job applications
+* The PDFs you generate in the side panel (kept in the browser's local storage so you can drag them onto a page). Only the current posting's files are kept: generating on a new posting replaces them, and dropping a file on the delete zone removes it
 * Job details you correct in the review dialog (job title, company, location, recipient), remembered per posting URL so the same posting does not need the same edit twice. The URL is stored with tracking parameters removed, and nothing about the posting's page content is kept
 
 This locally stored data:
@@ -73,9 +74,11 @@ Pocket Resume requests only the permissions necessary for core functionality:
 
 * **Active Tab**: To read the job posting in the tab you are generating for, and to fill an application form in the tab you are filling
 * **Storage**: To save your resume profiles, Form Filler answers, preferences, tracker cards, and generated documents locally
+* **Unlimited Storage**: So the PDFs kept in the side panel are not capped by the default local storage quota
+* **Side Panel**: To open PocketResume next to the page instead of in a popup that closes when you look away
 * **Scripting**: To extract text content from the job posting page when the content script is not already present, and to fill application form fields on the page you ask it to fill
 * **Alarms**: To schedule the daily skill-vocabulary check; no browsing data is read
-* **Downloads**: To save generated resume and cover-letter PDFs reliably
+* **Downloads**: To save generated resume and cover-letter PDFs to your computer when you turn on *Download too*
 * **Host Permissions**: To reach Clerk (sign-in), Convex (optional resume sync), Pollinations (opt-in Resume health check and Generate letter), and the public O*NET skill vocabulary (`onetcenter.org`)
 * **Optional Host Permissions**: Requested only when you turn on the local Ollama fallback — `http://localhost:11434`. Chrome asks for your explicit consent before granting it; you can revoke it at any time in Chrome's extension settings.
 

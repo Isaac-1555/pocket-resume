@@ -173,7 +173,7 @@ async function main() {
     const baseUrl = `http://127.0.0.1:${PORT}`;
     try {
         // --- popup frames ---
-        const popupPage = await newPage(browser, baseSeed(), `${baseUrl}/popup.html`);
+        const popupPage = await newPage(browser, baseSeed(), `${baseUrl}/sidebar.html`);
         await snap(popupPage, 'idle', '#generateBtn', {
             h: 400,
             spots: { generate: '#generateBtn', settingsBtn: '#settingsBtn' },
@@ -224,7 +224,7 @@ async function main() {
         await snap(popupPage, 'fillSuccess', '.feature-pair', { h: 300, spots: { fillBtn: '#fillFormBtn' } });
 
         // setup-complete offer card (fresh state)
-        const setupPage = await newPage(browser, { ...baseSeed(), onboardingCompleted: false }, `${baseUrl}/popup.html`);
+        const setupPage = await newPage(browser, { ...baseSeed(), onboardingCompleted: false }, `${baseUrl}/sidebar.html`);
         await setupPage.waitForTimeout(400);
         await snap(setupPage, 'setupComplete', '#setupCard', { h: 320, spots: { watchBtn: '#setupWatchVideoBtn', notNowBtn: '#setupVideoNoBtn' } });
         await setupPage.close();

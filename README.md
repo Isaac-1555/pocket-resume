@@ -21,11 +21,20 @@
 - **Multi-Profile** — save up to 3 master profiles and switch between them
 - **Privacy First** — resumes stay in `chrome.storage.local`; the engine makes no network requests
 
+### What's New in v10.12.0
+
+- **A side panel instead of a popup.** Click the toolbar button and PocketResume stays open next to the page while you work.
+- **Your PDFs stay in the panel.** A generated resume and cover letter are kept next to the page instead of piling up in your Downloads folder.
+- **Drag a file onto the page.** Pull a file card onto a file picker or an upload box and the PDF lands there.
+- **One posting at a time.** Generate on a new job posting and the previous files are replaced.
+- **Throw one away.** Drag a card onto the delete zone at the bottom of the panel, or press the × on the card.
+- **A download when you want one.** Turn on *Download too* and every generated PDF is also saved to your computer.
+
 ### What's New in v10.11.0
 
 - **Form Filler is back.** The tape is off the button: it fills an application form from the answers you saved once in Settings → Form filler.
 - **One click from your resume.** *Auto-fill from my resume* reads your name, email, phone, city, links and years of experience out of the resume you already built — locally, with no provider call.
-- **Nothing is guessed.** A question with no saved answer is left empty and outlined in amber. The popup lists them and copies them for you.
+- **Nothing is guessed.** A question with no saved answer is left empty and outlined in amber. The panel tells you how many still need you.
 - **It never submits.** Consent boxes, terms and captchas are left alone.
 
 ### What's New in v10.10.1
@@ -69,20 +78,22 @@ npm install
 ## Usage
 
 1. Navigate to any job posting (LinkedIn, Indeed, company pages)
-2. Click PocketResume icon → choose resume style
-3. Click **Generate Resume** — the job details dialog opens, the PDF downloads and a Job Tracker card is created
+2. Click PocketResume icon → the side panel opens → choose resume style
+3. Click **Generate Resume** — the job details dialog opens, the PDF is kept in the panel's **Files** section and a Job Tracker card is created
 4. Click **Generate Cover Letter** for the matching letter (uses the selected resume's saved letter)
 5. Optional: click **Fill Form** on an application page — it fills the empty fields from the answers you saved in Settings
 
+Drag a file card from **Files** (under the four panel buttons) onto a page to attach it — a file picker, an upload box, anywhere that takes a document. Drag it onto the delete zone at the bottom of the panel to remove it, or press the × on the card. Generating on a new posting replaces the previous files. Turn on **Download too** if you also want each PDF saved to your computer.
+
 The job details dialog shows what was read from the posting — job title, company, location, recipient — and the keywords it matched. Correct anything that is wrong; the fix goes into the PDF, the resume header and the Job Tracker card, and is remembered for that posting so the cover letter picks it up. If nobody answers it, it saves after 30 seconds; typing in a field stops the countdown. Cancel saves nothing. Turn it off with **Don't ask again**, or **Review extracted job details** in Settings → Interface.
 
-If generation fails, the popup stays red — click the **?** button (top right) for a readable message plus copyable raw details. The error clears when you close the popup or retry.
+If generation fails, the panel stays red — click the **?** button (top right) for a readable message plus copyable raw details. The error clears when you retry or start a new run.
 
 ## Form Filler
 
 **Fill Form** (next to the Job Tracker button) fills the empty fields on an application form from answers you save once in Settings → **Form filler**: name, contact details, location, work eligibility, salary expectation, start date, links, and your own answers for the questions forms keep asking. *Auto-fill from my resume* pulls the name, email, phone, city, links and years of experience straight out of the resume you already built.
 
-It runs entirely in your browser — no AI, no upload, no provider call. A question with no saved answer is **left empty and highlighted** with a dashed amber outline; the popup lists those questions and copies them to the clipboard. It never overwrites a field you already filled, never touches consent boxes, terms or captchas, and **never submits the form**. It is a Pro feature, like the Job Tracker.
+It runs entirely in your browser — no AI, no upload, no provider call. A question with no saved answer is **left empty and highlighted** with a dashed amber outline, and the panel tells you how many fields still need you. It never overwrites a field you already filled, never touches consent boxes, terms or captchas, and **never submits the form**. It is a Pro feature, like the Job Tracker.
 
 Refine Resume and Check ATS are still disabled with a **Soon** badge while they are rebuilt without AI.
 
@@ -121,6 +132,8 @@ npm run build:clerk
 # Deterministic engine + PDF layout checks (no network)
 npm run test:align
 npm run test:render
+npm run test:formfill
+npm run test:pdfstore
 
 # Build the Chrome Web Store zip from the runtime file list
 npm run build:zip
@@ -135,7 +148,7 @@ Edit source files directly, reload the extension in `chrome://extensions`.
 Debug targets:
 
 - **Service Worker:** extension card → "Service Worker" (Inspect)
-- **Popup:** right-click popup → Inspect
+- **Side panel:** right-click inside the panel → Inspect
 - **Content Script:** target page's DevTools
 
 For the full architecture map, file layout, and prompt/JSON schema reference, see [AGENTS.md](AGENTS.md).

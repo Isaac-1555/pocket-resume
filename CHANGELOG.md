@@ -1,5 +1,23 @@
 # Changelog
 
+## [10.12.0] — 2026-11-13
+### Added
+- **PocketResume now lives in a side panel.** Click the toolbar button and the panel stays open next to the page while you work — no more popup that closes when you look away.
+- **Your generated PDFs stay in the panel.** The resume and cover letter you generate are kept locally instead of being dumped in your Downloads folder, so there is no pile of `Resume_John_Doe.pdf` copies to delete. The shelf sits under the four panel buttons, right above the delete zone.
+- **Drag a file onto the page.** Each PDF is a draggable card. Pull it onto a file picker, an upload box or any page that takes a document — the file lands there as a real PDF.
+- **A delete zone at the bottom.** Drag a card onto it and the file is removed from the browser. Every card also has a × button and the section has a *Clear* button.
+- **One posting at a time.** Generate on a new job posting and the previous files are replaced automatically, so the panel always holds the files for the job you are on.
+- **Download too (optional).** A new *Download too* toggle next to the file list — and the same switch in Settings → Interface — saves a copy of every generated PDF to your computer as well. It is off by default.
+- **Stale files are flagged.** When the panel is showing files from another posting, it says so instead of pretending they belong to the page you are on.
+
+### Changed
+- **The popup is now the side panel.** The same UI, a new home: the panel keeps its state between tabs, and the toolbar icon opens it.
+- **Form Filler reports a number, not a list.** After a fill, the panel says how many fields still need you instead of listing every question. The unanswered fields are still marked on the page itself.
+- **The job posting URL comes from the page, not the tab.** The panel reads the URL from the page content script, so remembered job details and the file shelf keep working without asking for broad browsing-history access.
+
+### Fixed
+- **URL keys no longer double up a question mark.** The key used to remember job details could end in `??`, which made two different postings look alike.
+
 ## [10.11.0] — 2026-11-13
 ### Added
 - **Form Filler is back, and it runs on your saved answers.** Fill Form fills the empty fields on an application form from answers you save once in Settings — name, contact details, location, work eligibility, salary expectation, start date, links and the Yes/No questions forms keep asking. The tape is off the button.

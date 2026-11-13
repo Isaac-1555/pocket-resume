@@ -233,7 +233,7 @@ async function main() {
         const page = await context.newPage();
         page.on('pageerror', (e) => console.error('[pageerror]', e.message));
         page.on('console', (m) => { if (m.type() === 'error') console.warn('[console]', m.text().slice(0, 200)); });
-        await page.goto(fileUrl('popup.html'));
+        await page.goto(fileUrl('sidebar.html'));
         await page.waitForSelector('#generateBtn');
         await page.waitForTimeout(900);
         await hideFillForm(page);

@@ -61,7 +61,7 @@ await build({
   define: { ...defineBase, __CLERK_UI__: 'true' },
 });
 
-// popup.html + tracker.html + background.js: same logic, no Clerk UI and no
+// sidebar.html + tracker.html + background.js: same logic, no Clerk UI and no
 // @clerk/chrome-extension (whose dynamic @clerk/ui import is what made the old
 // single bundle 6.5 MB).
 await build({

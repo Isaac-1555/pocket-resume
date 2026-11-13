@@ -135,6 +135,10 @@ async function collectPageContent() {
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === 'GET_PAGE_URL') {
+        sendResponse({ url: window.location.href, title: document.title });
+        return true;
+    }
     if (request.type === 'GET_PAGE_CONTENT') {
         collectPageContent()
             .then(sendResponse)

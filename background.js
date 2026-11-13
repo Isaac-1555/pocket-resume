@@ -137,7 +137,7 @@ async function getPageContentForTab(tabId, { skipCache = false } = {}) {
         cached.jobText.trim() &&
         now - (cached.savedAt || 0) < PAGE_CACHE_TTL_MS
     ) {
-        return { jobText: cached.jobText, structured: cached.structured || {}, title: cached.title || '' };
+        return { jobText: cached.jobText, structured: cached.structured || {}, title: cached.title || '', url: cached.url || '' };
     }
 
     const contentData = await new Promise((resolve) => {
@@ -161,10 +161,31 @@ async function getPageContentForTab(tabId, { skipCache = false } = {}) {
     const jobText = contentData.text || "";
     const structured = contentData.structured && typeof contentData.structured === 'object' ? contentData.structured : {};
     const title = typeof contentData.title === 'string' ? contentData.title : '';
+    const url = typeof contentData.url === 'string' ? contentData.url : '';
     await chrome.storage.local.set({
-        [PAGE_CACHE_KEY]: { tabId, jobText, structured, title, savedAt: now }
+        [PAGE_CACHE_KEY]: { tabId, jobText, structured, title, url, savedAt: now }
     });
-    return { jobText, structured, title };
+    return { jobText, structured, title, url };
+}
+
+async function getPageUrlForTab(tabId) {
+    return new Promise((resolve) => {
+        chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_URL' }, (response) => {
+            if (chrome.runtime.lastError || !response || !response.url) {
+                chrome.scripting.executeScript({
+                    target: { tabId },
+                    files: ['content.js']
+                }, () => {
+                    chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_URL' }, (res) => {
+                        if (chrome.runtime.lastError || !res) resolve({ url: '', title: '' });
+                        else resolve({ url: res.url || '', title: res.title || '' });
+                    });
+                });
+                return;
+            }
+            resolve({ url: response.url || '', title: response.title || '' });
+        });
+    });
 }
 
 function buildJobText(page) {
@@ -270,6 +291,13 @@ async function maybeAutoUpdateSkillLexicon() {
     }
 }
 
+function enableSidePanel() {
+    if (!chrome.sidePanel || typeof chrome.sidePanel.setPanelBehavior !== 'function') return;
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error) => {
+        console.warn('[SidePanel] could not enable action click:', error);
+    });
+}
+
 chrome.alarms.create(SKILL_LEXICON_ALARM, { periodInMinutes: 24 * 60, delayInMinutes: 3 });
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === SKILL_LEXICON_ALARM) maybeAutoUpdateSkillLexicon();
@@ -277,12 +305,15 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.runtime.onStartup.addListener(() => {
     chrome.alarms.clear('skillLexiconWeekly');
     maybeAutoUpdateSkillLexicon();
+    enableSidePanel();
 });
 chrome.runtime.onInstalled.addListener(() => {
     chrome.alarms.clear('skillLexiconWeekly');
     maybeAutoUpdateSkillLexicon();
+    enableSidePanel();
 });
 maybeAutoUpdateSkillLexicon();
+enableSidePanel();
 
 
 const ACCESS_CACHE_KEY = 'proAccessCache';
@@ -467,6 +498,29 @@ function buildCoverLetterPayload(template, resume, jobMeta) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!message || typeof message.type !== 'string') return false;
 
+    if (message.type === 'GET_ACTIVE_PAGE') {
+        (async () => {
+            try {
+                const payload = message.payload || {};
+                const query = payload.windowId
+                    ? { active: true, windowId: payload.windowId }
+                    : { active: true, currentWindow: true };
+                const tabs = await chrome.tabs.query(query);
+                const tab = tabs && tabs[0];
+                if (!tab || !tab.id) {
+                    sendResponse({ status: 'error', message: 'No active tab' });
+                    return;
+                }
+                const page = await getPageUrlForTab(tab.id);
+                sendResponse({ status: 'success', tabId: tab.id, url: page.url, title: page.title });
+            } catch (error) {
+                console.warn('[ActivePage] failed:', error);
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+        return true;
+    }
+
     if (message.type === 'GENERATE' || message.type === 'OFFLINE_ALIGN') {
         (async () => {
             try {
@@ -556,7 +610,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     coverLetterData,
                     coverLetterStatus,
                     report,
-                    jobMeta
+                    jobMeta,
+                    pageUrl: page.url || '',
+                    pageTitle: page.title || ''
                 });
             } catch (error) {
                 console.error('[Generate] Failed:', error);

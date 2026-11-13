@@ -1,4 +1,4 @@
-// popup.js
+// sidebar.js
 document.addEventListener('DOMContentLoaded', () => {
   const generateBtn = document.getElementById('generateBtn');
   const fillFormBtn = document.getElementById('fillFormBtn');
@@ -13,9 +13,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const fillResultCard = document.getElementById('fillResultCard');
   const fillResultTitle = document.getElementById('fillResultTitle');
   const fillResultText = document.getElementById('fillResultText');
-  const fillUnansweredList = document.getElementById('fillUnansweredList');
-  const fillCopyRow = document.getElementById('fillCopyRow');
-  const fillCopyBtn = document.getElementById('fillCopyBtn');
+  const fillManualCount = document.getElementById('fillManualCount');
+  const filesList = document.getElementById('filesList');
+  const filesHint = document.getElementById('filesHint');
+  const clearFilesBtn = document.getElementById('clearFilesBtn');
+  const downloadOnGenerateToggle = document.getElementById('downloadOnGenerateToggle');
+  const dropZone = document.getElementById('dropZone');
   let statusTimer = null;
   let scrambleTimer = null;
   let letterScrambleTimer = null;
@@ -24,9 +27,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let fillStatusTimer = null;
   let fillRunning = false;
   let fillPromoActive = false;
-  let lastFillUnanswered = [];
   let lastError = '';
   let lastErrorRaw = '';
+  let downloadOnGenerate = false;
+  let pendingPdfSave = Promise.resolve();
+  let pdfContext = { url: '', title: '', company: '' };
+  let activePageUrl = '';
+  let activePageTitle = '';
   const settingsBtn = document.getElementById('settingsBtn');
   const quickDownloadBtn = document.getElementById('quickDownloadBtn');
   const resumeType = document.getElementById('resumeType');
@@ -107,9 +114,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (area === 'local' && changes.animationsEnabled) {
       applyMotionPreference(changes.animationsEnabled.newValue !== false);
     }
+    if (area === 'local' && changes.downloadOnGenerate) {
+      downloadOnGenerate = changes.downloadOnGenerate.newValue === true;
+      if (downloadOnGenerateToggle) downloadOnGenerateToggle.checked = downloadOnGenerate;
+    }
+    if (area === 'local' && changes.generatedPdfs) {
+      renderFiles();
+    }
   });
 
-  function savePdfDocument(doc, filename) {
+  function downloadPdfDocument(doc, filename) {
     const anchorFallback = () => {
       try {
         doc.save(filename);
@@ -143,7 +157,289 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(reader.error || new Error('Could not read the PDF bytes'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function storePdf(doc, filename, meta) {
+    const store = window.PocketResumePdfStore;
+    if (!store) return false;
+    let blob;
+    try {
+      blob = doc.output('blob');
+    } catch (error) {
+      console.warn('[PDF] blob export failed:', error);
+      return false;
+    }
+    if (blob.size > store.MAX_PDF_BYTES) {
+      console.warn('[PDF] too large to keep locally:', blob.size);
+      return false;
+    }
+    const dataUrl = await blobToDataUrl(blob);
+    await store.savePdf({
+      kind: meta.kind || 'resume',
+      filename,
+      dataUrl,
+      size: blob.size,
+      url: meta.url || pdfContext.url || '',
+      title: meta.title || pdfContext.title || '',
+      company: meta.company || pdfContext.company || '',
+      resumeId: meta.resumeId || ''
+    });
+    return true;
+  }
+
+  function savePdfDocument(doc, filename, meta = {}) {
+    pendingPdfSave = pendingPdfSave
+      .then(async () => {
+        const stored = await storePdf(doc, filename, meta);
+        if (downloadOnGenerate) downloadPdfDocument(doc, filename);
+        if (!stored) console.warn('[PDF] not kept in the panel:', filename);
+        renderFiles();
+      })
+      .catch((error) => {
+        console.error('[PDF] save failed:', filename, error);
+      });
+    return pendingPdfSave;
+  }
+
   window.PocketResumeSavePdf = savePdfDocument;
+
+  // --- Files shelf: generated PDFs kept in chrome.storage.local ---
+  const FILE_DRAG_TYPE = 'application/x-pocketresume-file';
+  const ICON_DOWNLOAD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+  const ICON_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+  const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
+
+  function formatBytes(size) {
+    const bytes = Number(size) || 0;
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function fileKindLabel(kind) {
+    return kind === 'cover-letter' ? 'Cover letter' : 'Resume';
+  }
+
+  function updateFilesHint(state) {
+    if (!filesHint) return;
+    const items = (state && state.items) || [];
+    if (!items.length) {
+      filesHint.textContent = 'Generate a resume to keep it here — then drag it onto any page.';
+      filesHint.classList.remove('stale');
+      return;
+    }
+    const label = [state.company, state.title].filter(Boolean).join(' · ');
+    const base = label ? `For ${label}` : 'Drag a file onto the page to attach it.';
+    const store = window.PocketResumePdfStore;
+    const storedKey = state.urlKey || '';
+    const activeKey = store ? store.normalizeUrlKey(activePageUrl) : '';
+    if (storedKey && activeKey && storedKey !== activeKey) {
+      filesHint.textContent = `${base} — not this page.`;
+      filesHint.classList.add('stale');
+      return;
+    }
+    filesHint.textContent = base;
+    filesHint.classList.remove('stale');
+  }
+
+  function fileButton(label, icon, onClick, danger) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = danger ? 'file-btn danger' : 'file-btn';
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.innerHTML = icon;
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      onClick();
+    });
+    return button;
+  }
+
+  function buildFileCard(item, state) {
+    const card = document.createElement('div');
+    card.className = 'file-card';
+    card.draggable = true;
+    card.dataset.id = item.id;
+
+    const icon = document.createElement('span');
+    icon.className = 'file-icon';
+    icon.textContent = 'PDF';
+
+    const meta = document.createElement('div');
+    meta.className = 'file-meta';
+
+    const name = document.createElement('p');
+    name.className = 'file-name';
+    name.textContent = item.filename || 'document.pdf';
+    name.title = item.filename || '';
+
+    const sub = document.createElement('p');
+    sub.className = 'file-sub';
+    const label = [state.company, state.title].filter(Boolean).join(' · ');
+    sub.textContent = [fileKindLabel(item.kind), label, formatBytes(item.size)].filter(Boolean).join(' · ');
+
+    meta.appendChild(name);
+    meta.appendChild(sub);
+
+    const actions = document.createElement('div');
+    actions.className = 'file-actions';
+    actions.appendChild(fileButton('Download', ICON_DOWNLOAD, () => downloadStoredPdf(item)));
+    actions.appendChild(fileButton('Open in a new tab', ICON_OPEN, () => openStoredPdf(item)));
+    actions.appendChild(fileButton('Delete', ICON_TRASH, () => removeStoredPdf(item.id), true));
+
+    card.appendChild(icon);
+    card.appendChild(meta);
+    card.appendChild(actions);
+
+    card.addEventListener('dragstart', (event) => onFileDragStart(event, item, card));
+    card.addEventListener('dragend', () => card.classList.remove('dragging'));
+    return card;
+  }
+
+  function onFileDragStart(event, item, card) {
+    const store = window.PocketResumePdfStore;
+    if (!store) return;
+    let file;
+    try {
+      file = store.dataUrlToFile(item.dataUrl, item.filename);
+    } catch (error) {
+      console.error('[Files] could not build the drag file:', error);
+      return;
+    }
+    event.dataTransfer.effectAllowed = 'copyMove';
+    try {
+      event.dataTransfer.items.add(file);
+    } catch (error) {
+      console.warn('[Files] file drag unsupported:', error);
+    }
+    event.dataTransfer.setData(FILE_DRAG_TYPE, item.id);
+    card.classList.add('dragging');
+  }
+
+  async function renderFiles() {
+    const store = window.PocketResumePdfStore;
+    if (!store || !filesList) return;
+    let state;
+    try {
+      state = await store.getState();
+    } catch (error) {
+      console.warn('[Files] read failed:', error);
+      return;
+    }
+    filesList.innerHTML = '';
+    for (const item of state.items || []) {
+      filesList.appendChild(buildFileCard(item, state));
+    }
+    if (clearFilesBtn) clearFilesBtn.style.display = (state.items || []).length ? '' : 'none';
+    updateFilesHint(state);
+  }
+
+  async function removeStoredPdf(id) {
+    const store = window.PocketResumePdfStore;
+    if (!store || !id) return;
+    await store.removeItem(id);
+    renderFiles();
+  }
+
+  function downloadStoredPdf(item) {
+    const store = window.PocketResumePdfStore;
+    if (!store) return;
+    let blob;
+    try {
+      blob = store.dataUrlToBlob(item.dataUrl);
+    } catch (error) {
+      console.error('[Files] could not read the PDF:', error);
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    if (!chrome.downloads || typeof chrome.downloads.download !== 'function') {
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = item.filename || 'document.pdf';
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      return;
+    }
+    chrome.downloads.download({ url, filename: item.filename || 'document.pdf', saveAs: false }, (downloadId) => {
+      if (chrome.runtime.lastError || downloadId === undefined) {
+        console.warn('[Files] download failed:', chrome.runtime.lastError?.message);
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    });
+  }
+
+  function openStoredPdf(item) {
+    const store = window.PocketResumePdfStore;
+    if (!store) return;
+    try {
+      const blob = store.dataUrlToBlob(item.dataUrl);
+      const url = URL.createObjectURL(blob);
+      chrome.tabs.create({ url });
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+      console.warn('[Files] could not open the PDF:', error);
+    }
+  }
+
+  function setupFiles() {
+    chrome.storage.local.get('downloadOnGenerate', (data) => {
+      downloadOnGenerate = data.downloadOnGenerate === true;
+      if (downloadOnGenerateToggle) downloadOnGenerateToggle.checked = downloadOnGenerate;
+    });
+    if (downloadOnGenerateToggle) {
+      downloadOnGenerateToggle.addEventListener('change', () => {
+        downloadOnGenerate = downloadOnGenerateToggle.checked;
+        chrome.storage.local.set({ downloadOnGenerate });
+      });
+    }
+    if (clearFilesBtn) {
+      clearFilesBtn.addEventListener('click', async () => {
+        const store = window.PocketResumePdfStore;
+        if (!store) return;
+        await store.clearStore();
+        renderFiles();
+      });
+    }
+    if (dropZone) {
+      const highlight = (on) => dropZone.classList.toggle('active', on);
+      dropZone.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        highlight(true);
+      });
+      dropZone.addEventListener('dragleave', () => highlight(false));
+      dropZone.addEventListener('drop', async (event) => {
+        event.preventDefault();
+        highlight(false);
+        const id = event.dataTransfer.getData(FILE_DRAG_TYPE);
+        if (!id) return;
+        await removeStoredPdf(id);
+      });
+    }
+    renderFiles();
+  }
+
+  function refreshActivePage() {
+    if (!chrome.windows || typeof chrome.windows.getCurrent !== 'function') return;
+    chrome.windows.getCurrent((win) => {
+      const windowId = win && win.id;
+      chrome.runtime.sendMessage({ type: 'GET_ACTIVE_PAGE', payload: { windowId } }, (response) => {
+        if (chrome.runtime.lastError || !response || response.status !== 'success') return;
+        activePageUrl = response.url || '';
+        activePageTitle = response.title || '';
+        renderFiles();
+      });
+    });
+  }
 
   function setMatchReport(report, hasCoverLetter = false, extraNote = '') {
     if (!offlineReport) return;
@@ -481,7 +777,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const built = buildProfessionalPdf(resumeData);
           const proceed = await confirmLongResume(built.pages);
           if (!proceed) return;
-          savePdfDocument(built.doc, built.filename);
+          downloadPdfDocument(built.doc, built.filename);
         } catch (e) {
           console.error('Quick Download Error:', e);
           setError(e.message || 'Quick Download failed. Please try again.');
@@ -584,7 +880,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage({ type: 'CHECK_PRO_ACCESS' }, (response) => {
         if (chrome.runtime.lastError) {
-          console.warn('[Popup] CHECK_PRO_ACCESS failed:', chrome.runtime.lastError.message);
+          console.warn('[Sidebar] CHECK_PRO_ACCESS failed:', chrome.runtime.lastError.message);
           if (!retried) {
             setTimeout(() => resolve(requestBackgroundAccess(true)), 300);
             return;
@@ -597,7 +893,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // The popup holds a real Clerk session, so its own copy of the plan is
+  // The side panel holds a real Clerk session, so its own copy of the plan is
   // authoritative. The service worker only has the page-published snapshot, used
   // when the page client cannot resolve.
   async function checkProAccess() {
@@ -622,7 +918,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function updateAccountButton() {
     if (!accountBtn) return;
     const access = await checkProAccess();
-    console.log('[Popup] access', {
+    console.log('[Sidebar] access', {
       source: access.source,
       signedIn: !!access.signedIn,
       isPro: !!access.isPro,
@@ -700,7 +996,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return showResumeFitWarning(pages);
   }
 
-  function jdUrlKey(rawUrl) {
+  function legacyJdUrlKey(rawUrl) {
     const value = String(rawUrl || '').trim();
     if (!value) return '';
     try {
@@ -713,6 +1009,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch {
       return value.toLowerCase();
     }
+  }
+
+  function jdUrlKey(rawUrl) {
+    const store = window.PocketResumePdfStore;
+    if (store && typeof store.normalizeUrlKey === 'function') return store.normalizeUrlKey(rawUrl);
+    return legacyJdUrlKey(rawUrl);
   }
 
   function mergeJdCorrections(jobMeta, corrections) {
@@ -734,7 +1036,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!key) return null;
     const data = await chrome.storage.local.get('jdCorrections');
     const store = data.jdCorrections && typeof data.jdCorrections === 'object' ? data.jdCorrections : {};
-    const entry = store[key];
+    let entry = store[key];
+    if (!entry) {
+      const legacyKey = legacyJdUrlKey(url);
+      if (legacyKey && legacyKey !== key) entry = store[legacyKey];
+    }
     return entry && typeof entry === 'object' ? entry : null;
   }
 
@@ -900,8 +1206,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       try {
         window.scrollTo(0, 0);
+        const scroller = document.querySelector('.main-scroll');
+        if (scroller) scroller.scrollTop = 0;
       } catch (error) {
-        console.warn('[JdReview] could not reset popup scroll:', error);
+        console.warn('[JdReview] could not reset panel scroll:', error);
       }
 
       renderCountdown();
@@ -980,6 +1288,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (location) resumeData.contact = swapContactLocation(resumeData.contact, prev.location, location);
   }
 
+  function setPdfContext(pageUrl, review, jobMeta) {
+    const meta = jobMeta && typeof jobMeta === 'object' ? jobMeta : {};
+    const values = (review && review.values) || {};
+    pdfContext = {
+      url: String(pageUrl || '').trim(),
+      title: String(values.title || meta.title || '').trim(),
+      company: String(values.company || meta.company || '').trim()
+    };
+  }
+
   function rebuildCoverLetter(values, resumeData) {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage({
@@ -1034,11 +1352,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const built = buildProfessionalPdf(resumeData);
       const proceed = await confirmLongResume(built.pages);
       if (!proceed) return { layout: 'pocketresume', pages: built.pages, cancelled: true };
-      savePdfDocument(built.doc, built.filename);
+      await savePdfDocument(built.doc, built.filename, { kind: 'resume' });
       return { layout: 'pocketresume', pages: built.pages };
     }
     if (window.ResumeRenderers && typeof window.ResumeRenderers.generateResumePDF === 'function') {
-      return window.ResumeRenderers.generateResumePDF(resumeData, selectedStyle, styleConfig.layout);
+      const result = window.ResumeRenderers.generateResumePDF(resumeData, selectedStyle, styleConfig.layout);
+      await pendingPdfSave;
+      return result;
     }
     throw new Error('Resume renderer module failed to load.');
   }
@@ -1111,7 +1431,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setGenerateEnabled(!busy);
   }
 
-  // Signing in happens in the Settings tab (the popup bundle has no Clerk UI).
+  // Signing in happens in the Settings tab (the panel bundle has no Clerk UI).
   function openAccountAuth(mode) {
     const next = mode === 'signUp' ? 'signUp' : 'signIn';
     chrome.storage.local.set({ openAuth: next }, () => {
@@ -1164,20 +1484,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (plans) plans.addEventListener('click', openPricing);
   }
 
-  const popupSignInBtn = document.getElementById('popupSignInBtn');
-  const popupSignUpBtn = document.getElementById('popupSignUpBtn');
+  const sidebarSignInBtn = document.getElementById('sidebarSignInBtn');
+  const sidebarSignUpBtn = document.getElementById('sidebarSignUpBtn');
   const reviewOpenSettingsBtn = document.getElementById('reviewOpenSettingsBtn');
   const planUnlockBtn = document.getElementById('planUnlockBtn');
   const planExportBtn = document.getElementById('planExportBtn');
   const setupAccountBtn = document.getElementById('setupAccountBtn');
 
-  if (popupSignInBtn) {
-    popupSignInBtn.addEventListener('click', () => openAccountAuth('signIn'));
+  if (sidebarSignInBtn) {
+    sidebarSignInBtn.addEventListener('click', () => openAccountAuth('signIn'));
   }
-  if (popupSignUpBtn) {
-    popupSignUpBtn.addEventListener('click', () => openAccountAuth('signUp'));
+  if (sidebarSignUpBtn) {
+    sidebarSignUpBtn.addEventListener('click', () => openAccountAuth('signUp'));
   }
-  if (setupAccountBtn) setupAccountBtn.addEventListener('click', () => { if (popupSignUpBtn) popupSignUpBtn.click(); });
+  if (setupAccountBtn) setupAccountBtn.addEventListener('click', () => { if (sidebarSignUpBtn) sidebarSignUpBtn.click(); });
   if (reviewOpenSettingsBtn) reviewOpenSettingsBtn.addEventListener('click', () => openSettings());
   if (planUnlockBtn) planUnlockBtn.addEventListener('click', openPricing);
   if (planExportBtn) {
@@ -1266,11 +1586,14 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const resumeData = JSON.parse(sanitizeJsonControlChars(String(response.data || '')));
         lastJobMeta = response.jobMeta || null;
+        const pageUrl = response.pageUrl || tab.url || '';
+        const pageTitle = response.pageTitle || tab.title || '';
+        const trackerTab = { ...tab, url: pageUrl, title: pageTitle };
 
         if (!letterRun) {
           playResumeLoop(async () => {
             try {
-              const review = await maybeShowJdReview(response.jobMeta, response.report, tab.url);
+              const review = await maybeShowJdReview(response.jobMeta, response.report, pageUrl);
               if (!review) {
                 setStatus('idle');
                 if (generateLabel) generateLabel.textContent = 'Generate Resume';
@@ -1278,10 +1601,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
               }
               if (review.values) applyJdOverrides(resumeData, review.values, response.jobMeta || {});
-              if (!review.skipped) await saveJdCorrections(tab.url, response.jobMeta || {}, review.values);
+              if (!review.skipped) await saveJdCorrections(pageUrl, response.jobMeta || {}, review.values);
+              setPdfContext(pageUrl, review, response.jobMeta);
 
               if (trackerCaptureEnabled && tab) {
-                saveApplicationToTracker(resumeData, tab, selectedResumeId, selectedStyle);
+                saveApplicationToTracker(resumeData, trackerTab, selectedResumeId, selectedStyle);
               }
 
               if (response.coverLetterData) {
@@ -1316,17 +1640,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playCoverLetterLoop(async () => {
           try {
-            const review = await maybeShowJdReview(response.jobMeta, response.report, tab.url);
+            const review = await maybeShowJdReview(response.jobMeta, response.report, pageUrl);
             if (!review) {
               setLetterStatus('idle');
               setGenerateEnabled(true);
               return;
             }
             if (review.values) applyJdOverrides(resumeData, review.values, response.jobMeta || {});
-            if (!review.skipped) await saveJdCorrections(tab.url, response.jobMeta || {}, review.values);
+            if (!review.skipped) await saveJdCorrections(pageUrl, response.jobMeta || {}, review.values);
+            setPdfContext(pageUrl, review, response.jobMeta);
 
             if (trackerCaptureEnabled && tab) {
-              saveApplicationToTracker(resumeData, tab, selectedResumeId, selectedStyle);
+              saveApplicationToTracker(resumeData, trackerTab, selectedResumeId, selectedStyle);
             }
 
             if (response.coverLetterData) {
@@ -1406,42 +1731,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (fillProfileCard) fillProfileCard.style.display = '';
   }
 
-  function fieldTypeLabel(tag) {
-    const value = String(tag || '').toLowerCase();
-    if (value === 'select') return 'dropdown';
-    if (value === 'radio' || value === 'checkbox-group') return 'choice';
-    if (value === 'checkbox') return 'checkbox';
-    return 'text';
-  }
-
   function renderFillResult(response) {
     hideFillCards();
     if (!fillResultCard) return;
     const filled = Number(response?.filled) || 0;
     const total = Number(response?.total) || 0;
     const unanswered = Array.isArray(response?.unresolved) ? response.unresolved : [];
-    lastFillUnanswered = unanswered;
     if (fillResultTitle) {
       fillResultTitle.textContent = total ? `Filled ${filled} of ${total} fields` : 'No fields to fill';
     }
     if (fillResultText) {
       fillResultText.textContent = total
-        ? (unanswered.length === 1
-          ? '1 question had no saved answer. It is highlighted on the page.'
-          : unanswered.length
-            ? `${unanswered.length} questions had no saved answer. They are highlighted on the page.`
-            : 'Every empty field had a saved answer.')
+        ? 'Every empty field PocketResume knew the answer to was filled.'
         : 'No empty application fields were found on this page.';
     }
-    if (fillUnansweredList) {
-      fillUnansweredList.innerHTML = '';
-      for (const item of unanswered) {
-        const li = document.createElement('li');
-        li.textContent = item.question ? item.question : 'Untitled question';
-        fillUnansweredList.appendChild(li);
+    if (fillManualCount) {
+      if (unanswered.length) {
+        fillManualCount.textContent = `${unanswered.length} field${unanswered.length === 1 ? '' : 's'} need${unanswered.length === 1 ? 's' : ''} you`;
+        fillManualCount.style.display = '';
+      } else {
+        fillManualCount.style.display = 'none';
       }
     }
-    if (fillCopyRow) fillCopyRow.style.display = unanswered.length ? '' : 'none';
     fillResultCard.style.display = '';
   }
 
@@ -1536,22 +1847,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (fillCopyBtn) {
-    fillCopyBtn.addEventListener('click', async () => {
-      const lines = lastFillUnanswered.map((item, index) =>
-        `${index + 1}. "${item.question || 'Untitled question'}" (${fieldTypeLabel(item.tag)})`);
-      const text = lines.join('\n');
-      try {
-        await navigator.clipboard.writeText(text);
-        const original = fillCopyBtn.innerHTML;
-        fillCopyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Copied!</span>';
-        setTimeout(() => { fillCopyBtn.innerHTML = original; }, 1500);
-      } catch (error) {
-        console.warn('[Popup] Copy failed:', error);
-      }
-    });
-  }
-
   // --- NEW badge on Job Tracker (permanently dismissed after first hover) ---
   const trackerNewBadge = document.getElementById('trackerNewBadge');
   chrome.storage.local.get('trackerNewBadgeDismissed', (data) => {
@@ -1607,14 +1902,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.11.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.11.0';
-
-  function startProfileSetup() {
-    chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
-      chrome.runtime.openOptionsPage();
-    });
-  }
+  const ANNOUNCEMENT_VERSION = '10.12.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.12.0';
 
   function dismissWhatsNew() {
     chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_SEEN_VALUE });
@@ -1631,7 +1920,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (whatsNewPlansBtn) {
     whatsNewPlansBtn.addEventListener('click', () => {
       dismissWhatsNew();
-      startProfileSetup();
+      openSettings();
     });
   }
 
@@ -2432,7 +2721,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Save
     const clFilename = `CoverLetter_${(data.applicant_name || 'Generated').replace(/\s+/g, '_')}.pdf`;
-    savePdfDocument(doc, clFilename);
+    savePdfDocument(doc, clFilename, { kind: 'cover-letter' });
   }
 
   // --- Growth Prompts (Rating & Share) ---
@@ -2610,6 +2899,13 @@ document.addEventListener('DOMContentLoaded', () => {
   refreshGate().then((state) => {
     maybeShowAccessReminder(state.access);
     updateAccountButton();
+  });
+
+  setupFiles();
+  refreshActivePage();
+  chrome.tabs.onActivated.addListener(() => refreshActivePage());
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo && changeInfo.status === 'complete') refreshActivePage();
   });
 
   setTimeout(maybeShowPrompts, 400);

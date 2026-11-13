@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const animationsToggle = document.getElementById('animationsToggle');
   const animationsPill = document.getElementById('animationsPill');
   const jdReviewToggle = document.getElementById('jdReviewToggle');
+  const downloadOnGenerateToggle = document.getElementById('downloadOnGenerateToggle');
 
   let resumes = [];
   let activeTabIndex = 0;
@@ -447,6 +448,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       jdReviewToggle.checked = data.jdReviewDisabled !== true;
       syncToggleState(jdReviewToggle);
     }
+    if (downloadOnGenerateToggle) {
+      downloadOnGenerateToggle.checked = data.downloadOnGenerate === true;
+      syncToggleState(downloadOnGenerateToggle);
+    }
   }
 
   let coverLetterSaveTimer = null;
@@ -753,6 +758,14 @@ My resume:
     jdReviewToggle.addEventListener('change', () => {
       syncToggleState(jdReviewToggle);
       chrome.storage.local.set({ jdReviewDisabled: !jdReviewToggle.checked });
+    });
+  }
+
+  if (downloadOnGenerateToggle) {
+    syncToggleState(downloadOnGenerateToggle);
+    downloadOnGenerateToggle.addEventListener('change', () => {
+      syncToggleState(downloadOnGenerateToggle);
+      chrome.storage.local.set({ downloadOnGenerate: downloadOnGenerateToggle.checked });
     });
   }
 
@@ -1066,7 +1079,8 @@ My resume:
   const data = await chrome.storage.local.get([
     'resumes', 'userProfile', 'resumeType', 'resumeLayout', 'selectedResumeId', 'onboarding',
     'universalCoverLetter', 'applicationProfile',
-    'pendingExtract', 'openCoverLetterSection', 'animationsEnabled', 'jdReviewDisabled'
+    'pendingExtract', 'openCoverLetterSection', 'animationsEnabled', 'jdReviewDisabled',
+    'downloadOnGenerate'
   ]);
 
   if (data.resumes && data.resumes.length > 0) {
@@ -2134,7 +2148,7 @@ My resume:
     {
       target: '#save',
       title: 'Save Settings',
-      body: 'Click Save Settings. Then open the popup on a job posting and generate a tailored resume.'
+      body: 'Click Save Settings. Then open the side panel on a job posting and generate a tailored resume.'
     }
   ];
 
@@ -2225,7 +2239,7 @@ My resume:
       tourTitle.textContent = tourMode === 'profile' ? 'Form Filler is ready' : "You're all set";
       tourBody.textContent = tourMode === 'profile'
         ? 'Click Save Settings to keep your answers. Fill Form will start from them on every application.'
-        : 'Open the PocketResume popup and click Generate PDF Resume.';
+        : 'Open the PocketResume side panel and click Generate PDF Resume.';
       tourHint.style.display = 'none';
       tourBackBtn.style.visibility = 'hidden';
       tourNextBtn.textContent = 'Done';
