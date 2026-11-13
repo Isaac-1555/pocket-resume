@@ -117,6 +117,8 @@ Exclude: `node_modules/`, `dist/`, `.git`, `.github/`, `convex/`, `scripts/`, `s
 
 `scripts/build-zip.mjs` (`npm run build:zip`) owns that list, reads the version from `manifest.json`, fails loudly if a runtime file is missing (e.g. you forgot `npm run build:clerk`), and prints the archive contents. Prefer it over zipping by hand — the file list has to match the `manifest.json` script graph, and a zip missing `cloud-sync-core.js` kills the service worker on boot.
 
+`store-assets/permissions.md` holds the Chrome Web Store permission justifications for `sidePanel` and `unlimitedStorage`: a short paste-ready block per permission plus the code evidence (file:line) a reviewer can check. **Update it when the manifest permissions, the shelf or the storage limits change** — the line references are the point of it. The privacy policy's *Permissions* section carries the same wording in user-facing form.
+
 ## High-level architecture
 
 ### Resume form + local parser (v10.0)

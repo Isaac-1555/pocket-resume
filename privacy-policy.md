@@ -82,8 +82,8 @@ Pocket Resume requests only the permissions necessary for core functionality:
 
 * **Active Tab**: To read the job posting in the tab you are generating for, and to fill an application form in the tab you are filling
 * **Storage**: To save your resume profiles, Form Filler answers, preferences, tracker cards, and generated documents locally
-* **Unlimited Storage**: So the PDFs kept in the side panel are not capped by the default local storage quota
-* **Side Panel**: To open PocketResume next to the page instead of in a popup that closes when you look away
+* **Unlimited Storage**: The default `chrome.storage.local` quota is 10 MB. A generated PDF can be up to 25 MB and the panel keeps the files for the posting you are on, so without this permission a larger PDF would fail to save and be lost. The stored bytes never leave your device — they are read back only by the extension, replaced when you generate for a different posting, and deleted when you delete a file, clear the shelf, or uninstall the extension
+* **Side Panel**: The whole workflow happens next to the page — read the posting, correct the job details, generate, and drag the finished PDF onto an application form. A popup closes the moment you click the page, so the panel has to stay open while you work. The panel is the extension's own page; it grants no access to other pages
 * **Scripting**: To extract text content from the job posting page when the content script is not already present, and to fill application form fields on the page you ask it to fill
 * **Alarms**: To schedule the daily skill-vocabulary check; no browsing data is read
 * **Downloads**: To save generated resume and cover-letter PDFs to your computer when you turn on *Download too*
