@@ -62,7 +62,13 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ## Installation
 
-Not on the Chrome Web Store — load unpacked:
+Install from the Chrome Web Store:
+
+> https://chromewebstore.google.com/detail/pocketresume/mdplmgfkpgalajmchilemiamifoaneip
+
+It also runs in other Chromium browsers (Edge, Brave, Arc).
+
+### Install from source
 
 ```bash
 git clone https://github.com/Isaac-1555/pocket-resume.git
