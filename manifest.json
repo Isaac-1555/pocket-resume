@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PocketResume",
   "version": "10.13.0",
-  "description": "Tailor your resume to any job posting on-device. No API key, no quota, no rate limit.",
+  "description": "Tailor your resume to any job posting on-device.",
   "minimum_chrome_version": "114",
   "permissions": [
     "storage",
