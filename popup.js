@@ -46,6 +46,26 @@ document.addEventListener('DOMContentLoaded', () => {
   const offlineLetterNote = document.getElementById('offlineLetterNote');
   const offlineLetterNoteText = document.getElementById('offlineLetterNoteText');
   const offlineLetterSettingsBtn = document.getElementById('offlineLetterSettingsBtn');
+  const jdReviewModal = document.getElementById('jdReviewModal');
+  const jdReviewBackdrop = document.getElementById('jdReviewBackdrop');
+  const jdReviewTitleInput = document.getElementById('jdTitleInput');
+  const jdReviewCompanyInput = document.getElementById('jdCompanyInput');
+  const jdReviewLocationInput = document.getElementById('jdLocationInput');
+  const jdReviewRecipientInput = document.getElementById('jdRecipientInput');
+  const jdReviewChips = document.getElementById('jdKeywordChips');
+  const jdReviewEmptyHint = document.getElementById('jdReviewEmptyHint');
+  const jdReviewCountdown = document.getElementById('jdReviewCountdown');
+  const jdReviewSkipCheck = document.getElementById('jdReviewSkipCheck');
+  const jdReviewApplyBtn = document.getElementById('jdReviewApplyBtn');
+  const jdReviewCancelBtn = document.getElementById('jdReviewCancelBtn');
+
+  const JD_REVIEW_TIMEOUT_MS = 30000;
+  const JD_DETAIL_FIELDS = ['title', 'company', 'location', 'recruiterName'];
+  const JD_CORRECTIONS_LIMIT = 10;
+  const JD_TRACKING_PARAMS = [
+    'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+    'gh_src', 'ref', 'source', 'fbclid', 'gclid'
+  ];
 
   let universalCoverLetter = null;
   let lastJobMeta = null;
@@ -664,6 +684,335 @@ document.addEventListener('DOMContentLoaded', () => {
     return showResumeFitWarning(pages);
   }
 
+  function jdUrlKey(rawUrl) {
+    const value = String(rawUrl || '').trim();
+    if (!value) return '';
+    try {
+      const url = new URL(value);
+      const params = new URLSearchParams(url.search);
+      JD_TRACKING_PARAMS.forEach((name) => params.delete(name));
+      url.search = params.toString();
+      url.hash = '';
+      return `${url.origin.toLowerCase()}${url.pathname}${url.search ? `?${url.search}` : ''}`;
+    } catch {
+      return value.toLowerCase();
+    }
+  }
+
+  function mergeJdCorrections(jobMeta, corrections) {
+    const meta = jobMeta && typeof jobMeta === 'object' ? jobMeta : {};
+    const values = {};
+    JD_DETAIL_FIELDS.forEach((field) => {
+      const base = String(meta[field] || '').trim();
+      if (corrections && Object.prototype.hasOwnProperty.call(corrections, field)) {
+        values[field] = String(corrections[field] || '').trim();
+        return;
+      }
+      values[field] = base;
+    });
+    return values;
+  }
+
+  async function readJdCorrections(url) {
+    const key = jdUrlKey(url);
+    if (!key) return null;
+    const data = await chrome.storage.local.get('jdCorrections');
+    const store = data.jdCorrections && typeof data.jdCorrections === 'object' ? data.jdCorrections : {};
+    const entry = store[key];
+    return entry && typeof entry === 'object' ? entry : null;
+  }
+
+  async function saveJdCorrections(url, extracted, values) {
+    const key = jdUrlKey(url);
+    if (!key || !values) return;
+    const base = extracted && typeof extracted === 'object' ? extracted : {};
+    const delta = {};
+    JD_DETAIL_FIELDS.forEach((field) => {
+      const before = String(base[field] || '').trim();
+      const after = String(values[field] || '').trim();
+      if (after !== before) delta[field] = after;
+    });
+
+    const data = await chrome.storage.local.get('jdCorrections');
+    const store = data.jdCorrections && typeof data.jdCorrections === 'object' ? { ...data.jdCorrections } : {};
+    if (!Object.keys(delta).length) {
+      if (!(key in store)) return;
+      delete store[key];
+    } else {
+      store[key] = { ...delta, updatedAt: Date.now() };
+    }
+
+    const pruned = {};
+    Object.entries(store)
+      .sort((a, b) => (Number(b[1] && b[1].updatedAt) || 0) - (Number(a[1] && a[1].updatedAt) || 0))
+      .slice(0, JD_CORRECTIONS_LIMIT)
+      .forEach(([entryKey, entryValue]) => { pruned[entryKey] = entryValue; });
+    await chrome.storage.local.set({ jdCorrections: pruned });
+  }
+
+  function jdReviewChipsFromReport(report) {
+    const chips = [];
+    const seen = new Set();
+    const push = (name, added) => {
+      const label = String(name || '').trim();
+      const key = label.toLowerCase();
+      if (!label || seen.has(key)) return;
+      seen.add(key);
+      chips.push({ label, added });
+    };
+    const list = report && typeof report === 'object' ? report : {};
+    (Array.isArray(list.matched) ? list.matched : []).forEach((name) => push(name, false));
+    (Array.isArray(list.skillsAdded) ? list.skillsAdded : []).forEach((name) => push(name, true));
+    (Array.isArray(list.skillsAddedUnverified) ? list.skillsAddedUnverified : []).forEach((name) => push(name, true));
+    return chips.slice(0, 16);
+  }
+
+  function showJdReview(jobMeta, report, prefill) {
+    return new Promise((resolve) => {
+      if (!jdReviewModal) {
+        resolve({ values: null, changed: false });
+        return;
+      }
+      const meta = jobMeta && typeof jobMeta === 'object' ? jobMeta : {};
+      const extracted = {
+        title: String(meta.title || '').trim(),
+        company: String(meta.company || '').trim(),
+        location: String(meta.location || '').trim(),
+        recruiterName: String(meta.recruiterName || '').trim()
+      };
+      const filled = prefill && typeof prefill === 'object'
+        ? {
+          title: String(prefill.title !== undefined ? prefill.title : extracted.title).trim(),
+          company: String(prefill.company !== undefined ? prefill.company : extracted.company).trim(),
+          location: String(prefill.location !== undefined ? prefill.location : extracted.location).trim(),
+          recruiterName: String(prefill.recruiterName !== undefined ? prefill.recruiterName : extracted.recruiterName).trim()
+        }
+        : extracted;
+
+      if (jdReviewTitleInput) jdReviewTitleInput.value = filled.title;
+      if (jdReviewCompanyInput) jdReviewCompanyInput.value = filled.company;
+      if (jdReviewLocationInput) jdReviewLocationInput.value = filled.location;
+      if (jdReviewRecipientInput) jdReviewRecipientInput.value = filled.recruiterName;
+      if (jdReviewSkipCheck) jdReviewSkipCheck.checked = false;
+
+      if (jdReviewChips) {
+        jdReviewChips.textContent = '';
+        jdReviewChipsFromReport(report).forEach((chip) => {
+          const tag = document.createElement('span');
+          tag.className = chip.added ? 'jd-chip added' : 'jd-chip';
+          tag.textContent = chip.added ? `+ ${chip.label}` : chip.label;
+          jdReviewChips.appendChild(tag);
+        });
+      }
+
+      const nothingFound = !filled.title && !filled.company && !filled.location && !filled.recruiterName;
+      if (jdReviewEmptyHint) jdReviewEmptyHint.style.display = nothingFound ? 'block' : 'none';
+
+      let remaining = Math.ceil(JD_REVIEW_TIMEOUT_MS / 1000);
+      let timer = null;
+      let settled = false;
+
+      const readValues = () => ({
+        title: (jdReviewTitleInput?.value || '').trim(),
+        company: (jdReviewCompanyInput?.value || '').trim(),
+        location: (jdReviewLocationInput?.value || '').trim(),
+        recruiterName: (jdReviewRecipientInput?.value || '').trim()
+      });
+
+      const stopTimer = () => {
+        if (!timer) return;
+        clearInterval(timer);
+        timer = null;
+      };
+
+      const renderCountdown = () => {
+        if (!jdReviewCountdown) return;
+        jdReviewCountdown.textContent = remaining > 0 ? `Auto-saving in ${remaining}s` : 'Saving…';
+      };
+
+      const cleanup = () => {
+        stopTimer();
+        document.removeEventListener('keydown', onKeyDown, true);
+        jdReviewModal.style.display = 'none';
+      };
+
+      const finish = (proceed) => {
+        if (settled) return;
+        settled = true;
+        const values = readValues();
+        cleanup();
+        if (!proceed) {
+          resolve(null);
+          return;
+        }
+        if (jdReviewSkipCheck && jdReviewSkipCheck.checked) {
+          chrome.storage.local.set({ jdReviewDisabled: true });
+        }
+        const changed = ['title', 'company', 'location', 'recruiterName']
+          .some((key) => values[key] !== extracted[key]);
+        resolve({ values, changed });
+      };
+
+      const onKeyDown = (event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          finish(false);
+          return;
+        }
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          finish(true);
+        }
+      };
+
+      const stopTimerOnEdit = () => {
+        if (!timer) return;
+        stopTimer();
+        if (jdReviewCountdown) jdReviewCountdown.textContent = 'Timer stopped — check your edits, then save.';
+      };
+
+      [jdReviewTitleInput, jdReviewCompanyInput, jdReviewLocationInput, jdReviewRecipientInput].forEach((input) => {
+        if (!input) return;
+        input.addEventListener('input', stopTimerOnEdit, { once: true });
+      });
+
+      if (jdReviewApplyBtn) jdReviewApplyBtn.onclick = () => finish(true);
+      if (jdReviewCancelBtn) jdReviewCancelBtn.onclick = () => finish(false);
+      if (jdReviewBackdrop) jdReviewBackdrop.onclick = () => finish(false);
+
+      document.addEventListener('keydown', onKeyDown, true);
+
+      try {
+        window.scrollTo(0, 0);
+      } catch (error) {
+        console.warn('[JdReview] could not reset popup scroll:', error);
+      }
+
+      renderCountdown();
+      jdReviewModal.style.display = 'flex';
+      timer = setInterval(() => {
+        remaining -= 1;
+        renderCountdown();
+        if (remaining <= 0) {
+          stopTimer();
+          finish(true);
+        }
+      }, 1000);
+
+      if (jdReviewTitleInput) jdReviewTitleInput.focus();
+    });
+  }
+
+  async function maybeShowJdReview(jobMeta, report, url) {
+    const [data, corrections] = await Promise.all([
+      chrome.storage.local.get('jdReviewDisabled'),
+      readJdCorrections(url)
+    ]);
+    const values = mergeJdCorrections(jobMeta, corrections);
+    const hasCorrections = JD_DETAIL_FIELDS.some((field) => (
+      corrections && Object.prototype.hasOwnProperty.call(corrections, field)
+    ));
+    if (data.jdReviewDisabled === true) {
+      return { values, changed: hasCorrections, skipped: true };
+    }
+    return showJdReview(jobMeta, report, values);
+  }
+
+  function swapContactLocation(contact, oldLocation, newLocation) {
+    const segments = String(contact || '').split('|').map((part) => part.trim()).filter(Boolean);
+    if (!segments.length) return String(contact || '');
+    const oldValue = String(oldLocation || '').trim();
+    const newValue = String(newLocation || '').trim();
+    if (oldValue) {
+      const index = segments.indexOf(oldValue);
+      if (index >= 0) {
+        if (!newValue) {
+          segments.splice(index, 1);
+          return segments.join(' | ');
+        }
+        segments[index] = newValue;
+        return segments.join(' | ');
+      }
+    }
+    if (!newValue) return segments.join(' | ');
+    return [newValue, ...segments].join(' | ');
+  }
+
+  function applyJdOverrides(resumeData, values, previousMeta) {
+    if (!resumeData || !values) return;
+    const prev = previousMeta && typeof previousMeta === 'object' ? previousMeta : {};
+
+    const apply = (key, next, previous, extraKey) => {
+      const value = String(next || '').trim();
+      if (value) {
+        resumeData[key] = value;
+        if (extraKey) resumeData[extraKey] = value;
+        return;
+      }
+      const previousValue = String(previous || '').trim();
+      if (!previousValue) return;
+      if (String(resumeData[key] || '').trim() === previousValue) resumeData[key] = '';
+      if (extraKey && String(resumeData[extraKey] || '').trim() === previousValue) resumeData[extraKey] = '';
+    };
+
+    apply('position', values.title, prev.title, 'subtitle');
+    apply('company', values.company, prev.company);
+    apply('location', values.location, prev.location);
+    apply('recruiterName', values.recruiterName, prev.recruiterName);
+
+    const location = String(values.location || '').trim();
+    if (location) resumeData.contact = swapContactLocation(resumeData.contact, prev.location, location);
+  }
+
+  function rebuildCoverLetter(values, resumeData) {
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({
+        type: 'BUILD_COVER_LETTER',
+        payload: {
+          resumeId: selectedResumeId,
+          company: values.company,
+          role: values.title,
+          recipientName: values.recruiterName,
+          applicantName: resumeData?.name || '',
+          applicantContact: resumeData?.contact || ''
+        }
+      }, (response) => {
+        if (chrome.runtime.lastError || !response || response.status !== 'success') {
+          console.warn('[JdReview] cover letter rebuild failed:', chrome.runtime.lastError?.message || response?.message || 'unknown');
+          resolve(null);
+          return;
+        }
+        resolve(response.data || null);
+      });
+    });
+  }
+
+  async function coverLetterPayload(review, resumeData, existingData) {
+    let data = existingData || null;
+    if (review && review.changed && review.values) {
+      const rebuilt = await rebuildCoverLetter(review.values, resumeData);
+      if (rebuilt) data = rebuilt;
+    }
+    if (!data) return null;
+    try {
+      return JSON.parse(sanitizeJsonControlChars(String(data)));
+    } catch (error) {
+      console.warn('[JdReview] could not parse cover letter payload:', error);
+      return null;
+    }
+  }
+
+  window.PocketResumeJdReview = {
+    show: showJdReview,
+    maybe: maybeShowJdReview,
+    apply: applyJdOverrides,
+    swap: swapContactLocation,
+    merge: mergeJdCorrections,
+    read: readJdCorrections,
+    save: saveJdCorrections,
+    key: jdUrlKey
+  };
+
   async function renderResumePdf(resumeData, selectedStyle, styleConfig) {
     if (styleConfig.layout === 'pocketresume') {
       const built = buildProfessionalPdf(resumeData);
@@ -901,18 +1250,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const resumeData = JSON.parse(sanitizeJsonControlChars(String(response.data || '')));
         lastJobMeta = response.jobMeta || null;
 
-        if (trackerCaptureEnabled && tab) {
-          saveApplicationToTracker(resumeData, tab, selectedResumeId, selectedStyle);
-        }
-
         if (!letterRun) {
-          if (response.coverLetterData) {
-            const coverParsed = JSON.parse(sanitizeJsonControlChars(String(response.coverLetterData)));
-            generateCoverLetterPDF(coverParsed);
-            setOfflineLetterNote(false);
-          }
           playResumeLoop(async () => {
             try {
+              const review = await maybeShowJdReview(response.jobMeta, response.report, tab.url);
+              if (!review) {
+                setStatus('idle');
+                if (generateLabel) generateLabel.textContent = 'Generate Resume';
+                setGenerateEnabled(true);
+                return;
+              }
+              if (review.values) applyJdOverrides(resumeData, review.values, response.jobMeta || {});
+              if (!review.skipped) await saveJdCorrections(tab.url, response.jobMeta || {}, review.values);
+
+              if (trackerCaptureEnabled && tab) {
+                saveApplicationToTracker(resumeData, tab, selectedResumeId, selectedStyle);
+              }
+
+              if (response.coverLetterData) {
+                const coverParsed = await coverLetterPayload(review, resumeData, response.coverLetterData);
+                if (coverParsed) {
+                  generateCoverLetterPDF(coverParsed);
+                  setOfflineLetterNote(false);
+                }
+              }
               const layoutResult = await renderResumePdf(resumeData, selectedStyle, styleConfig);
               if (layoutResult && layoutResult.cancelled) {
                 setStatus('idle');
@@ -938,10 +1299,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playCoverLetterLoop(async () => {
           try {
+            const review = await maybeShowJdReview(response.jobMeta, response.report, tab.url);
+            if (!review) {
+              setLetterStatus('idle');
+              setGenerateEnabled(true);
+              return;
+            }
+            if (review.values) applyJdOverrides(resumeData, review.values, response.jobMeta || {});
+            if (!review.skipped) await saveJdCorrections(tab.url, response.jobMeta || {}, review.values);
+
+            if (trackerCaptureEnabled && tab) {
+              saveApplicationToTracker(resumeData, tab, selectedResumeId, selectedStyle);
+            }
+
             if (response.coverLetterData) {
-              const coverParsed = JSON.parse(sanitizeJsonControlChars(String(response.coverLetterData)));
-              generateCoverLetterPDF(coverParsed);
-              setOfflineLetterNote(false);
+              const coverParsed = await coverLetterPayload(review, resumeData, response.coverLetterData);
+              if (coverParsed) {
+                generateCoverLetterPDF(coverParsed);
+                setOfflineLetterNote(false);
+              }
             } else {
               const data = await chrome.storage.local.get(['resumes', 'universalCoverLetter']);
               universalCoverLetter = data.universalCoverLetter || null;
@@ -1040,8 +1416,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.8.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.8.0';
+  const ANNOUNCEMENT_VERSION = '10.10.1';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.10.1';
 
   function startProfileSetup() {
     chrome.storage.local.set({ appProfileOnboarding: { active: true } }, () => {
@@ -1920,7 +2296,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function isOverlayVisible() {
     const whatsNew = document.getElementById('whatsNewModal');
     return (whatsNew && whatsNew.style.display === 'flex') ||
-      (errorModal && errorModal.style.display === 'flex');
+      (errorModal && errorModal.style.display === 'flex') ||
+      (jdReviewModal && jdReviewModal.style.display === 'flex');
   }
 
   function maybeShowPrompts() {

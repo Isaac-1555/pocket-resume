@@ -338,6 +338,8 @@ async function main() {
         await page.waitForSelector('#resumeHealthDetails', { timeout: 20000 });
         await page.waitForTimeout(1800);
         await page.evaluate(() => { const s = document.getElementById('statusOverlay'); if (s) s.style.display = 'none'; });
+        await page.locator('#rfShowPaste').click({ timeout: 3000 }).catch(() => {});
+        await page.waitForTimeout(200);
         await page.fill('#rfPasteInput', masterResumeText);
         await page.evaluate(() => { const t = document.getElementById('rfPasteInput'); if (t) { t.scrollTop = 0; t.blur(); } });
         await page.waitForTimeout(300);

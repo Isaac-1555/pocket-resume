@@ -126,6 +126,7 @@ Exclude: `node_modules/`, `dist/`, `.git`, `.github/`, `convex/`, `scripts/`, `s
 4. **Save Settings**: `saveCurrentTabToState()` serializes each `_draft` with `serializeProfile()` (normalizes, recomposes `contact` from email/phone/location/links) into `resumes[].jsonContent`, then `getSettingsPayload()` persists.
 5. **Migration**: on load, any resume with `content` but no `jsonContent` is parsed, stored, and flagged `parseReview`. The form shows a review banner with a **Looks right — confirm** button; confirming clears `parseReview` and sets `parseConfirmedAt`.
 6. **JSON is hidden** from the main UI. Advanced → JSON shows the serialized profile plus Copy / Apply / Refresh.
+7. **The parser card is conditional** (v10.9). `renderTabContent` only emits the paste card (`#rfPasteInput` / `#rfParseBtn`) when the draft is empty — `draftHasContent(profile)` in `options.js` treats name, subtitle, email, phone, location, summary, links, skills, experience, projects, education or certifications as content. With content present, the card is replaced by a `#rfShowPaste` link ("Paste / import an existing resume") that sets the module-level `pasteRevealed` flag and re-renders. Parsing resets the flag, so the card hides again once the form is filled. Switching or adding a resume tab resets it too. The setup tour targets `#rfPasteInput` / `#rfParseBtn`, so `renderTourStep` force-reveals the card when those steps are reached (`PASTE_TOUR_TARGETS`) — otherwise the step is silently skipped.
 
 ### Generation pipeline (main user flow, v10.0 — deterministic)
 
@@ -139,8 +140,34 @@ Exclude: `node_modules/`, `dist/`, `.git`, `.github/`, `convex/`, `scripts/`, `s
    - `parseJobPosting(...)` → `alignResumeJson(profile, jd, { lexicon, styleConfig })`.
    - When `output !== 'resume'`, builds the letter from the selected resume's `coverLetter` (legacy fallback: `universalCoverLetter`) via `buildCoverLetterFromTemplate(...)`.
    - Replies `{ status: 'success', data, coverLetterData, coverLetterStatus, report, jobMeta }`.
-5. Popup parses `data`, always calls `saveApplicationToTracker(...)`, then renders the PDF (`generatePDF` / `resume-renderers.js`) unless `output === 'cover-letter'`, and the letter when requested. Both save through `chrome.downloads`.
+5. Popup parses `data`, then opens the **job details review** (below), then calls `saveApplicationToTracker(...)`, then renders the PDF (`generatePDF` / `resume-renderers.js`) unless `output === 'cover-letter'`, and the letter when requested. Both save through `chrome.downloads`.
 6. Errors/statuses (`signin_required`, `plan_required`, `review_required`, `needs_resume`, `needs_json`) re-render the gate cards; everything else goes through `setError` → `#errorModal`.
+
+### Job details review (v10.10)
+
+After the align finishes and **before** anything is written to disk, the popup opens `#jdReviewModal` with the JD fields it extracted: job title, company, location, recipient (`popup.js` → `showJdReview(jobMeta, report)`). The dialog is editable, so a wrong company can be fixed on the fly.
+
+- **Four editable inputs**: `#jdTitleInput`, `#jdCompanyInput`, `#jdLocationInput`, `#jdRecipientInput`. `#jdKeywordChips` shows the keywords matched from the posting read-only (`report.matched`), with the skills added to the resume marked `+` (`report.skillsAdded`, `report.skillsAddedUnverified`).
+- **30-second auto-save**: the countdown starts when the dialog opens. The first keystroke in any field **stops the timer completely** (`stopTimerOnEdit`), so an edit is never overwritten. On timeout the dialog saves with whatever is in the fields. Cancel / Esc / backdrop resolves `null` → the run aborts: no PDF, no tracker entry.
+- **Edits flow downstream**: `applyJdOverrides(resumeData, values, previousMeta)` patches `position` + `subtitle` (title), `company`, `location` (+ the contact line, via `swapContactLocation`), and `recruiterName` on the aligned resume, so the PDF header, the contact line and the tracker entry all use the corrected values. An emptied field only clears the resume when it still holds the previously extracted value, so the user's own headline is never wiped.
+- **Cover letter re-render**: the letter is rebuilt through the existing `BUILD_COVER_LETTER` background message with `{ company, role, recipientName, applicantName, applicantContact }` — the template logic stays in `resume-align.js` (`buildCoverLetterFromTemplate`), never duplicated in the popup. If the rebuild fails, the original letter is kept.
+- **Order inside the loops**: the review runs inside the `playResumeLoop` / `playCoverLetterLoop` callback, before `renderResumePdf` / `generateCoverLetterPDF`. The status channel stays `generating` while the dialog is open and flips to `success` only after the file is saved.
+- **Opt out**: `jdReviewDisabled` (boolean, default false). The dialog's *Don't ask again* checkbox sets it; Settings → Interface → *Review extracted job details* writes `jdReviewDisabled: !checked` and brings it back.
+- **Remembered corrections (v10.10.1)**: `jdCorrections` maps a **posting URL key** to the fields the user edited there: `{ "<urlKey>": { title?, company?, location?, recruiterName?, updatedAt } }`. The key is `origin + path + query` with tracking params stripped (`utm_*`, `gh_src`, `ref`, `source`, `fbclid`, `gclid`) and the hash dropped (`jdUrlKey` in `popup.js`). Only edited fields are stored, so untouched fields keep coming from the live extraction. `saveJdCorrections(url, extracted, values)` measures the delta against the **fresh extraction** (not against the pre-filled values), so a carried-over correction is never dropped as "unchanged"; an empty delta deletes the entry. Capped at the 10 most recent postings. `maybeShowJdReview(jobMeta, report, url)` merges the corrections over the extraction (`mergeJdCorrections`) and pre-fills the dialog with the result; the `changed` flag still compares against the fresh extraction, so a carried-over fix re-renders the letter and patches the resume. With the dialog disabled the merged values are still returned and applied, so the correction reaches the PDF even when no dialog opens.
+
+### Popup status channels (v10.9)
+
+The popup runs **three independent** status channels, each a body attribute that drives the glow layer in `popup.html`:
+
+| attribute | writer | states |
+| --- | --- | --- |
+| `body[data-status]` | `setStatus()` (resume path) | `idle` / `generating` / `success` / `failure` |
+| `body[data-fill-status]` | `setFillStatus()` (form filler) | `filling` / `fill-success` / `fill-failure` |
+| `body[data-letter-status]` | `setLetterStatus()` (cover letter) | `generating` / `success` / `failure` |
+
+**Every channel needs its own CSS rules.** `popup.html` maps each attribute to `--glow-c` / `--line-c` / `--wash-o` and to the `glowPulse` / `glowSettle` / `linePulse` animations plus the `.glow-bloom` / `.glow-line` opacity. A new channel that writes only the attribute gets no glow at all — that is how the cover letter path used to lose its green glow. Keep the three channels separate so a resume run and a letter run never fight over the same colors.
+
+The options page has its own, simpler channel: `showStatus(text, type, autoHideMs, { blocking })` sets `body[data-status]` to `loading` / `success` / `error` and drives `body::before`. `blocking: true` (the default) dims and freezes the page behind the overlay; pass `{ blocking: false }` for long provider calls that should not lock the page.
 
 ### Onboarding flow (v10.0)
 
@@ -173,12 +200,12 @@ Settings → **Cover letter** edits the **active resume tab's** letter (`resume.
 
 Two write paths:
 
-- **Generate letter** — sends `BUILD_AI_COVER_LETTER` (`{ resumeId }`) to the background, which calls `generateCoverLetterBody(jsonContent)` in `resume-letter.js`. Same provider chain as Resume Health: Pollinations (`https://text.pollinations.ai/openai`, no key, `reasoning_effort: low`) first, local Ollama (`http://localhost:11434/v1/chat/completions`, `llama3.2`) as the fallback. Contact details are redacted with `redactProfile`. Prompt asks for a general body only: 120–160 words, 3 short paragraphs, no greeting/date/sign-off, `{{company}}` and `{{role}}` kept for generation-time fill, no invented facts. The previous letter is kept if every provider fails.
+- **Generate letter** — sends `BUILD_AI_COVER_LETTER` (`{ resumeId }`) to the background, which calls `generateCoverLetterBody(jsonContent)` in `resume-letter.js`. Same provider chain as Resume Health: Pollinations (`https://text.pollinations.ai/openai`, no key, `reasoning_effort: low`) first, local Ollama (`http://localhost:11434/v1/chat/completions`, `llama3.2`) as the fallback. Contact details are redacted with `redactProfile`. Prompt asks for a general body only: 120–160 words, 3 short paragraphs, no greeting/date/sign-off, `{{company}}` and `{{role}}` kept for generation-time fill, no invented facts. The previous letter is kept if every provider fails. The write can take up to 60 s per provider, so `runGenerateCoverLetter` opens a non-blocking `loading` status (blue glow + spinner) before the request and replaces it with the green success or red error status afterwards.
 - **Copy prompt** — copies the same body-only authoring prompt for an external assistant. Never gated.
 
 **The gate (v10.6).** The background is the only writer of `resume.coverLetterCooldownUntil` (`COVER_LETTER_COOLDOWN_MS` = 60 s, exported from `resume-letter.js`). It refuses a request while the field is in the future (`{ status: 'rate_limited', retryAfterMs, cooldownUntil }`), sets it before calling a provider, and extends it to the provider's `Retry-After` on 402 or 60 s on 429 (capped at 15 min). Every reply carries `cooldownUntil`, so the options page just mirrors it — it never writes the cooldown before sending, or the worker could not tell a spam click from the in-flight request. The button shows `Wait Ns` with a 1 s countdown and a note; the value persists across reloads because it is stored with the resume. It is **local-only** — the Convex payload is explicit (`label`/`content`/`jsonContent`/`coverLetter`), so it never syncs. `runGenerateCoverLetter` also asks for `confirm()` before replacing a non-empty body.
 
-The popup's **Generate Cover Letter** sends `GENERATE` with `output: 'cover-letter'`; background renders the selected resume's letter through `buildCoverLetterFromTemplate(...)` into the shape `generateCoverLetterPDF` expects. That path is template-only, so it is not gated and makes no network call. A generated resume is never discarded because the letter failed. `openCoverLetterSection: { resumeId }` deep-links Settings to that resume's editor.
+The popup's **Generate Cover Letter** sends `GENERATE` with `output: 'cover-letter'`; background renders the selected resume's letter through `buildCoverLetterFromTemplate(...)` into the shape `generateCoverLetterPDF` expects. That path is template-only, so it is not gated and makes no network call. A generated resume is never discarded because the letter failed. `openCoverLetterSection: { resumeId }` deep-links Settings to that resume's editor. The popup reports the run through `setLetterStatus()` (`body[data-letter-status]`), which drives the same blue pulse / green settle / red failure glow as the resume channel — see "Popup status channels" above.
 
 ### Form filler setup (Application Questions — Soon in v10.0)
 
@@ -251,7 +278,7 @@ Important keys:
 - `resumeType`: `"professional" | "deedy" | "academic-cv"` (legacy `"faang"` is normalized to `"professional"`)
 - `applicationProfile`: Form Filler answers — `{ firstName, lastName, email, phone, streetAddress, addressLine2, city, state, postalCode, country, salaryAmount, salaryCurrency, salaryPeriod, startDate, yearsExperience, workAuthorized, needsSponsorship, over18, willingToRelocate, remotePreference, linkedin, website, github, eeoOptIn, eeo: { gender, race, hispanicLatino, veteran, disability }, customQA: [{ id, question, answer }], updatedAt }`
 - `appProfileOnboarding`: `{ active: boolean }` — trigger for the Form Filler setup spotlight tour (set by the popup, consumed by the options page)
-- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'10.8.0'` current)
+- `lastSeenAnnouncement`: last version whose What's New modal the user saw (`'10.9.0'` current)
 - `parseConfirmedAt`: ms timestamp of the last parsed-resume confirmation
 - `accessReminderLastShown`: `YYYY-MM-DD` — daily "free until Dec 31" reminder dismissal
 - `featureVideoDeclined`: boolean — legacy flag (tour entry points are hidden in v10.0)
@@ -265,6 +292,8 @@ Important keys:
 - `pendingExtract`: boolean — legacy flag; the options page now focuses the paste box instead of running extraction
 - `proAccessCache`: `{ signedIn, isFreeSubscriber, isPro, promoActive, withinWindow, canGenerate, cloudSyncAccess, proAccess, trialEndsAt, trialDaysLeft, planPeriod, hasSubscription, proSubscription, resolved, healthy, source, checkedAt }` — the **page-published access snapshot**. Written by `getAccessState()` in every page realm (options / popup / tracker) for *both* signed-in and signed-out resolutions; the service worker never writes it (it has no session to report) and never deletes it. Background `getGenerationAccess()` allows only `signedIn && (withinWindow || isPro)` from this snapshot while it is younger than 60 min, otherwise denies. A Clerk `addListener` in the pages rewrites it the moment a session starts or ends, so a session expiry cannot leave a stale "Pro" behind.
 - `animationsEnabled`: boolean (default true) — Settings → Interface. When false, page realms set `html.no-motion` and the popup skips the scramble and PDF delay, so generation is instant. The Resume health check keeps its loader.
+- `jdReviewDisabled`: boolean (default false) — the job-details review dialog is skipped when true. Written by the dialog's *Don't ask again* checkbox and by Settings → Interface → *Review extracted job details*.
+- `jdCorrections`: `{ "<urlKey>": { title?, company?, location?, recruiterName?, updatedAt } }` — the job details the user corrected, keyed by posting URL (tracking params stripped). Pre-fills the next review on the same posting; capped at 10 postings. See "Job details review".
 - `openAuth`: `'signIn' | 'signUp'` — set by the popup sign-in card, consumed and cleared by `options.js`, which opens the full Clerk modal. The popup bundle has no Clerk UI, so it must deep-link instead of calling `signIn()`/`signUp()`.
 - `trackerLockDismissed`: boolean — user dismissed the Job Tracker lock banner
 

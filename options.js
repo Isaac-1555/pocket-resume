@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const coverLetterGateNote = document.getElementById('coverLetterGateNote');
   const animationsToggle = document.getElementById('animationsToggle');
   const animationsPill = document.getElementById('animationsPill');
+  const jdReviewToggle = document.getElementById('jdReviewToggle');
 
   let resumes = [];
   let activeTabIndex = 0;
@@ -57,6 +58,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let appProfileCustomQa = [];
   let appProfileAutofilling = false;
   let healthError = '';
+  let pasteRevealed = false;
 
   function generateId() {
     return 'r_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
@@ -253,7 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     statusTimeoutId = null;
   }
 
-  function showStatus(text, type = 'success', autoHideMs = 2500) {
+  function showStatus(text, type = 'success', autoHideMs = 2500, { blocking = true } = {}) {
     if (statusTimeoutId) {
       clearTimeout(statusTimeoutId);
       statusTimeoutId = null;
@@ -266,7 +268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     statusOverlay.dataset.state = normalizedType;
     statusOverlay.classList.add('visible');
-    statusOverlay.classList.toggle('blocking', normalizedType === 'loading');
+    statusOverlay.classList.toggle('blocking', normalizedType === 'loading' && blocking);
     statusIcon.textContent = STATUS_ICONS[normalizedType] || '';
     statusText.textContent = text;
     if (autoHideMs > 0) {
@@ -439,6 +441,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (animationsToggle) {
       animationsToggle.checked = data.animationsEnabled !== false;
       syncToggleState(animationsToggle);
+    }
+    if (jdReviewToggle) {
+      jdReviewToggle.checked = data.jdReviewDisabled !== true;
+      syncToggleState(jdReviewToggle);
     }
   }
 
@@ -618,6 +624,7 @@ My resume:
     }
     setGenerateLetterBusy(true);
     if (coverLetterCopyStatus) coverLetterCopyStatus.textContent = 'Writing a letter from this resume…';
+    showStatus('Writing a letter from this resume…', 'loading', 0, { blocking: false });
     try {
       flushCoverLetterSave();
       saveCurrentTabToState();
@@ -737,6 +744,14 @@ My resume:
       syncToggleState(animationsToggle);
       chrome.storage.local.set({ animationsEnabled: animationsToggle.checked });
       applyMotionPreference(animationsToggle.checked);
+    });
+  }
+
+  if (jdReviewToggle) {
+    syncToggleState(jdReviewToggle);
+    jdReviewToggle.addEventListener('change', () => {
+      syncToggleState(jdReviewToggle);
+      chrome.storage.local.set({ jdReviewDisabled: !jdReviewToggle.checked });
     });
   }
 
@@ -1049,8 +1064,8 @@ My resume:
 
   const data = await chrome.storage.local.get([
     'resumes', 'userProfile', 'resumeType', 'resumeLayout', 'selectedResumeId', 'onboarding',
-    'onboardingCompleted', 'universalCoverLetter', 'applicationProfile',
-    'pendingExtract', 'openCoverLetterSection', 'animationsEnabled'
+    'universalCoverLetter', 'applicationProfile',
+    'pendingExtract', 'openCoverLetterSection', 'animationsEnabled', 'jdReviewDisabled'
   ]);
 
   if (data.resumes && data.resumes.length > 0) {
@@ -1088,9 +1103,6 @@ My resume:
   }
 
   if (migrated || letterMigrated) await setLocalStorage({ resumes: getPersistedResumes() });
-
-  const hasResumes = resumes.some((resume) => (resume.jsonContent || resume.content || '').trim());
-  if (hasResumes && !data.onboardingCompleted) renderSetupCompleteCard();
 
   if (!resumes.length) {
     resumes = [createResumeEntry('Resume 1', '')];
@@ -1538,6 +1550,7 @@ My resume:
         flushCoverLetterSave();
         saveCurrentTabToState();
         activeTabIndex = index;
+        pasteRevealed = false;
         renderTabBar();
         renderTabContent({ preserveScroll: false });
         loadCoverLetterEditor();
@@ -1556,6 +1569,7 @@ My resume:
         saveCurrentTabToState();
         resumes.push(createResumeEntry(`Resume ${resumes.length + 1}`, ''));
         activeTabIndex = resumes.length - 1;
+        pasteRevealed = false;
         await setLocalStorage({ resumes: getPersistedResumes() });
         renderTabBar();
         renderTabContent({ preserveScroll: false });
@@ -1629,6 +1643,18 @@ My resume:
       </div>`;
   }
 
+  function draftHasContent(profile) {
+    if (!profile) return false;
+    if (['name', 'subtitle', 'email', 'phone', 'location', 'summary'].some((key) => String(profile[key] || '').trim())) {
+      return true;
+    }
+    if (Array.isArray(profile.links) && profile.links.some((link) => String((link && (link.url || link.text)) || '').trim())) {
+      return true;
+    }
+    return ['skills', 'experience', 'projects', 'education', 'certifications']
+      .some((key) => Array.isArray(profile[key]) && profile[key].length > 0);
+  }
+
   function resumeProfileWarningsFor(resume) {
     return resumeProfileWarnings(resumeDraft(resume));
   }
@@ -1676,6 +1702,7 @@ My resume:
       ? (Array.isArray(resume.parseReview.warnings) ? resume.parseReview.warnings : [])
       : null;
     const linksValue = (draft.links || []).map((link) => link.url || link.text || '').filter(Boolean).join('\n');
+    const showPasteCard = !draftHasContent(draft) || pasteRevealed;
 
     const labelRow = `
       <div class="resume-label-row">
@@ -1709,6 +1736,7 @@ My resume:
           ` : ''}
         </div>
 
+        ${showPasteCard ? `
         <div class="rf-card paste-card">
           <div class="rf-card-head">
             <span class="rf-card-title">Paste an existing resume</span>
@@ -1719,7 +1747,8 @@ My resume:
             <button type="button" class="secondary-action-btn" id="rfParseBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.6L13.5 10.5L19.4 12L13.5 13.5L12 19.4L10.5 13.5L4.6 12L10.5 10.5Z"/></svg><span>Parse resume</span></button>
             <small class="resume-help" id="rfParseStatus"></small>
           </div>
-        </div>
+        </div>` : `
+        <button type="button" class="rf-import-link" id="rfShowPaste"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v11"/><path d="M7.5 10L12 5.5L16.5 10"/><path d="M5 20h14"/></svg><span>Paste / import an existing resume</span></button>`}
 
         <div class="rf-card">
           <div class="rf-card-head"><span class="rf-card-title">Header</span></div>
@@ -1860,6 +1889,7 @@ My resume:
           return;
         }
         const parsed = applyParsedText(resume, text);
+        pasteRevealed = false;
         renderTabBar();
         renderTabContent({ preserveScroll: false });
         const counted = [];
@@ -1867,6 +1897,14 @@ My resume:
         if (parsed.skills.length) counted.push(`${parsed.skills.length} skills`);
         if (parsed.education.length) counted.push(`${parsed.education.length} education`);
         showStatus(`Parsed ${counted.join(' · ') || 'no sections'}. Check the form, then confirm.`, 'success', 6000);
+      });
+    }
+
+    const showPasteBtn = document.getElementById('rfShowPaste');
+    if (showPasteBtn) {
+      showPasteBtn.addEventListener('click', () => {
+        pasteRevealed = true;
+        renderTabContent({ preserveScroll: true });
       });
     }
 
@@ -2062,6 +2100,8 @@ My resume:
   const tourNextBtn = document.getElementById('tourNextBtn');
   const tourSkipBtn = document.getElementById('tourSkipBtn');
 
+  const PASTE_TOUR_TARGETS = ['#rfPasteInput', '#rfParseBtn'];
+
   const TOUR_STEPS = [
     {
       target: '#accountCard',
@@ -2186,7 +2226,12 @@ My resume:
     }
 
     const step = tourSteps[tourStepIndex];
-    const el = document.querySelector(step.target);
+    let el = document.querySelector(step.target);
+    if (!el && PASTE_TOUR_TARGETS.includes(step.target)) {
+      pasteRevealed = true;
+      renderTabContent({ preserveScroll: true });
+      el = document.querySelector(step.target);
+    }
     if (el) el.scrollIntoView({ block: 'center' });
     tourHighlight.style.display = el ? 'block' : 'none';
     tourStepLabel.textContent = `Step ${tourStepIndex + 1} of ${tourSteps.length}`;

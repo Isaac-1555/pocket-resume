@@ -14,6 +14,7 @@ Pocket Resume collects and processes the following user data to provide its core
 
 * **User Profile Information**: Professional details you enter in the extension settings (such as work experience, education, skills, and contact information)
 * **Job Description Content**: Text extracted from job posting web pages you are viewing
+* **Job Details**: The job title, company, location, and recipient read from a posting, plus any correction you make to them in the review dialog
 
 ### How Data is Used
 
@@ -50,6 +51,7 @@ Pocket Resume stores the following data locally on your device using Chrome's bu
 * Your resume profiles (structured JSON form data), each with its own cover letter
 * Your preferences (selected resume style, tracker capture toggle)
 * Generated resumes, cover letters, and captured job applications
+* Job details you correct in the review dialog (job title, company, location, recipient), remembered per posting URL so the same posting does not need the same edit twice. The URL is stored with tracking parameters removed, and nothing about the posting's page content is kept
 
 This locally stored data:
 * Remains entirely under your control

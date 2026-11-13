@@ -10,6 +10,7 @@
 ## Features
 
 - **On-device resume engine** — deterministic job-description alignment: JD title/company/location filled in, skills ranked by relevance, strongest bullets selected, banned openers fixed. Wording is never rewritten, and a verifier reverts any number that is not in your profile
+- **Job details review** — before a PDF is saved, a dialog shows the title, company, location and recipient read from the posting, with the keywords it matched. Edit anything wrong; the fix lands in the PDF, the resume header and the Job Tracker card, and is remembered for that posting — so the cover letter does not need the same typing
 - **Paste once, edit a form** — the local parser turns resume text into a structured, editable profile. No API key, no cloud round-trip
 - **3 Resume Layouts** — Professional, Double Sided (dense two-column, always one page), Academic CV (multi-page)
 - **A cover letter per resume** — each saved resume keeps its own letter with `{{company}}`, `{{role}}`, and `{{recipient}}` filled from the posting. Write it yourself, click **Generate letter** for a short general draft, or copy the prompt into any assistant
@@ -19,12 +20,18 @@
 - **Multi-Profile** — save up to 3 master profiles and switch between them
 - **Privacy First** — resumes stay in `chrome.storage.local`; the engine makes no network requests
 
-### What's New in v10.8
+### What's New in v10.10.1
 
-- **Long-resume warning.** Settings now flags a resume that will run past one page, and Generate Resume / Quick Download ask before saving a two-page Professional PDF — with a **Never show this again** option.
-- **Smoother editing.** Adding or removing a bullet or entry keeps your scroll position and focuses the new field, and a renamed resume keeps its name while you keep editing.
-- **Simpler Settings.** The Skills on generated resumes and Skill directory sections are gone: job-posting keywords are always merged, and the O*NET vocabulary refreshes once a day in the background.
-- **Clear letter preview.** The live preview is labelled "This is how the letter will look".
+- **Fix it once, use it twice.** Correct the job title, company, location or recipient in the review dialog and it is remembered for that posting — Generate Cover Letter opens with the fix already in place.
+- **Only what you changed is kept.** Untouched fields keep coming from the live extraction, and a field you cleared stays cleared.
+- **Still applied with the dialog off.** Turn the review dialog off and the remembered correction still lands in the PDF, the resume header and the Job Tracker entry.
+
+### What's New in v10.10
+
+- **See what we read from the posting.** Before a resume or cover letter PDF is saved, a small dialog shows the job title, company, location and recipient extracted from the posting — all editable, and the fix lands in the PDF, the resume header and the Job Tracker entry.
+- **Keywords on screen.** The same dialog lists the keywords matched from the posting, with the skills added to your resume marked with a `+`.
+- **Nothing gets lost.** A 30-second countdown saves with what was extracted if nobody responds; typing in any field stops the countdown completely. Cancel saves nothing at all.
+- **Your call.** *Don't ask again* in the dialog, or **Review extracted job details** in Settings → Interface, turns it off and back on.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
@@ -46,7 +53,7 @@ npm install
 
 1. Click the extension icon → gear icon (Settings)
 2. Create a free account (required to generate; free until Dec 31, 2026)
-3. Paste your resume text into **Paste an existing resume** → **Parse resume**
+3. Paste your resume text into **Paste an existing resume** → **Parse resume** (once the resume has content, the paste box is replaced by a **Paste / import an existing resume** link)
 4. Fix anything the parser missed in the form → **Looks right — confirm** → **Save Settings**
 5. Optional: add a cover letter under **Cover letter** — it saves with the resume you are editing
 
@@ -54,8 +61,10 @@ npm install
 
 1. Navigate to any job posting (LinkedIn, Indeed, company pages)
 2. Click PocketResume icon → choose resume style
-3. Click **Generate Resume** — the PDF downloads and a Job Tracker card is created
+3. Click **Generate Resume** — the job details dialog opens, the PDF downloads and a Job Tracker card is created
 4. Click **Generate Cover Letter** for the matching letter (uses the selected resume's saved letter)
+
+The job details dialog shows what was read from the posting — job title, company, location, recipient — and the keywords it matched. Correct anything that is wrong; the fix goes into the PDF, the resume header and the Job Tracker card, and is remembered for that posting so the cover letter picks it up. If nobody answers it, it saves after 30 seconds; typing in a field stops the countdown. Cancel saves nothing. Turn it off with **Don't ask again**, or **Review extracted job details** in Settings → Interface.
 
 If generation fails, the popup stays red — click the **?** button (top right) for a readable message plus copyable raw details. The error clears when you close the popup or retry.
 

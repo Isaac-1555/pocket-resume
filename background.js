@@ -333,7 +333,8 @@ function buildJobMeta(jd, resume) {
         title: jd.title || resume.position || resume.subtitle || '',
         company: jd.company || resume.company || '',
         location: jd.location || '',
-        recruiterName: jd.recruiterName || ''
+        recruiterName: jd.recruiterName || '',
+        recruiterEmail: jd.recruiterEmail || ''
     };
 }
 

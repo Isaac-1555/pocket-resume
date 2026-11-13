@@ -1,5 +1,26 @@
 # Changelog
 
+## [10.10.1] — 2026-11-13
+### Added
+- **Job details are remembered per posting.** Correct the job title, company, location or recipient in the review dialog and the fix is remembered for that posting, so Generate Cover Letter opens with it already filled in — no typing it twice.
+- **Only the fields you changed are kept.** Everything you did not touch keeps coming from the live extraction, so a later posting never inherits a stale value. Clearing a wrong company keeps it cleared.
+- **The memory works with the dialog off.** With *Review extracted job details* turned off, the remembered correction still lands in the PDF, the resume header and the Job Tracker entry.
+
+## [10.10.0] — 2026-11-13
+### Added
+- **See what we read from the posting.** Before a resume or cover letter PDF is saved, PocketResume opens a small dialog with the job title, company, location and recipient it extracted from the job posting, and lets you edit any of them. The corrected values go into the PDF, the resume header and the Job Tracker entry.
+- **Keywords on screen.** The same dialog lists the keywords matched from the posting, with the skills PocketResume added to your resume marked with a `+`.
+- **A 30-second auto-save.** If nobody touches the dialog, it saves after 30 seconds with whatever was extracted. Typing in any field stops the timer completely, so an edit is never overwritten. Cancel saves nothing at all.
+- **Turn it off.** *Don't ask again* in the dialog, or the new *Review extracted job details* toggle in Settings → Interface, disables the dialog. The toggle brings it back.
+
+## [10.9.0] — 2026-11-12
+### Changed
+- **The paste box steps aside.** Once a resume has any content, Settings hides the paste/parse card and shows a small "Paste / import an existing resume" link instead. One click brings the parser back, and it hides again once you parse.
+- **Cover letter generation lights up the popup.** Generate Cover Letter now pulses blue while it works and settles green when the PDF is ready (red when it fails), matching Generate Resume. The Settings "Generate letter" writer shows a blue glow and spinner while the provider writes.
+
+### Fixed
+- **Settings no longer opens blank.** A resume saved from Settings used to leave the form empty after a reload, because the page called a setup-complete card that only exists in the popup. The form, cover letter editor and cloud sync all load again.
+
 ## [10.8.0] — 2026-11-11
 ### Added
 - **Long-resume warning.** PocketResume now says when a resume is too long for the one-page Professional layout. Settings shows a notice once per resume (dismissed until the resume grows again), and Generate Resume / Quick Download ask before saving a two-page PDF. The generation warning has a **Never show this again** button.
