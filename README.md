@@ -24,6 +24,15 @@
 - **Multi-Profile** — save up to 3 master profiles and switch between them
 - **Privacy First** — resumes stay in `chrome.storage.local`; generation and form filling are local. The only network calls are the opt-in Resume health/letter providers and the daily refresh of the public company/title/location lists
 
+### What's New in v10.16.0
+
+- **The job title is read properly.** Wrappers like *Job Application for … at …*, *Acme hiring … in Toronto | LinkedIn*, *Careers at Acme* and trailing city, remote or req-ID noise are stripped before the title reaches the PDF.
+- **Embedded postings are read.** When a career site shows the posting inside a Greenhouse-style iframe, the title, company and description come from that frame instead of the surrounding marketing page.
+- **Titles with real dashes survive.** *Product Manager - Open Models* stays whole, and text inside parentheses is no longer cut in half.
+- **A blank title instead of a wrong one.** If nothing on the page looks like a job title, the review dialog asks instead of shipping *Careers* or *Jobs at Acme* to the PDF — your resume's own subtitle is kept.
+- **Pick the right candidate.** When a page offers several title sources, the review dialog shows them as chips: the structured title, the heading and the page title.
+- **Still local.** No AI reads the page; the same deterministic rules run every time.
+
 ### What's New in v10.15.0
 
 - **A job title directory that learns.** Correct a title in the review dialog and PocketResume remembers it. Official O*NET titles are suggestions only — your own correction is the only thing that rewrites the extracted title.
@@ -169,7 +178,7 @@ Without `RESEND_API_KEY` the message is still stored in the `feedback` table, bu
 - **PDF:** [jsPDF](libs/jspdf.umd.min.js) (vendored)
 - **Resume engine:** deterministic in-extension parser + JD aligner (`resume-parse.js`, `resume-align.js`, `skill-lexicon.js`)
 - **Company directory:** deterministic local matcher + learner (`company-directory.js`, `company-directory-store.js`, `libs/company-directory-global.js`)
-- **Job title / location directories:** deterministic local matchers + learners (`job-title-directory.js`, `job-location-directory.js`, `directory-core.js`) with bundled O*NET and GeoNames lists
+- **Job title / location directories:** deterministic local matchers + learners (`job-title-directory.js`, `job-location-directory.js`, `directory-core.js`) with bundled O*NET and GeoNames lists. Job titles are cleaned and arbitrated from every candidate on the page (`extractJobTitle`) before they reach the resume.
 - **Cloud (optional):** [Clerk](https://clerk.com) auth + pricing (Pro), [Convex](https://convex.dev) resume sync and the feedback endpoint
 - **Feedback mail:** [Resend](https://resend.com) (server-side only, optional)
 - **Build:** esbuild (only for `cloud-sync.js` bundle); no bundler for app code
@@ -189,6 +198,7 @@ npm run test:render
 npm run test:formfill
 npm run test:pdfstore
 npm run test:feedback
+npm run test:titles
 
 # Build the Chrome Web Store zip from the runtime file list
 npm run build:zip

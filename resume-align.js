@@ -4,6 +4,7 @@
 // Imported by background.js (module service worker).
 import { parseResumeText } from './resume-parse.js';
 import { AMBIGUOUS_SKILL_KEYS } from './skill-lexicon.js';
+import { extractJobTitle, isChromeTitle, looksLikeJobTitle } from './job-title-directory.js';
 
 const STOPWORDS = new Set(`
 a about above after again against all also am an and any are as at be because been before being below
@@ -219,18 +220,6 @@ function looksLikeHeading(line) {
     return upperRatio > 0.7 && cleaned.split(' ').length <= 6;
 }
 
-function cleanJobTitle(raw, fallbackTitle) {
-    const candidate = normalizeSpace(raw || fallbackTitle || '');
-    if (!candidate) return '';
-    return normalizeSpace(
-        candidate
-            .split(/\s*[|·•]\s*/)[0]
-            .split(/\s+[-–—]\s+/)[0]
-            .replace(/\s*\((?:remote|hybrid|on-?site)[^)]*\)\s*/i, ' ')
-            .replace(/\b(?:hiring|job|vacancy|opening)\b/gi, ' ')
-    );
-}
-
 function mergePageText(bodyText, description) {
     const body = String(bodyText || '');
     const desc = String(description || '')
@@ -252,14 +241,6 @@ function parseJobPosting({ title = '', text = '', structured = null } = {}) {
     const pageTitle = normalizeSpace(title);
     const structuredData = structured && typeof structured === 'object' ? structured : {};
 
-    let jobTitle = normalizeSpace(structuredData.title || '');
-    if (!jobTitle) {
-        const labeled = bodyText.match(/^(?:job title|position|role|title)\s*[:\-]\s*(.{2,90})$/im);
-        if (labeled) jobTitle = labeled[1];
-    }
-    if (!jobTitle) jobTitle = cleanJobTitle(pageTitle, '');
-    if (!jobTitle) jobTitle = 'Professional';
-
     let company = normalizeSpace(structuredData.company || '');
     let companySource = company ? 'structured' : '';
     if (!company) {
@@ -272,8 +253,13 @@ function parseJobPosting({ title = '', text = '', structured = null } = {}) {
     if (!company && pageTitle) {
         const parts = pageTitle.split(/\s*[|·•]\s*/).map((part) => part.trim()).filter(Boolean);
         if (parts.length > 1) {
-            company = parts[parts.length - 1].slice(0, 80);
-            companySource = 'title';
+            const tail = parts[parts.length - 1];
+            const head = parts[0];
+            const candidateCompany = looksLikeJobTitle(tail) && !looksLikeJobTitle(head) ? head : tail;
+            if (candidateCompany && !looksLikeJobTitle(candidateCompany) && !isChromeTitle(candidateCompany)) {
+                company = candidateCompany.slice(0, 80);
+                companySource = 'title';
+            }
         }
     }
 
@@ -302,11 +288,43 @@ function parseJobPosting({ title = '', text = '', structured = null } = {}) {
     );
     const location = locationCandidates[0] || '';
 
+    const candidates = [];
+    const pushCandidate = (value, source) => {
+        const clean = normalizeSpace(value);
+        if (!clean) return;
+        candidates.push({ value: clean, source });
+    };
+    if (Array.isArray(structuredData.titleCandidates)) {
+        structuredData.titleCandidates.forEach((candidate) => {
+            if (candidate && typeof candidate === 'object') pushCandidate(candidate.value, candidate.source || 'page');
+            else pushCandidate(candidate, 'page');
+        });
+    }
+    pushCandidate(structuredData.title, 'jsonld');
+    pushCandidate(structuredData.headline, 'og');
+    pushCandidate(structuredData.pageHeading, 'h1');
+    pushCandidate(pageTitle, 'doc-title');
+    if (Array.isArray(structuredData.headings)) {
+        structuredData.headings.forEach((heading) => pushCandidate(heading, 'heading'));
+    }
+
+    const extractedTitle = extractJobTitle({
+        candidates,
+        company,
+        locations: locationCandidates,
+        text: bodyText
+    });
+    const jobTitle = extractedTitle.value || '';
+
     const recruiterMatch = bodyText.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\s*[,(]?\s*(?:recruiter|hiring manager|talent)\b/);
     const recruiterEmailMatch = bodyText.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
 
     return {
         title: jobTitle,
+        rawTitle: extractedTitle.raw || '',
+        titleSource: extractedTitle.source || 'none',
+        titleConfidence: extractedTitle.confidence || 0,
+        titleCandidates: extractedTitle.candidates || [],
         company,
         companySource,
         location,

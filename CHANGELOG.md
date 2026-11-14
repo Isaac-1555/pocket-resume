@@ -1,5 +1,23 @@
 # Changelog
 
+## [10.16.0] — 2026-11-14
+### Added
+- **Title candidate arbitration.** A posting now offers the title from every source on the page — JSON-LD, `og:title`, `twitter:title`, the heading, job-title class names, the page title and the first body lines — and the deterministic extractor picks the best valid one. The review dialog shows the runners-up as chips.
+- **Embedded postings are read.** When a career site renders the posting in a cross-origin iframe (Greenhouse embeds on company sites), the title, company, description and text are read from that frame instead of the surrounding marketing page.
+- **A frame snapshot pass.** `content.js` now runs in every frame (`all_frames: true`, no new permission) and answers a `COLLECT_FRAME_SNAPSHOT` broadcast; the worker picks the job-looking frame by host, JSON-LD presence and heading text. Ad, captcha and messenger frames are ignored, and only the top frame answers the normal page read.
+
+### Changed
+- **The extracted title is cleaned before it reaches the PDF.** ATS wrappers (`Job Application for X at Y`, `Apply for X`, `Careers at Acme`, `Company hiring X in Toronto | LinkedIn`, `X - Company - City | Indeed`), labels (`Job title:`), req IDs, employment type, `m/f/d` noise and trailing city/remote tails are removed in one shared sanitizer, so extraction and the review dialog now agree.
+- **Separator splitting is parenthesis-aware.** `Senior Software Engineer (Remote - Canada)` no longer becomes `…(Remote`, and a title with a real dash (`Product Manager - Open Models`) keeps it.
+- **Real titles with `job`/`hiring` inside survive.** `Job Captain` and `Hiring Manager` are no longer mangled to `Captain` and `Manager`.
+- **A missing title falls back to your resume's subtitle** instead of the word `Professional` or page chrome like `Linear Jobs`, `Careers` or `CAREERS AT NVIDIA`.
+
+### Fixed
+- **Job titles on Greenhouse embeds, HiBob, Workday, Lever, Ashby and LinkedIn** no longer pick up the site shell, the company name or the location text.
+- **A blank title never overwrites the resume subtitle**, and a blank review field leaves the aligned resume untouched.
+
+Tests: `npm run test:titles` (wrapper cleanup, separator handling, candidate arbitration, frame-only pages, resume-subtitle fallback).
+
 ## [10.15.0] — 2026-11-14
 ### Added
 - **A job title directory that learns.** Correct the job title in the review dialog and PocketResume remembers it. The next posting that uses the same wording is recognized on its own.

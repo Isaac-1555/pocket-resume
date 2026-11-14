@@ -113,6 +113,102 @@ function structuredLocations(posting) {
     return out;
 }
 
+function nodeText(node, limit = 200) {
+    if (!node) return '';
+    const raw = typeof node.innerText === 'string' && node.innerText.trim() ? node.innerText : node.textContent;
+    return String(raw || '').replace(/\s+/g, ' ').trim().slice(0, limit);
+}
+
+const TITLE_SELECTORS = [
+    '[class*="job-ad-title" i]',
+    '[class*="job-title" i]',
+    '[class*="jobtitle" i]',
+    '[class*="position-title" i]',
+    '[class*="posting-title" i]',
+    '[data-testid*="job-title" i]',
+    '[id*="job-title" i]',
+    '[class*="title" i][class*="job" i]'
+];
+
+function collectTitleCandidates(postings) {
+    const out = [];
+    const seen = new Set();
+    const push = (value, source) => {
+        const text = String(value || '').replace(/\s+/g, ' ').trim();
+        if (!text || text.length > 200) return;
+        const key = `${source}:${text.toLowerCase()}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push({ value: text, source });
+    };
+
+    const here = String(location.href || '').split('?')[0];
+    const postingUrl = (posting) => {
+        if (!posting || typeof posting !== 'object') return '';
+        const raw = posting.url
+            || (posting.mainEntityOfPage && (posting.mainEntityOfPage['@id'] || posting.mainEntityOfPage.url))
+            || '';
+        return String(raw || '').split('?')[0];
+    };
+    const ordered = [...postings].sort((a, b) => {
+        const score = (posting) => {
+            const url = postingUrl(posting);
+            if (!url || !here) return 0;
+            if (url === here || here.startsWith(url)) return 2;
+            return 0;
+        };
+        return score(b) - score(a);
+    });
+
+    ordered.slice(0, 4).forEach((posting) => push(posting && posting.title, 'jsonld'));
+
+    const meta = (selector) => {
+        const node = document.querySelector(selector);
+        return node ? node.getAttribute('content') : '';
+    };
+    push(meta('meta[property="og:title"]'), 'og');
+    push(meta('meta[name="twitter:title"]'), 'twitter');
+
+    TITLE_SELECTORS.forEach((selector) => {
+        let nodes = [];
+        try {
+            nodes = document.querySelectorAll(selector);
+        } catch {
+            return;
+        }
+        [...nodes]
+            .filter((node) => {
+                try {
+                    if (node.querySelector(selector)) return false;
+                    if (node.querySelector('h1, h2, h3')) return false;
+                    return true;
+                } catch {
+                    return true;
+                }
+            })
+            .slice(0, 3)
+            .forEach((node) => push(nodeText(node, 120), 'class'));
+    });
+
+    const main = document.querySelector('main, [role="main"], article');
+    const headings = [];
+    if (main) {
+        [...main.querySelectorAll('h1, h2, h3')].slice(0, 6).forEach((node) => headings.push(nodeText(node)));
+    }
+    [...document.querySelectorAll('h1')].slice(0, 3).forEach((node) => {
+        const text = nodeText(node);
+        if (text) headings.unshift(text);
+    });
+    headings.forEach((heading) => push(heading, 'h1'));
+    if (main) {
+        [...main.querySelectorAll('h2, h3')].slice(0, 4).forEach((node) => push(nodeText(node), 'heading'));
+    }
+
+    push(document.title, 'doc-title');
+
+    return { candidates: out, headings: [...new Set(headings)].slice(0, 8) };
+}
+
 function extractStructuredData() {
     const postings = [];
     document.querySelectorAll('script[type="application/ld+json"]').forEach((script) => {
@@ -122,17 +218,29 @@ function extractStructuredData() {
         }
     });
 
-    const posting = postings[0] || null;
+    const here = String(window.location.href || '').split('?')[0];
+    const posting = postings.find((item) => {
+        if (!item || typeof item !== 'object') return false;
+        const raw = item.url
+            || (item.mainEntityOfPage && (item.mainEntityOfPage['@id'] || item.mainEntityOfPage.url))
+            || '';
+        const value = String(raw || '').split('?')[0];
+        return !!value && !!here && (value === here || here.startsWith(value));
+    }) || postings[0] || null;
     const locations = structuredLocations(posting);
-    const location = locations[0] || '';
+    const primaryLocation = locations[0] || '';
 
     const ogTitle = document.querySelector('meta[property="og:title"]');
     const h1 = document.querySelector('h1');
+    const titles = collectTitleCandidates(postings);
 
     return {
-        title: posting?.title || (ogTitle ? ogTitle.getAttribute('content') : '') || '',
+        title: posting?.title || '',
+        titleCandidates: titles.candidates,
+        headings: titles.headings,
+        postingCount: postings.length,
         company: posting?.hiringOrganization?.name || posting?.hiringOrganization?.[0]?.name || '',
-        location,
+        location: primaryLocation,
         locations,
         remote: posting?.jobLocationType === 'TELECOMMUTE',
         description: posting?.description ? htmlToText(posting.description).substring(0, 20000) : '',
@@ -174,7 +282,45 @@ async function collectPageContent() {
     return { text, structured, title: document.title, url: window.location.href };
 }
 
+function frameSnapshotData() {
+    const structured = extractStructuredData();
+    const bodyLength = document.body ? document.body.innerText.length : 0;
+    const host = String(location.hostname || '');
+    const skipText = /(?:recaptcha|doubleclick|googletagmanager|google-analytics|facebook|messenger|qualified|cookiebot|hubspot|intercom|drift|youtube|vimeo|stripe|paypal)/i.test(host);
+    return {
+        url: location.href,
+        host,
+        docTitle: document.title,
+        candidates: structured.titleCandidates || [],
+        hasJobPosting: (structured.postingCount || 0) > 0,
+        textLength: bodyLength,
+        text: !skipText && bodyLength > 200 ? extractPageText().slice(0, 60000) : '',
+        structured
+    };
+}
+
+function isTopFrame() {
+    try {
+        return window.top === window;
+    } catch {
+        return true;
+    }
+}
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === 'COLLECT_FRAME_SNAPSHOT') {
+        try {
+            const snapshot = frameSnapshotData();
+            snapshot.requestId = request.requestId || '';
+            chrome.runtime.sendMessage({ type: 'FRAME_SNAPSHOT_RESULT', payload: snapshot }, () => {
+                void chrome.runtime.lastError;
+            });
+        } catch (error) {
+            console.warn('PocketResume frame snapshot failed:', error);
+        }
+        return false;
+    }
+    if (!isTopFrame()) return false;
     if (request.type === 'GET_PAGE_URL') {
         sendResponse({ url: window.location.href, title: document.title });
         return true;

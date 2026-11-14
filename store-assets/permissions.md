@@ -40,7 +40,7 @@ drag would be cancelled mid-gesture).
 | What | Where |
 | --- | --- |
 | `"sidePanel"` permission + `"side_panel": { "default_path": "sidebar.html" }` | `manifest.json:14`, `manifest.json:31` |
-| `chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })` | `background.js:294-299`, called on install and on startup (`background.js:305-314`) |
+| `chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })` | `background.js:450-455`, called on install and on startup (`background.js:486-499`) |
 | The panel UI itself | `sidebar.html` / `sidebar.js` (extension pages, extension origin) |
 
 **Why the minimum Chrome version is 114.** The `chrome.sidePanel` API ships in Chrome 114,
@@ -164,8 +164,8 @@ page text comes from the content script under `activeTab`.
 | Title list URL | `job-title-directory-store.js:22` (`TITLE_DIRECTORY_SOURCE_URL`) |
 | Location list URL | `job-location-directory-store.js:22` (`LOCATION_DIRECTORY_SOURCE_URL`) |
 | The fetch | `directory-store.js:103` (shared `refreshGlobal`), `company-directory-store.js:273` |
-| Daily alarms + startup/install trigger | `background.js:309-332` |
-| Silent refresh messages | `background.js:885` (`ENSURE_COMPANY_DIRECTORY`), `background.js:894` (`ENSURE_TITLE_DIRECTORY`), `background.js:903` (`ENSURE_LOCATION_DIRECTORY`) |
+| Daily alarms + startup/install trigger | `background.js:476-485` |
+| Silent refresh messages | `background.js:1069` (`ENSURE_COMPANY_DIRECTORY`), `background.js:1078` (`ENSURE_TITLE_DIRECTORY`), `background.js:1087` (`ENSURE_LOCATION_DIRECTORY`) |
 | The bundled offline copies | `libs/company-directory-global.js`, `libs/title-directory-global.js`, `libs/location-directory-global.js` |
 
 **What the requests contain.** Plain `GET`s with no body, no query string and no custom
@@ -191,7 +191,7 @@ them anywhere.
 
 | Claim | Where to verify |
 | --- | --- |
-| The toolbar button opens a persistent panel | `background.js:294-299`, `manifest.json:31` |
+| The toolbar button opens a persistent panel | `background.js:450-455`, `manifest.json:31` |
 | There is no popup | `manifest.json` — no `action.default_popup` |
 | PDFs are stored locally, never uploaded | `pdf-store.js:76-104`; `sidebar.js:206` is the only write path |
 | The shelf holds one posting at a time | `pdf-store.js:27-42` (`planStore`) |

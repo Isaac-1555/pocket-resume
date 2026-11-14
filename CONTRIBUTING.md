@@ -59,7 +59,7 @@ PocketResume/
 ├── company-directory-store.js # Personal company directory + official list refresh
 ├── directory-core.js        # Shared directory primitives (keys, fuzzy/token matching, alias upsert)
 ├── directory-store.js       # Generic directory storage, cache and daily refresh
-├── job-title-directory.js   # Job title sanitization, matching, conservative resolution, learning (pure)
+├── job-title-directory.js   # Job title cleaning, candidate arbitration, matching, learning (pure)
 ├── job-title-directory-store.js # Personal title directory + official O*NET list refresh
 ├── job-location-directory.js # Location parsing, matching, multi-location selection, learning (pure)
 ├── job-location-directory-store.js # Personal location directory + official GeoNames list refresh
@@ -84,6 +84,7 @@ npm run test:render     # Double Sided one-page fit, page margins, Academic CV p
 npm run test:pdfstore   # file shelf URL keys + eviction rules (one posting at a time)
 npm run test:companydir # company sanitization, matching, learning, persistence, directory failure fallbacks
 npm run test:directories # job title + location sanitization, matching, multi-location selection, learning
+npm run test:titles # job title extraction: ATS wrappers, candidate arbitration, embedded frames, fallback
 npm run test:feedback   # feedback validation, payload, error mapping, mailto fallback
 npm run build:clerk   # bundle src/cloud-sync.js → cloud-sync.js + cloud-sync-core.js
 npm run build:lexicon # refresh libs/skills-lexicon.js from O*NET
@@ -92,7 +93,7 @@ npm run build:locations # refresh libs/location-directory-global.js from GeoName
 npm run build:zip     # dist/pocketresume-vX.Y.zip from the runtime file list
 ```
 
-Keep `test:align`, `test:formfill`, `test:render`, `test:pdfstore`, `test:companydir`, `test:directories` and `test:feedback` green. There is no linter; otherwise load unpacked and check the PDF plus the service worker console.
+Keep `test:align`, `test:formfill`, `test:render`, `test:pdfstore`, `test:companydir`, `test:directories`, `test:titles` and `test:feedback` green. There is no linter; otherwise load unpacked and check the PDF plus the service worker console.
 
 ## Pull Requests
 

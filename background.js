@@ -131,6 +131,124 @@ function normalizeStringArray(value) {
 const PAGE_CACHE_KEY = 'pendingGeneration';
 const PAGE_CACHE_TTL_MS = 15 * 60 * 1000;
 
+const EMBEDDED_FRAME_HOST = /(?:greenhouse|lever\.co|ashbyhq|workable|hibob|breezy|recruitee|smartrecruiters|jobvite|icims|taleo|workday|bamboohr|personio|join\.com|applytojob|recruiterbox)/i;
+const CHROME_FRAME_HOST = /(?:recaptcha|doubleclick|googletagmanager|google-analytics|facebook\.com|messenger|qualified\.com|cookiebot|hubspot|intercom|drift\.com|youtube\.com|vimeo\.com|stripe\.com|paypal)/i;
+const ROLE_WORD = /\b(engineer|engineering|developer|designer|manager|analyst|specialist|coordinator|director|lead|architect|scientist|consultant|administrator|technician|recruiter|president|accountant|advisor|operator|supervisor|executive|associate|assistant)\b/i;
+
+function scoreFrameSnapshot(frame, isTop) {
+    if (!frame) return -1000;
+    let score = isTop ? 10 : 0;
+    if (CHROME_FRAME_HOST.test(frame.url || '')) score -= 500;
+    if (frame.textLength > 600) score += 20;
+    if (frame.hasJobPosting) score += 100;
+    if (EMBEDDED_FRAME_HOST.test(frame.url || '')) score += 60;
+    const hasTitle = (frame.candidates || []).some((candidate) => ROLE_WORD.test(candidate.value || ''));
+    if (hasTitle) score += 30;
+    if (frame.textLength > 4000) score += 10;
+    return score;
+}
+
+function dedupeTitleCandidates(candidates) {
+    const seen = new Set();
+    const out = [];
+    (Array.isArray(candidates) ? candidates : []).forEach((candidate) => {
+        const value = candidate && typeof candidate === 'object'
+            ? candidate.value
+            : candidate;
+        const source = candidate && typeof candidate === 'object' ? (candidate.source || 'page') : 'page';
+        const text = String(value || '').replace(/\s+/g, ' ').trim();
+        if (!text) return;
+        const key = `${source}:${text.toLowerCase()}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push({ value: text.slice(0, 200), source });
+    });
+    return out.slice(0, 24);
+}
+
+const frameCollectors = new Map();
+
+function collectFrameSnapshots(tabId) {
+    return new Promise((resolve) => {
+        const requestId = `frames_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const frames = [];
+        let settle = null;
+        let hard = null;
+        const finish = () => {
+            if (settle) clearTimeout(settle);
+            if (hard) clearTimeout(hard);
+            settle = null;
+            hard = null;
+            frameCollectors.delete(requestId);
+            resolve(frames);
+        };
+        const bump = () => {
+            if (settle) clearTimeout(settle);
+            settle = setTimeout(finish, 250);
+        };
+        frameCollectors.set(requestId, { tabId, frames, bump, finish });
+        hard = setTimeout(finish, 1500);
+        try {
+            chrome.tabs.sendMessage(tabId, { type: 'COLLECT_FRAME_SNAPSHOT', requestId }, () => {
+                void chrome.runtime.lastError;
+            });
+        } catch (error) {
+            finish();
+            return;
+        }
+        bump();
+    });
+}
+
+async function mergeEmbeddedFrames(tabId, page) {
+    const collected = await collectFrameSnapshots(tabId);
+    const frames = (Array.isArray(collected) ? collected : [])
+        .map((entry) => ({ frame: entry && entry.frame, isTop: entry && entry.frameId === 0 }))
+        .filter((entry) => entry.frame);
+    if (!frames.length) return page;
+
+    const top = frames.find((entry) => entry.isTop);
+    const ranked = frames
+        .map((entry) => ({ ...entry, score: scoreFrameSnapshot(entry.frame, entry.isTop) }))
+        .sort((a, b) => b.score - a.score);
+    const best = ranked[0];
+    if (!best) return page;
+
+    const structured = page.structured && typeof page.structured === 'object' ? { ...page.structured } : {};
+    const usableFrames = frames.filter((entry) => !CHROME_FRAME_HOST.test(entry.frame.url || ''));
+    const mergedCandidates = dedupeTitleCandidates([
+        ...(Array.isArray(structured.titleCandidates) ? structured.titleCandidates : []),
+        ...usableFrames.flatMap((entry) => entry.frame.candidates || [])
+    ]);
+    structured.titleCandidates = mergedCandidates;
+
+    const topScore = top ? scoreFrameSnapshot(top.frame, true) : -1000;
+    const adopt = !top || (
+        best.score > topScore + 40 &&
+        (EMBEDDED_FRAME_HOST.test(best.frame.url || '') || best.frame.hasJobPosting) &&
+        !!best.frame.text &&
+        best.frame.text.length > 600
+    );
+    if (adopt) {
+        const frame = best.frame;
+        page.jobText = frame.text || page.jobText;
+        if (frame.structured) {
+            if (frame.structured.title) structured.title = frame.structured.title;
+            if (frame.structured.company) structured.company = frame.structured.company;
+            if (frame.structured.description) structured.description = frame.structured.description;
+            if (Array.isArray(frame.structured.locations) && frame.structured.locations.length) {
+                structured.locations = frame.structured.locations;
+                structured.location = frame.structured.locations[0];
+            }
+        }
+        if (!page.title && frame.docTitle) page.title = frame.docTitle;
+        console.log('[Frames] Using embedded job frame:', frame.url);
+    }
+
+    page.structured = structured;
+    return page;
+}
+
 async function getPageContentForTab(tabId, { skipCache = false } = {}) {
     const cached = (await chrome.storage.local.get(PAGE_CACHE_KEY))[PAGE_CACHE_KEY];
     const now = Date.now();
@@ -182,10 +300,11 @@ async function getPageContentForTab(tabId, { skipCache = false } = {}) {
     const structured = contentData.structured && typeof contentData.structured === 'object' ? contentData.structured : {};
     const title = typeof contentData.title === 'string' ? contentData.title : '';
     const url = typeof contentData.url === 'string' ? contentData.url : '';
+    const page = await mergeEmbeddedFrames(tabId, { jobText, structured, title, url });
     await chrome.storage.local.set({
-        [PAGE_CACHE_KEY]: { tabId, jobText, structured, title, url, savedAt: now }
+        [PAGE_CACHE_KEY]: { tabId, jobText: page.jobText, structured: page.structured, title: page.title, url: page.url, savedAt: now }
     });
-    return { jobText, structured, title, url };
+    return page;
 }
 
 async function getPageUrlForTab(tabId, { inject = true } = {}) {
@@ -488,7 +607,7 @@ function masterLocationForProfile(profile) {
 }
 
 async function resolveExtractedTitle(jd) {
-    const raw = String(jd.title || '').trim();
+    const raw = String(jd.rawTitle || jd.title || '').trim();
     const fallback = {
         value: raw,
         originalValue: raw,
@@ -499,7 +618,8 @@ async function resolveExtractedTitle(jd) {
         apply: false
     };
     try {
-        return await resolveTitleName(raw);
+        const resolved = await resolveTitleName(jd.title || raw);
+        return { ...resolved, originalValue: raw || resolved.originalValue };
     } catch (error) {
         console.warn('[TitleDirectory] Resolution failed, keeping the extracted title:', error);
         return fallback;
@@ -668,6 +788,17 @@ function buildCoverLetterPayload(template, resume, jobMeta) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message && message.type === 'FRAME_SNAPSHOT_RESULT') {
+        const payload = message.payload;
+        if (payload && payload.requestId) {
+            const collector = frameCollectors.get(payload.requestId);
+            if (collector && sender && sender.tab && sender.tab.id === collector.tabId) {
+                collector.frames.push({ frame: payload, frameId: sender.frameId || 0 });
+                collector.bump();
+            }
+        }
+        return false;
+    }
     if (!message || typeof message.type !== 'string') return false;
 
     if (message.type === 'GET_ACTIVE_PAGE') {
@@ -742,7 +873,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
                     const titleMeta = await resolveExtractedTitle(jd);
                     if (titleMeta.apply && titleMeta.value) jd.title = titleMeta.value;
-                    jd.titleMeta = titleMeta;
+                    jd.titleMeta = {
+                        ...titleMeta,
+                        source: jd.titleSource || 'none',
+                        extractionConfidence: Number(jd.titleConfidence) || 0,
+                        candidates: (jd.titleCandidates || []).slice(0, 6)
+                    };
 
                     const picked = pickPreferredLocation(jd.locationCandidates, masterLocation);
                     if (picked.value) jd.location = picked.value;

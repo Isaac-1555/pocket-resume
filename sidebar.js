@@ -100,6 +100,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const jdTitleSuggestionText = document.getElementById('jdTitleSuggestionText');
   const jdTitleAliasBtn = document.getElementById('jdTitleAliasBtn');
   const jdTitleNewBtn = document.getElementById('jdTitleNewBtn');
+  const jdTitleCandidates = document.getElementById('jdTitleCandidates');
+  const jdTitleNote = document.getElementById('jdTitleNote');
   const jdLocationHint = document.getElementById('jdLocationHint');
   const jdLocationSuggestion = document.getElementById('jdLocationSuggestion');
   const jdLocationSuggestionText = document.getElementById('jdLocationSuggestionText');
@@ -1378,8 +1380,7 @@ document.addEventListener('DOMContentLoaded', () => {
         recruiterName: (jdReviewRecipientInput?.value || '').trim()
       });
 
-      const updateLocationCandidates = () => {
-        if (!jdLocationCandidates) return;
+      const updateLocationCandidates = () => {        if (!jdLocationCandidates) return;
         const current = (jdReviewLocationInput?.value || '').trim();
         jdLocationCandidates.querySelectorAll('.jd-location-candidate').forEach((chip) => {
           chip.classList.toggle('active', chip.dataset.value === current);
@@ -1409,6 +1410,63 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         jdLocationCandidates.style.display = 'flex';
         updateLocationCandidates();
+      };
+
+      const titleCandidateValues = (() => {
+        const list = meta.titleMeta && Array.isArray(meta.titleMeta.candidates) ? meta.titleMeta.candidates : [];
+        const seen = new Set();
+        const out = [];
+        if (filled.title) {
+          seen.add(filled.title.toLowerCase());
+          out.push(filled.title);
+        }
+        list.forEach((item) => {
+          const value = String((item && item.value) || item || '').trim();
+          if (!value || value.length > 120) return;
+          const key = value.toLowerCase();
+          if (seen.has(key)) return;
+          seen.add(key);
+          out.push(value);
+        });
+        return out.slice(0, 6);
+      })();
+
+      const updateTitleCandidates = () => {
+        if (!jdTitleCandidates) return;
+        const current = (jdReviewTitleInput?.value || '').trim().toLowerCase();
+        jdTitleCandidates.querySelectorAll('.jd-location-candidate').forEach((chip) => {
+          chip.classList.toggle('active', chip.dataset.value.toLowerCase() === current);
+        });
+      };
+
+      const hideTitleNote = () => {
+        if (jdTitleNote) jdTitleNote.style.display = 'none';
+      };
+
+      const renderTitleCandidates = () => {
+        if (!jdTitleCandidates) return;
+        jdTitleCandidates.textContent = '';
+        if (titleCandidateValues.length < 2) {
+          jdTitleCandidates.style.display = 'none';
+          return;
+        }
+        titleCandidateValues.forEach((candidate) => {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'jd-location-candidate';
+          chip.dataset.value = candidate;
+          chip.textContent = candidate;
+          chip.onclick = () => {
+            if (jdReviewTitleInput) jdReviewTitleInput.value = candidate;
+            stopTimerOnEdit();
+            hideTitleNote();
+            titleAnalyzer.markEdited();
+            updateTitleCandidates();
+          };
+          jdTitleCandidates.appendChild(chip);
+        });
+        jdTitleCandidates.style.display = 'flex';
+        updateTitleCandidates();
       };
 
       const companyAnalyzer = createFieldAnalyzer({
@@ -1462,6 +1520,14 @@ document.addEventListener('DOMContentLoaded', () => {
         onInput: updateLocationCandidates
       });
 
+      const showTitleNote = () => {
+        if (!jdTitleNote) return;
+        const confidence = Number((meta.titleMeta && meta.titleMeta.extractionConfidence) || 0);
+        const source = String((meta.titleMeta && meta.titleMeta.source) || '');
+        const needsCheck = !!filled.title && confidence > 0 && confidence < 0.6 && source !== 'jsonld';
+        jdTitleNote.style.display = needsCheck ? 'block' : 'none';
+      };
+
       const stopTimer = () => {
         if (!timer) return;
         clearInterval(timer);
@@ -1478,6 +1544,8 @@ document.addEventListener('DOMContentLoaded', () => {
         companyAnalyzer.cleanup();
         titleAnalyzer.cleanup();
         locationAnalyzer.cleanup();
+        if (jdTitleCandidates) jdTitleCandidates.style.display = 'none';
+        if (jdTitleNote) jdTitleNote.style.display = 'none';
         document.removeEventListener('keydown', onKeyDown, true);
         jdReviewModal.style.display = 'none';
       };
@@ -1525,7 +1593,16 @@ document.addEventListener('DOMContentLoaded', () => {
         input.addEventListener('input', stopTimerOnEdit, { once: true });
       });
 
+      if (jdReviewTitleInput) {
+        jdReviewTitleInput.addEventListener('input', () => {
+          hideTitleNote();
+          updateTitleCandidates();
+        });
+      }
+
       renderLocationCandidates();
+      renderTitleCandidates();
+      showTitleNote();
 
       if (jdReviewApplyBtn) jdReviewApplyBtn.onclick = () => finish(true);
       if (jdReviewCancelBtn) jdReviewCancelBtn.onclick = () => finish(false);
@@ -2247,8 +2324,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.15.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.15.0';
+  const ANNOUNCEMENT_VERSION = '10.16.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.16.0';
 
   function dismissWhatsNew() {
     chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_SEEN_VALUE });

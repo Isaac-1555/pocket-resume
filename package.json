@@ -26,6 +26,7 @@
     "test:formfill": "node scripts/test-formfill.mjs",
     "test:pdfstore": "node scripts/test-pdfstore.mjs",
     "test:render": "node scripts/test-render.mjs",
+    "test:titles": "node scripts/test-title-extract.mjs",
     "build:zip": "node scripts/build-zip.mjs"
   }
 }
