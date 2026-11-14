@@ -15,6 +15,7 @@ Key runtime entrypoints (declared in `manifest.json`):
 - **Options page**: `options.html` + `options.js` — resume form + cover letter + account + toggles
 - **Resume renderers**: `resume-renderers.js` — Double Sided and Academic CV PDF layouts
 - **Generated PDF store**: `pdf-store.js` — the side panel's file shelf (local storage, eviction rules)
+- **Company directory**: `company-directory.js` (pure engine) + `company-directory-store.js` (local storage, daily refresh) + `libs/company-directory-global.js` (the bundled official list) — employer resolution and learning from corrections
 - **Pro (optional)**: `src/cloud-sync.js` (source) → `cloud-sync.js` (options page, with Clerk UI) + `cloud-sync-core.js` (panel / tracker / worker, no UI) — both bundles gitignored — auth, plan gating, pricing, resume sync
 - **Convex backend (optional)**: `convex/` — auth config + resume schema/functions
 
@@ -96,7 +97,7 @@ Requires `CONVEX_DEPLOYMENT` in `.env.local`. Generated code goes to `convex/_ge
 
 ### Tests / lint
 
-`npm run test:align` (determinism, no-invented-numbers, parser fixtures, normalization), `npm run test:render` (Double Sided one-page fit, no text below the page margin, Academic CV pagination + footer, no duplicated projects), `npm run test:formfill` (form filler matchers and the resume → profile map), `npm run test:pdfstore` (file shelf URL keys and eviction rules) and `npm run test:feedback` (feedback validation, payload, error mapping) are the automated checks. No linter. Otherwise: load unpacked, generate with a real account, inspect the PDF + the service worker console.
+`npm run test:align` (determinism, no-invented-numbers, parser fixtures, normalization), `npm run test:render` (Double Sided one-page fit, no text below the page margin, Academic CV pagination + footer, no duplicated projects), `npm run test:formfill` (form filler matchers and the resume → profile map), `npm run test:pdfstore` (file shelf URL keys and eviction rules), `npm run test:companydir` (company sanitization, matching, learning, persistence, failure fallbacks) and `npm run test:feedback` (feedback validation, payload, error mapping) are the automated checks. No linter. Otherwise: load unpacked, generate with a real account, inspect the PDF + the service worker console.
 
 ### Versioning & changelog
 
@@ -111,7 +112,7 @@ Requires `CONVEX_DEPLOYMENT` in `.env.local`. Generated code goes to `convex/_ge
 
 Chrome Web Store upload = a zip with `manifest.json` at the root and **only runtime files**. Include:
 
-`manifest.json`, `background.js`, `content.js`, `form-filler.js`, `form-profile.js`, `feedback.js`, `sidebar.html`, `sidebar.js`, `pdf-store.js`, `options.html`, `options.js`, `tracker.html`, `tracker.js`, `resume-renderers.js`, `resume-align.js`, `resume-parse.js`, `resume-health.js`, `resume-letter.js`, `skill-lexicon.js`, `feature-video.js`, `feature-video.css`, `cloud-sync.js`, `cloud-sync-core.js`, `icon.png`, `libs/` (jsPDF, ldrs loader, animations, skills lexicon), `assets/tour/`.
+`manifest.json`, `background.js`, `content.js`, `form-filler.js`, `form-profile.js`, `feedback.js`, `sidebar.html`, `sidebar.js`, `pdf-store.js`, `options.html`, `options.js`, `tracker.html`, `tracker.js`, `resume-renderers.js`, `resume-align.js`, `resume-parse.js`, `resume-health.js`, `resume-letter.js`, `skill-lexicon.js`, `company-directory.js`, `company-directory-store.js`, `feature-video.js`, `feature-video.css`, `cloud-sync.js`, `cloud-sync-core.js`, `icon.png`, `libs/` (jsPDF, ldrs loader, animations, skills lexicon, global company directory), `assets/tour/`.
 
 Exclude: `node_modules/`, `dist/`, `.git`, `.github/`, `convex/`, `scripts/`, `src/`, `store-assets/`, `redesign/`, `models/`, `*.md`, `package*.json`, `.env*`. Output to `dist/pocketresume-vX.Y.zip`.
 
@@ -243,6 +244,38 @@ Tests: `npm run test:feedback` (`scripts/test-feedback.mjs`) covers validation, 
 - Baseline snapshot: `libs/skills-lexicon.js` (`npm run build:lexicon`, ~8k terms, committed). Runtime updates go to `chrome.storage.local` as compact rows (`skillLexicon`) + `skillLexiconMeta`.
 - Updates: `chrome.alarms` (`skillLexiconDaily`, 24 h) plus `onStartup`/`onInstalled` and the silent `ENSURE_SKILL_LEXICON` message that `options.js` / `sidebar.js` send on boot; runs when the stored copy is older than 24 h, resolves the current O*NET release, and only re-downloads the CSVs when the release changed. `https://www.onetcenter.org/*` is a required host permission, so there is no toggle, no prompt, and no manual Update button. Failures keep the last good copy and record `lastError` in `skillLexiconMeta` (not surfaced in the UI). No plan check.
 
+### Company directory (v10.14.0)
+
+The deterministic engine still extracts the employer from the DOM; the directory **resolves** that value and **learns** from corrections. No AI, no network during extraction, no rewrite of the engine.
+
+**Modules**
+
+- `company-directory.js` — pure engine (no `chrome.*`): `sanitizeCompanyName`, `comparisonKey` / `looseKey`, `buildDirectoryIndex`, `matchCompany`, `suggestCompany` (Jaro-Winkler + token containment), `resolveCompany`, `decideCorrection`, `applyCorrection`, `describeDecision`. Node-testable.
+- `company-directory-store.js` — the `chrome.storage.local` layer: personal records, the global dataset, the cached index, the daily refresh, and `window.PocketResumeCompanyDirectory` for the panel (`sidebar.js` is a classic script, so it cannot `import` — same pattern as `pdf-store.js`).
+- `libs/company-directory-global.js` — the bundled, read-only dataset (`COMPANY_DIRECTORY_BASE`, ~455 companies: canonical name, legal name, aliases, domains, parent company).
+
+**Storage keys**
+
+- `companyDirectory` — the personal directory: `[{ id, canonicalName, aliases[], domains[], directoryId, source: 'user', createdAt, updatedAt }]`. `directoryId` set ⇒ the record only adds aliases/domains to a **global** company (the global record itself is never modified); `directoryId: null` ⇒ a standalone personal company. Local only, never synced.
+- `companyDirectoryGlobal` — the downloaded copy of the official list (overrides the bundled one).
+- `companyDirectoryMeta` — `{ version, fetchedAt, count, lastError }`.
+
+**Resolution (background, offline)**
+
+`parseJobPosting` now also returns `companySource` (`structured` | `label` | `title` | `''`) — additive, the extracted value itself is untouched. `background.js` → `resolveExtractedCompany(jd, page)` → `resolveCompanyName(...)` matches exact canonical → exact alias → suffix-stripped normalized → domain (page host, only when nothing was extracted) and returns `{ value, originalValue, source, matchType, directoryId, confidence, suggestion }` as `jobMeta.companyMeta`. Only confidence ≥ `APPLY_CONFIDENCE` (0.9) rewrites `jd.company`; a **fuzzy match never rewrites anything** — it is a suggestion for the review dialog. Any throw keeps the raw DOM value: a broken directory never breaks extraction.
+
+**Learning (panel, on the existing job-details review)**
+
+The `#jdCompanyInput` in the JD review modal analyses the typed value against the directory (debounced, `sidebar.js` → `analyzeCorrection`) and renders an inline hint plus, for a near-match, a *Save as alias* / *Add as new* row (`#jdCompanyHint`, `#jdCompanySuggestion`). On save (`finish(true)`) `learnCorrection` writes: `known` → nothing (the raw DOM value may be stored as an alias), `suggest` → **only** when the user confirmed, `new` → a personal record with the old DOM value as its alias, `invalid` → nothing (the value still applies to the current application). Learning only runs when the user actually edited the field. With *Don't ask again* on, only `known` / `new` apply — there is no confirmation UI to ask with.
+
+**Global dataset refresh**
+
+Mirrors the skill lexicon: `chrome.alarms` (`companyDirectoryDaily`, 24 h) + `onStartup`/`onInstalled` + the silent `ENSURE_COMPANY_DIRECTORY` message that `options.js` / `sidebar.js` send on boot → `GET https://pocket-resume.xyz/data/companies.json` (host permission `https://pocket-resume.xyz/*`). The payload is validated before it can replace the working copy; a failure or a malformed payload keeps the last good copy and records `lastError`. The request carries no personal data. The bundled list always works offline.
+
+**Management UI**
+
+Settings → **Company directory** (`#companyDirectoryDetails` in `options.html`): search (your companies always, the official list while searching), add, rename, add/remove alias, delete. Personal rows are editable, official rows are read-only with an *Official* badge.
+
 ### Cover letter per resume (v10.5, gated in v10.6)
 
 Settings → **Cover letter** edits the **active resume tab's** letter (`resume.coverLetter = { greeting, body, signOff, updatedAt }`). The editor lives in the left panel, so switching resume tabs reloads it; pending edits flush before the switch. Under the hood, the dropdown writes to `resumes[activeTabIndex]`, bumps `updatedAt`, and auto-syncs.
@@ -347,6 +380,9 @@ Important keys:
 - `downloadOnGenerate`: boolean (default false) — also save every generated PDF to the computer, not only keep it in the panel. Toggle in the panel's Files header and in Settings → Interface.
 - `openAuth`: `'signIn' | 'signUp'` — set by the side panel sign-in card, consumed and cleared by `options.js`, which opens the full Clerk modal. The side panel bundle has no Clerk UI, so it must deep-link instead of calling `signIn()`/`signUp()`.
 - `trackerLockDismissed`: boolean — user dismissed the Job Tracker lock banner
+- `companyDirectory`: the personal company directory — `[{ id, canonicalName, aliases[], domains[], directoryId, source: 'user', createdAt, updatedAt }]`. Local only, never synced. See "Company directory".
+- `companyDirectoryGlobal`: the downloaded copy of the official company list (overrides `libs/company-directory-global.js`)
+- `companyDirectoryMeta`: `{ version, fetchedAt, count, lastError }` — refresh status (silent; no UI)
 
 Legacy migration: `userProfile` → `resumes[0].content` → parsed into `jsonContent` on the next Settings load
 
@@ -411,6 +447,9 @@ PocketResume/
 ├── resume-health.js         # Opt-in health check: redaction, prompt, JSON salvage, Pollinations→Ollama chain
 ├── resume-letter.js         # General cover-letter body writer over the same provider chain
 ├── skill-lexicon.js         # O*NET CSV parsing, alias map, lexicon merge/compact (pure)
+├── company-directory.js     # Company sanitization, matching, resolution, learning decisions (pure)
+├── company-directory-store.js # Personal directory storage, global dataset + daily refresh, panel API
+├── libs/company-directory-global.js # Bundled official company directory (read-only dataset)
 ├── src/cloud-sync.js        # Pro auth/plan/pricing/sync source (bundled → cloud-sync.js + cloud-sync-core.js)
 ├── cloud-sync.js            # [generated, gitignored] esbuild bundle, Clerk UI (options.html)
 ├── cloud-sync-core.js       # [generated, gitignored] esbuild bundle, no UI (panel / tracker / worker)
@@ -426,6 +465,7 @@ PocketResume/
 ├── scripts/build-zip.mjs    # Builds dist/pocketresume-vX.Y.zip from the runtime file list (npm run build:zip)
 ├── scripts/test-align.mjs   # Engine tests (npm run test:align)
 ├── scripts/test-render.mjs  # PDF layout tests (npm run test:render)
+├── scripts/test-company-directory.mjs # Company directory tests (npm run test:companydir)
 ├── .env.example             # Template for .env.local
 ├── AGENTS.md                # This file
 ├── CHANGELOG.md             # Version history — update on every version bump
@@ -444,6 +484,7 @@ PocketResume/
 - **Change access gating**: `src/cloud-sync.js` (`getAccessState`/`hasProAccess`/`ACCESS_WINDOW`), `background.js` (`getGenerationAccess`), `sidebar.js` (`refreshGate` + gate cards).
 - **Change generation / JD alignment**: `resume-align.js` (`parseJobPosting`, `alignResumeJson`, verifier), `background.js` (`GENERATE`, `BUILD_COVER_LETTER`), `sidebar.js` (`runGeneration`, `refreshGate`) / `sidebar.html` (`#signinCard`, `#reviewCard`, `#planLockCard`).
 - **Change the skill vocabulary or update source**: `skill-lexicon.js` (parsers, `CURATED_ALIASES`, `AMBIGUOUS_SKILL_KEYS`, source URLs) + `scripts/build-lexicon.mjs` (bundled baseline) + `background.js` (`updateSkillLexicon`, daily alarm, `ENSURE_SKILL_LEXICON`). Keep the O*NET attribution in `NOTICE`.
+- **Change the company directory**: `company-directory.js` (sanitization, comparison keys, matching, learning decisions) + `libs/company-directory-global.js` (the bundled official list) + `company-directory-store.js` (storage, refresh) + `background.js` (`resolveExtractedCompany`, `ENSURE_COMPANY_DIRECTORY`) + `sidebar.js`/`sidebar.html` (the review-dialog hint and the alias confirmation) + `options.html`/`options.js` (`#companyDirectoryDetails` → the management list).
 - **Change Resume Health Check**: `resume-health.js` (`buildProviders`, `checkResumeHealth`, `validateHealthReport`, `SCORE_WEIGHTS`), `background.js` (`CHECK_RESUME_HEALTH`), `options.html`/`options.js` (`#resumeHealthDetails` → `renderHealthPanel` / `runResumeHealthCheck`, cooldown + local fix scoring).
 - **Change the cover letter**: `options.html`/`options.js` (Cover letter section: Generate letter + 60 s cooldown gate, prompt, sample, per-resume editor) + `resume-letter.js` (`generateCoverLetterBody`, `buildCoverLetterBodyPrompt`, `sanitizeLetter`, `COVER_LETTER_COOLDOWN_MS`) + `buildCoverLetterFromTemplate` in `resume-align.js` + `background.js` (`BUILD_AI_COVER_LETTER` gate + cooldown write).
 - **Change saved-answer resolution / canonical matchers**: `form-profile.js` (`CANONICAL_MATCHERS`, `resolveFormAnswers`, `normalizeFormAnswers`, `profileFromResume`) + `scripts/test-formfill.mjs`.
@@ -496,12 +537,15 @@ Buttons use semantic accent tokens so paired actions both read as intentional (n
 - **`jsonContent` is the only input the engine accepts.** There is no raw-text generation fallback anymore; if a resume has only `content`, it must be parsed and saved in Settings first.
 - **Generation requires a signed-in session.** Hard block, no offline grace: if the snapshot is stale or missing, the worker denies and the side panel shows `#signinCard`.
 - **Manifest `key` field is intentionally absent.** Chrome assigns a fresh extension ID on first load. Do not re-add it (it would lock all contributors to one ID).
-- **`host_permissions`** in `manifest.json` covers Clerk + Convex + `https://text.pollinations.ai/*` (Resume Health Check) + `https://www.onetcenter.org/*` (daily skill-directory refresh). Update both the manifest and this file if you add a new backend.
+- **`host_permissions`** in `manifest.json` covers Clerk + Convex + `https://text.pollinations.ai/*` (Resume Health Check) + `https://www.onetcenter.org/*` (daily skill-directory refresh) + `https://pocket-resume.xyz/*` (daily company-directory refresh). Update both the manifest and this file if you add a new backend.
 - **Chrome extension service workers can be killed** between messages. Do not store in-memory state across calls — read from `chrome.storage.local` each time.
 - **Content script CSP**: avoid inline scripts / eval in `content.js`. The page's CSP applies.
 - **Client-rendered job boards need the JSON-LD path.** Sites like `careers.atb.com` serve a 650-character shell at `domcontentloaded` ("We didn't find any …") and hydrate the posting a moment later; the only lexicon word in that shell is a footer link (`LinkedIn`). `content.js` waits up to 4 s for the body to fill in, and `background.js` merges `JobPosting.description` from the schema.org block, which is present in the initial HTML. Never rely on `document.body.innerText` alone for a JD.
 - **Convex actions have no `ctx.db`.** An action cannot read or write the database directly; use `ctx.runQuery(internal.module.fn, …)` / `ctx.runMutation(internal.module.fn, …)`. The internal helpers must be **exported** from their file, or `internal.<module>.<fn>` does not resolve at runtime (the failure shows up as "Couldn't resolve api.<module>.<fn>", not as a type error).
 - **Do not commit** `cloud-sync.js` / `cloud-sync-core.js` (build artifacts), `convex/_generated/`, or anything from `.env.local`. See `.gitignore`.
+- **A broken directory must never break extraction.** Every directory call in `background.js` is wrapped: `resolveExtractedCompany` falls back to the raw DOM value, and the store returns an empty directory instead of throwing. If the directory is missing, malformed or offline, the page still generates exactly as before.
+- **A fuzzy match is a suggestion, never a merge.** `applyCorrection` only writes an alias for a `suggest` decision when the user clicked *Save as alias* in the review dialog. Never write on a similarity score alone.
+- **Global company records are read-only.** A personal record that adds an alias to an official company points at it with `directoryId`; the bundled record in `libs/company-directory-global.js` is never edited.
 
 ## Privacy posture
 
@@ -511,4 +555,5 @@ PocketResume is privacy-first by default. See `privacy-policy.md` for the full p
 - Keeps the PDFs it generates in the side panel, in the browser's local storage only (`generatedPdfs`). They are never uploaded, and the shelf is emptied when a new posting is generated or when a file is dropped on the delete zone
 - Makes no AI requests except opt-in features the user starts: the Resume Health Check (redacted `jsonContent` to Pollinations, or local Ollama on fallback) and Generate letter (redacted resume profile to the same chain). Resume generation and filling stay local.
 - Sends nothing to Clerk/Convex unless you sign in, and then only resumes you sync
+- Keeps the personal company directory (`companyDirectory`) on the device. Corrections are never uploaded, never synced and never part of the resume payload. The only company-directory request is a plain GET for the public company list from `pocket-resume.xyz`, once a day, carrying no personal data
 - Sends one thing without a sign-in: the feedback message you type in Settings → Feedback, with your email address, the extension version, the browser string and (only if you tick the box) the page address. It goes to the developer's own Convex deployment and is emailed to the developer. Nothing is kept in local storage

@@ -21,6 +21,8 @@ import { SKILL_LEXICON_BASE } from './libs/skills-lexicon.js';
 import { checkResumeHealth } from './resume-health.js';
 import { generateCoverLetterBody, COVER_LETTER_COOLDOWN_MS } from './resume-letter.js';
 import { resolveFormAnswers, normalizeFormAnswers } from './form-profile.js';
+import { resolveCompanyName, refreshGlobalDirectory } from './company-directory-store.js';
+import { APPLY_CONFIDENCE } from './company-directory.js';
 
 async function setCoverLetterCooldown(resumeId, cooldownUntil) {
     if (!resumeId) return;
@@ -199,6 +201,7 @@ const SKILL_LEXICON_KEY = 'skillLexicon';
 const SKILL_LEXICON_META_KEY = 'skillLexiconMeta';
 const SKILL_LEXICON_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const SKILL_LEXICON_ALARM = 'skillLexiconDaily';
+const COMPANY_DIRECTORY_ALARM = 'companyDirectoryDaily';
 
 function getBundledLexicon() {
     const expanded = expandLexicon(SKILL_LEXICON_BASE);
@@ -299,17 +302,21 @@ function enableSidePanel() {
 }
 
 chrome.alarms.create(SKILL_LEXICON_ALARM, { periodInMinutes: 24 * 60, delayInMinutes: 3 });
+chrome.alarms.create(COMPANY_DIRECTORY_ALARM, { periodInMinutes: 24 * 60, delayInMinutes: 5 });
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === SKILL_LEXICON_ALARM) maybeAutoUpdateSkillLexicon();
+    if (alarm.name === COMPANY_DIRECTORY_ALARM) maybeAutoUpdateCompanyDirectory();
 });
 chrome.runtime.onStartup.addListener(() => {
     chrome.alarms.clear('skillLexiconWeekly');
     maybeAutoUpdateSkillLexicon();
+    maybeAutoUpdateCompanyDirectory();
     enableSidePanel();
 });
 chrome.runtime.onInstalled.addListener(() => {
     chrome.alarms.clear('skillLexiconWeekly');
     maybeAutoUpdateSkillLexicon();
+    maybeAutoUpdateCompanyDirectory();
     enableSidePanel();
 });
 maybeAutoUpdateSkillLexicon();
@@ -366,8 +373,41 @@ function buildJobMeta(jd, resume) {
         company: jd.company || resume.company || '',
         location: jd.location || '',
         recruiterName: jd.recruiterName || '',
-        recruiterEmail: jd.recruiterEmail || ''
+        recruiterEmail: jd.recruiterEmail || '',
+        companyMeta: jd.companyMeta || null
     };
+}
+
+// --- Company directory (offline, deterministic) ---
+
+async function resolveExtractedCompany(jd, page) {
+    const raw = String(jd.company || '').trim();
+    const fallback = {
+        value: raw,
+        originalValue: raw,
+        source: jd.companySource || '',
+        matchType: 'none',
+        directoryId: null,
+        confidence: 0,
+        suggestion: null
+    };
+    try {
+        const resolved = await resolveCompanyName(raw, { url: (page && page.url) || '', source: jd.companySource || '' });
+        const usable = resolved.value && (resolved.confidence >= APPLY_CONFIDENCE || resolved.matchType === 'domain');
+        if (usable) return resolved;
+        return { ...resolved, value: raw };
+    } catch (error) {
+        console.warn('[CompanyDirectory] Resolution failed, keeping the extracted name:', error);
+        return fallback;
+    }
+}
+
+async function maybeAutoUpdateCompanyDirectory() {
+    try {
+        await refreshGlobalDirectory();
+    } catch (error) {
+        console.warn('[CompanyDirectory] auto-update failed:', error);
+    }
 }
 
 // --- Form filler (deterministic, saved answers only) ---
@@ -561,8 +601,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
                 const tab = await chrome.tabs.get(tabId);
                 const lexicon = await getSkillLexicon();
-                const runAlign = (page) => {
+                const runAlign = async (page) => {
                     const jd = parseJobPosting({ title: page.title || tab.title, text: buildJobText(page), structured: page.structured });
+                    const companyMeta = await resolveExtractedCompany(jd, page);
+                    if (companyMeta.value) jd.company = companyMeta.value;
+                    jd.companyMeta = companyMeta;
                     const aligned = alignResumeJson(profile, jd, {
                         lexicon,
                         styleConfig,
@@ -573,11 +616,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 };
 
                 let page = await getPageContentForTab(tabId);
-                let aligned = runAlign(page);
+                let aligned = await runAlign(page);
                 for (let attempt = 0; attempt < 2 && !aligned.report.jdSkillCount; attempt++) {
                     await new Promise((resolve) => setTimeout(resolve, 1500));
                     page = await getPageContentForTab(tabId, { skipCache: true });
-                    const retried = runAlign(page);
+                    const retried = await runAlign(page);
                     if (retried.report.jdSkillCount >= aligned.report.jdSkillCount) aligned = retried;
                 }
                 const { jd, resume, report } = aligned;
@@ -732,6 +775,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'ENSURE_SKILL_LEXICON') {
         (async () => {
             await maybeAutoUpdateSkillLexicon();
+            sendResponse({ status: 'success' });
+        })();
+
+        return true;
+    }
+
+    if (message.type === 'ENSURE_COMPANY_DIRECTORY') {
+        (async () => {
+            await maybeAutoUpdateCompanyDirectory();
             sendResponse({ status: 'success' });
         })();
 

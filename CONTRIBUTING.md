@@ -55,6 +55,9 @@ PocketResume/
 ├── resume-health.js         # Opt-in Resume health check (Pollinations -> Ollama)
 ├── resume-letter.js         # Opt-in cover-letter body writer (same provider chain)
 ├── skill-lexicon.js         # O*NET skill vocabulary (pure)
+├── company-directory.js     # Company sanitization, matching, resolution, learning (pure)
+├── company-directory-store.js # Personal company directory + official list refresh
+├── libs/company-directory-global.js # Bundled official company directory (read-only)
 ├── src/cloud-sync.js        # Pro auth/plan/pricing source (bundled → cloud-sync.js)
 ├── cloud-sync.js            # [generated] esbuild bundle of src/cloud-sync.js
 ├── convex/                  # Convex backend (resumes schema)
@@ -67,15 +70,17 @@ PocketResume/
 ## Tests and Builds
 
 ```sh
-npm run test:align    # determinism, no-invented-numbers, parser fixtures, normalization
-npm run test:formfill # saved-answer resolution, option matching, EEO gate, maxLength, resume -> profile
-npm run test:render   # Double Sided one-page fit, page margins, Academic CV pagination, no duplicated projects
-npm run test:pdfstore # file shelf URL keys + eviction rules (one posting at a time)
+npm run test:align      # determinism, no-invented-numbers, parser fixtures, normalization
+npm run test:formfill   # saved-answer resolution, option matching, EEO gate, maxLength, resume -> profile
+npm run test:render     # Double Sided one-page fit, page margins, Academic CV pagination, no duplicated projects
+npm run test:pdfstore   # file shelf URL keys + eviction rules (one posting at a time)
+npm run test:companydir # company sanitization, matching, learning, persistence, directory failure fallbacks
+npm run test:feedback   # feedback validation, payload, error mapping, mailto fallback
 npm run build:clerk   # bundle src/cloud-sync.js → cloud-sync.js + cloud-sync-core.js
 npm run build:zip     # dist/pocketresume-vX.Y.zip from the runtime file list
 ```
 
-Keep `test:align`, `test:formfill`, `test:render` and `test:pdfstore` green. There is no linter; otherwise load unpacked and check the PDF plus the service worker console.
+Keep `test:align`, `test:formfill`, `test:render`, `test:pdfstore`, `test:companydir` and `test:feedback` green. There is no linter; otherwise load unpacked and check the PDF plus the service worker console.
 
 ## Pull Requests
 
@@ -104,6 +109,15 @@ Generation is deterministic and runs on-device. If you change the parser, the JD
 ## PDF Layout Changes
 
 `resume-renderers.js` owns the Double Sided and Academic CV layouts. Run `npm run test:render` after any change; it checks one-page Double Sided fit, no text below the page margin, Academic CV pagination and footer, and that projects render once.
+
+## Company Directory Changes
+
+`company-directory.js` is pure (no `chrome.*`, no network); `company-directory-store.js` owns storage and the once-a-day refresh of `libs/company-directory-global.js`.
+
+- Matching stays deterministic: exact canonical → exact alias → suffix-stripped normalized → domain → fuzzy. A fuzzy hit is a **suggestion only** and must never rewrite the extracted company or merge two companies without the user confirming.
+- The official list is read-only. A correction that belongs to an official company is stored as a personal record with `directoryId` set — never by editing the bundled entry.
+- Run `npm run test:companydir`. It covers sanitization, matching, learning, persistence and the failure fallbacks (missing directory, malformed payload, corrupted storage).
+- Adding a company to `libs/company-directory-global.js` needs a unique `id`, a `canonicalName` and `source: 'official'`; alias and domain lists are deduped on load.
 
 ## Pro / Analytics Backend Changes
 

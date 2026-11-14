@@ -90,6 +90,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const jdReviewSkipCheck = document.getElementById('jdReviewSkipCheck');
   const jdReviewApplyBtn = document.getElementById('jdReviewApplyBtn');
   const jdReviewCancelBtn = document.getElementById('jdReviewCancelBtn');
+  const jdCompanyHint = document.getElementById('jdCompanyHint');
+  const jdCompanySuggestion = document.getElementById('jdCompanySuggestion');
+  const jdCompanySuggestionText = document.getElementById('jdCompanySuggestionText');
+  const jdCompanyAliasBtn = document.getElementById('jdCompanyAliasBtn');
+  const jdCompanyNewBtn = document.getElementById('jdCompanyNewBtn');
+  const companyDirectory = window.PocketResumeCompanyDirectory || null;
 
   const JD_REVIEW_TIMEOUT_MS = 30000;
   const JD_DETAIL_FIELDS = ['title', 'company', 'location', 'recruiterName'];
@@ -119,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   chrome.storage.local.get('animationsEnabled', (data) => applyMotionPreference(data.animationsEnabled !== false));
   chrome.runtime.sendMessage({ type: 'ENSURE_SKILL_LEXICON' }, () => void chrome.runtime.lastError);
+  chrome.runtime.sendMessage({ type: 'ENSURE_COMPANY_DIRECTORY' }, () => void chrome.runtime.lastError);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.animationsEnabled) {
       applyMotionPreference(changes.animationsEnabled.newValue !== false);
@@ -1165,6 +1172,23 @@ document.addEventListener('DOMContentLoaded', () => {
     return chips.slice(0, 16);
   }
 
+  function saveCompanyCorrection(original, corrected, options = {}) {
+    const directory = window.PocketResumeCompanyDirectory;
+    if (!directory || typeof directory.learnCorrection !== 'function') return;
+    directory.learnCorrection({
+      original: String(original || '').trim(),
+      corrected: String(corrected || '').trim(),
+      confirmed: options.confirmed === true,
+      forceNew: options.forceNew === true
+    })
+      .then((result) => {
+        if (result && result.action && result.action !== 'none' && result.action !== 'skipped') {
+          console.info('[CompanyDirectory]', result.message);
+        }
+      })
+      .catch((error) => console.warn('[CompanyDirectory] could not save the correction:', error));
+  }
+
   function showJdReview(jobMeta, report, prefill) {
     return new Promise((resolve) => {
       if (!jdReviewModal) {
@@ -1209,6 +1233,12 @@ document.addEventListener('DOMContentLoaded', () => {
       let remaining = Math.ceil(JD_REVIEW_TIMEOUT_MS / 1000);
       let timer = null;
       let settled = false;
+      let companyEdited = false;
+      let aliasConfirmed = false;
+      let forceNewCompany = false;
+      let analysisTimer = null;
+      let analysisToken = 0;
+      const rawCompany = String((meta.companyMeta && meta.companyMeta.originalValue) || extracted.company || '').trim();
 
       const readValues = () => ({
         title: (jdReviewTitleInput?.value || '').trim(),
@@ -1216,6 +1246,71 @@ document.addEventListener('DOMContentLoaded', () => {
         location: (jdReviewLocationInput?.value || '').trim(),
         recruiterName: (jdReviewRecipientInput?.value || '').trim()
       });
+
+      const clearCompanyAnalysis = () => {
+        if (analysisTimer) {
+          clearTimeout(analysisTimer);
+          analysisTimer = null;
+        }
+        if (jdCompanyHint) {
+          jdCompanyHint.textContent = '';
+          jdCompanyHint.className = 'jd-company-hint';
+          jdCompanyHint.style.display = 'none';
+        }
+        if (jdCompanySuggestion) jdCompanySuggestion.style.display = 'none';
+      };
+
+      const setCompanyHint = (tone, text) => {
+        if (!jdCompanyHint) return;
+        jdCompanyHint.textContent = text;
+        jdCompanyHint.className = `jd-company-hint ${tone || ''}`.trim();
+        jdCompanyHint.style.display = text ? 'block' : 'none';
+      };
+
+      const renderCompanyAnalysis = (analysis, value) => {
+        if (!analysis) return;
+        const message = analysis.message || { tone: 'muted', text: '' };
+        setCompanyHint(message.tone, message.text);
+        const canSuggest = analysis.status === 'suggest' && analysis.entry && !aliasConfirmed && !forceNewCompany;
+        if (jdCompanySuggestion && jdCompanySuggestionText) {
+          jdCompanySuggestionText.textContent = canSuggest
+            ? `Save "${value}" as an alias of ${analysis.entry.canonicalName}?`
+            : '';
+          jdCompanySuggestion.style.display = canSuggest ? 'flex' : 'none';
+        }
+      };
+
+      const scheduleCompanyAnalysis = () => {
+        if (analysisTimer) clearTimeout(analysisTimer);
+        const value = (jdReviewCompanyInput?.value || '').trim();
+        if (!value || !companyDirectory || typeof companyDirectory.analyzeCorrection !== 'function') {
+          clearCompanyAnalysis();
+          return;
+        }
+        analysisTimer = setTimeout(async () => {
+          analysisTimer = null;
+          const token = ++analysisToken;
+          try {
+            const analysis = await companyDirectory.analyzeCorrection(rawCompany, value);
+            if (token !== analysisToken) return;
+            renderCompanyAnalysis(analysis, value);
+          } catch (error) {
+            console.warn('[CompanyDirectory] analysis failed:', error);
+          }
+        }, 250);
+      };
+
+      const learnCompanyCorrection = (corrected) => {
+        if (!companyEdited || !corrected) return;
+        saveCompanyCorrection(rawCompany, corrected, { confirmed: aliasConfirmed, forceNew: forceNewCompany });
+      };
+
+      const onCompanyInput = () => {
+        companyEdited = true;
+        aliasConfirmed = false;
+        forceNewCompany = false;
+        scheduleCompanyAnalysis();
+      };
 
       const stopTimer = () => {
         if (!timer) return;
@@ -1230,7 +1325,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const cleanup = () => {
         stopTimer();
+        clearCompanyAnalysis();
         document.removeEventListener('keydown', onKeyDown, true);
+        if (jdReviewCompanyInput) jdReviewCompanyInput.removeEventListener('input', onCompanyInput);
         jdReviewModal.style.display = 'none';
       };
 
@@ -1246,6 +1343,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (jdReviewSkipCheck && jdReviewSkipCheck.checked) {
           chrome.storage.local.set({ jdReviewDisabled: true });
         }
+        learnCompanyCorrection(values.company);
         const changed = ['title', 'company', 'location', 'recruiterName']
           .some((key) => values[key] !== extracted[key]);
         resolve({ values, changed });
@@ -1274,6 +1372,28 @@ document.addEventListener('DOMContentLoaded', () => {
         input.addEventListener('input', stopTimerOnEdit, { once: true });
       });
 
+      if (jdReviewCompanyInput) {
+        jdReviewCompanyInput.addEventListener('input', onCompanyInput);
+      }
+
+      if (jdCompanyAliasBtn) {
+        jdCompanyAliasBtn.onclick = () => {
+          aliasConfirmed = true;
+          forceNewCompany = false;
+          if (jdCompanySuggestion) jdCompanySuggestion.style.display = 'none';
+          setCompanyHint('good', 'Saved as an alias when you save.');
+        };
+      }
+
+      if (jdCompanyNewBtn) {
+        jdCompanyNewBtn.onclick = () => {
+          forceNewCompany = true;
+          aliasConfirmed = false;
+          if (jdCompanySuggestion) jdCompanySuggestion.style.display = 'none';
+          setCompanyHint('muted', 'Will be added to your directory as a new company.');
+        };
+      }
+
       if (jdReviewApplyBtn) jdReviewApplyBtn.onclick = () => finish(true);
       if (jdReviewCancelBtn) jdReviewCancelBtn.onclick = () => finish(false);
       if (jdReviewBackdrop) jdReviewBackdrop.onclick = () => finish(false);
@@ -1290,6 +1410,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       renderCountdown();
       jdReviewModal.style.display = 'flex';
+      if (filled.company) scheduleCompanyAnalysis();
       timer = setInterval(() => {
         remaining -= 1;
         renderCountdown();
@@ -1313,6 +1434,12 @@ document.addEventListener('DOMContentLoaded', () => {
       corrections && Object.prototype.hasOwnProperty.call(corrections, field)
     ));
     if (data.jdReviewDisabled === true) {
+      const extractedCompany = String((jobMeta && jobMeta.company) || '').trim();
+      const correctedCompany = String((values && values.company) || '').trim();
+      if (correctedCompany && correctedCompany !== extractedCompany) {
+        const rawCompany = String((jobMeta && jobMeta.companyMeta && jobMeta.companyMeta.originalValue) || extractedCompany).trim();
+        saveCompanyCorrection(rawCompany, correctedCompany);
+      }
       return { values, changed: hasCorrections, skipped: true };
     }
     return showJdReview(jobMeta, report, values);
@@ -1978,8 +2105,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.13.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.13.0';
+  const ANNOUNCEMENT_VERSION = '10.14.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.14.0';
 
   function dismissWhatsNew() {
     chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_SEEN_VALUE });

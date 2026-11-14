@@ -55,6 +55,14 @@ Settings → Feedback lets you send a message to the developer. It works whether
 
 To recognise skills in job descriptions, the extension downloads a public skill vocabulary from the O*NET Resource Center (`onetcenter.org`) — the U.S. Department of Labor occupational database, licensed CC BY 4.0. This is a plain GET for a public data file. **No personal data, resume content, job text, or identifiers are sent.** The file is parsed locally and the result is stored in your browser. The vocabulary is checked once a day when the extension starts or Settings is opened, and the CSV files are only re-downloaded when O*NET publishes a new release. There is no toggle; the extension also ships a bundled snapshot so the engine works before the first download.
 
+## Company Directory
+
+To recognise employers by name, PocketResume ships with a read-only directory of well-known companies (canonical names, legal names, aliases and domains) and keeps a private list of the companies you correct. Every match happens locally in your browser — no AI reads the page, and your corrections are never uploaded or synced.
+
+- **What is sent:** nothing. The only network request is a plain GET for an updated copy of the public company list from the extension's own website (`pocket-resume.xyz`), once a day, when the extension starts or Settings is opened. It carries no resume content, no job posting, no correction, no browsing history and no identifier.
+- **What is stored:** the downloaded company list in your browser's local storage, and the companies you correct — also in your browser's local storage. Both are removed when you clear the extension's data or uninstall the extension.
+- **What is never sent:** the companies you correct, the job postings you read, and anything else you have saved.
+
 ## Local Data Storage
 
 Pocket Resume stores the following data locally on your device using Chrome's built-in storage APIs:
@@ -65,6 +73,7 @@ Pocket Resume stores the following data locally on your device using Chrome's bu
 * Generated resumes, cover letters, and captured job applications
 * The PDFs you generate in the side panel (kept in the browser's local storage so you can drag them onto a page). Only the current posting's files are kept: generating on a new posting replaces them, and dropping a file on the delete zone removes it
 * Job details you correct in the review dialog (job title, company, location, recipient), remembered per posting URL so the same posting does not need the same edit twice. The URL is stored with tracking parameters removed, and nothing about the posting's page content is kept
+* Your company directory — the companies and aliases you corrected, plus the downloaded copy of the public company list. Both stay on this device and are never synced to the cloud
 
 This locally stored data:
 * Remains entirely under your control
@@ -85,9 +94,9 @@ Pocket Resume requests only the permissions necessary for core functionality:
 * **Unlimited Storage**: The default `chrome.storage.local` quota is 10 MB. A generated PDF can be up to 25 MB and the panel keeps the files for the posting you are on, so without this permission a larger PDF would fail to save and be lost. The stored bytes never leave your device — they are read back only by the extension, replaced when you generate for a different posting, and deleted when you delete a file, clear the shelf, or uninstall the extension
 * **Side Panel**: The whole workflow happens next to the page — read the posting, correct the job details, generate, and drag the finished PDF onto an application form. A popup closes the moment you click the page, so the panel has to stay open while you work. The panel is the extension's own page; it grants no access to other pages
 * **Scripting**: To extract text content from the job posting page when the content script is not already present, and to fill application form fields on the page you ask it to fill
-* **Alarms**: To schedule the daily skill-vocabulary check; no browsing data is read
+* **Alarms**: To schedule the daily skill-vocabulary and company-directory checks; no browsing data is read
 * **Downloads**: To save generated resume and cover-letter PDFs to your computer when you turn on *Download too*
-* **Host Permissions**: To reach Clerk (sign-in), Convex (optional resume sync, and the feedback box), Pollinations (opt-in Resume health check and Generate letter), and the public O*NET skill vocabulary (`onetcenter.org`)
+* **Host Permissions**: To reach Clerk (sign-in), Convex (optional resume sync, and the feedback box), Pollinations (opt-in Resume health check and Generate letter), the public O*NET skill vocabulary (`onetcenter.org`), and the extension's own website (`pocket-resume.xyz`) for the daily company-directory update
 * **Optional Host Permissions**: Requested only when you turn on the local Ollama fallback — `http://localhost:11434`. Chrome asks for your explicit consent before granting it; you can revoke it at any time in Chrome's extension settings.
 
 These permissions are used exclusively to enable the resume, cover letter, and form-filling features and are not used to collect data for other purposes.

@@ -231,13 +231,20 @@ function parseJobPosting({ title = '', text = '', structured = null } = {}) {
     if (!jobTitle) jobTitle = 'Professional';
 
     let company = normalizeSpace(structuredData.company || '');
+    let companySource = company ? 'structured' : '';
     if (!company) {
         const labeled = bodyText.match(/^(?:company|employer|organization|organisation)\s*[:\-]\s*(.{2,80})$/im);
-        if (labeled) company = labeled[1];
+        if (labeled) {
+            company = labeled[1];
+            companySource = 'label';
+        }
     }
     if (!company && pageTitle) {
         const parts = pageTitle.split(/\s*[|·•]\s*/).map((part) => part.trim()).filter(Boolean);
-        if (parts.length > 1) company = parts[parts.length - 1].slice(0, 80);
+        if (parts.length > 1) {
+            company = parts[parts.length - 1].slice(0, 80);
+            companySource = 'title';
+        }
     }
 
     let location = normalizeSpace(structuredData.location || '');
@@ -255,6 +262,7 @@ function parseJobPosting({ title = '', text = '', structured = null } = {}) {
     return {
         title: jobTitle,
         company,
+        companySource,
         location,
         recruiterName: normalizeSpace(structuredData.recruiterName || (recruiterMatch ? recruiterMatch[1] : '')),
         recruiterEmail: normalizeSpace(structuredData.recruiterEmail || (recruiterEmailMatch ? recruiterEmailMatch[0] : '')),

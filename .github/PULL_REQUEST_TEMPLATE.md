@@ -43,3 +43,4 @@ assignees: ''
 - [ ] I have updated [CHANGELOG.md](../CHANGELOG.md) and the popup "What's New" announcement if I bumped the version
 - [ ] For engine changes: `npm run test:align` passes
 - [ ] For PDF layout changes: `npm run test:render` passes
+- [ ] For company directory changes: `npm run test:companydir` passes

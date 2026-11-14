@@ -17,10 +17,19 @@
 - **Job Tracker** — every generation drops a card with the job URL, company, and role. Pipeline board + analytics, no extra calls
 - **Form Filler** — fills the empty fields on an application form from answers you save once. Fully local: no AI, no upload. Questions with no saved answer stay empty and are highlighted for you. Never submits, never overwrites a field you filled
 - **Quick Download** — re-download your saved resume as a professional PDF without reading the page
+- **A company directory that learns** — correct the employer once in the review dialog and the next posting from that company is recognized on its own. A bundled official list resolves legal variants (`Google LLC` → `Google`); everything is matched locally, and your corrections stay on your device
 - **Feedback box** — send a bug report or an idea from Settings, with your email so the answer can come back to you. No account needed
 - **PDF Export** — clean, print-ready PDFs via jsPDF for every layout
 - **Multi-Profile** — save up to 3 master profiles and switch between them
 - **Privacy First** — resumes stay in `chrome.storage.local`; the engine makes no network requests
+
+### What's New in v10.14.0
+
+- **A company directory that learns.** Correct the company name in the side-panel review dialog and PocketResume remembers it. The next posting from the same employer is recognized on its own.
+- **An official list to match against.** A bundled directory of well-known employers resolves the legal variants job boards use — *Google LLC* becomes *Google*, *Microsft* is offered as *Microsoft*. Matching is local and deterministic; no AI reads the page.
+- **Your directory stays on your device.** Settings → **Company directory** lists what you saved, searches the official list, adds aliases and deletes entries. Local only — never uploaded, never synced.
+- **It asks before it merges.** When a correction looks like a company you already have, the panel offers to save it as an alias instead of quietly creating a duplicate.
+- **The list refreshes once a day.** The official directory is checked daily against the extension's own server; a failed refresh keeps the last good copy and the bundled list always works offline.
 
 ### What's New in v10.13.0
 
@@ -149,6 +158,7 @@ Without `RESEND_API_KEY` the message is still stored in the `feedback` table, bu
 - **Runtime:** Vanilla HTML/CSS/JS, Manifest V3
 - **PDF:** [jsPDF](libs/jspdf.umd.min.js) (vendored)
 - **Resume engine:** deterministic in-extension parser + JD aligner (`resume-parse.js`, `resume-align.js`, `skill-lexicon.js`)
+- **Company directory:** deterministic local matcher + learner (`company-directory.js`, `company-directory-store.js`, `libs/company-directory-global.js`)
 - **Cloud (optional):** [Clerk](https://clerk.com) auth + pricing (Pro), [Convex](https://convex.dev) resume sync and the feedback endpoint
 - **Feedback mail:** [Resend](https://resend.com) (server-side only, optional)
 - **Build:** esbuild (only for `cloud-sync.js` bundle); no bundler for app code

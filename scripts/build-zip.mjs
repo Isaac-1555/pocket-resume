@@ -24,6 +24,8 @@ const RUNTIME_FILES = [
   'resume-health.js',
   'resume-letter.js',
   'skill-lexicon.js',
+  'company-directory.js',
+  'company-directory-store.js',
   'feature-video.js',
   'feature-video.css',
   'cloud-sync.js',

@@ -1,5 +1,19 @@
 # Changelog
 
+## [10.14.0] — 2026-11-14
+### Added
+- **A company directory that learns.** Correct the company name in the side-panel review dialog and PocketResume remembers it. The next posting from that employer is recognized on its own — no second correction.
+- **An official directory to match against.** A bundled list of well-known employers (legal names, aliases and domains) resolves the variations job boards use — *Google LLC* becomes *Google*, *Microsft* is offered as *Microsoft*. Matching is local and deterministic; no AI reads the page.
+- **A personal directory, on your device.** Settings → Company directory lists what you saved, searches the official list, adds or removes aliases, and deletes entries. It lives in the browser only — never uploaded, never synced.
+- **A daily dataset refresh.** The official list is checked once a day against the extension's own server. A failed or malformed refresh keeps the last good copy, and the bundled list always works offline.
+
+### Changed
+- **The extracted company is resolved before it reaches the PDF.** A confident directory match rewrites the employer to its canonical name; the original DOM value stays available in the review dialog. A fuzzy match never rewrites anything — it is offered as a suggestion.
+- **Corrections are confirmed before they merge.** When a corrected name resembles a company you already have, the review dialog offers *Save as alias* or *Add as new* instead of creating a duplicate on its own.
+
+### Fixed
+- Nothing else. Resume generation, the file shelf, the Job Tracker and the Form Filler behave exactly as before.
+
 ## [10.13.0] — 2026-11-13
 ### Added
 - **A feedback box in Settings.** Settings → Feedback takes your email and a message and sends them to the developer. No account needed — signed-out users can send too.
