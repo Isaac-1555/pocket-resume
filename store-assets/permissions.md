@@ -85,6 +85,7 @@ page text comes from the content script under `activeTab`.
 | --- | --- | --- |
 | Generated PDF bytes (base64 data URL) | up to 25 MB per file, ×2 (resume + cover letter) | `pdf-store.js:7` (`MAX_PDF_BYTES`), written at `pdf-store.js:101` |
 | Skill vocabulary (O*NET terms, compact rows) | ~1 MB | `chrome.storage.local` key `skillLexicon` |
+| Bundled/updated company, job-title and location lists | ~2.3 MB total when downloaded | `chrome.storage.local` keys `*DirectoryGlobal` (bundled copies live in `libs/`) |
 | Resume profiles, cover letters, Form Filler answers, Job Tracker cards, settings | tens of KB | `chrome.storage.local` |
 
 **Why the default quota is not enough.**
@@ -132,21 +133,21 @@ page text comes from the content script under `activeTab`.
 
 ---
 
-## `https://pocket-resume.xyz/*` (host permission — company directory refresh)
+## `https://pocket-resume.xyz/*` (host permission — company, job-title and location directory refresh)
 
 ### Short (paste into the dashboard)
 
-> PocketResume recognizes employers by name. It ships with a read-only directory of
-> well-known companies (canonical names, legal names, aliases and domains) so a job
-> posting that says "Google LLC" is recognized as "Google", and it keeps a private list
-> of the companies the user corrects on their own device.
+> PocketResume recognizes employers, job titles and locations. It ships with read-only
+> lists of well-known companies (canonical names, legal names, aliases and domains),
+> O*NET job titles and a GeoNames city list, and it keeps private lists of the entries
+> the user corrects on their own device.
 >
-> The host permission is used for exactly one thing: downloading an updated copy of that
-> company list from the extension's own website, once a day, so new employers are
-> recognized without a new version of the extension. The request carries no personal
+> The host permission is used for exactly one thing: downloading updated copies of those
+> public lists from the extension's own website, once a day, so new entries are
+> recognized without a new version of the extension. The requests carry no personal
 > data — no resume, no job posting, no correction, no browsing history, no identifier.
 > A successful list is cached in local browser storage; a failed or malformed download
-> keeps the previous list, and the copy bundled with the extension always works with no
+> keeps the previous list, and the copies bundled with the extension always work with no
 > network at all.
 >
 > The user's own corrections are never uploaded and never synced. Every match happens
@@ -154,32 +155,35 @@ page text comes from the content script under `activeTab`.
 
 ### Long version
 
-**What the permission is used for (1 fetch, once a day).**
+**What the permission is used for (3 fetches, once a day).**
 
 | What | Where |
 | --- | --- |
 | `"https://pocket-resume.xyz/*"` in `host_permissions` | `manifest.json:20` |
-| The list URL | `company-directory-store.js:23` (`GLOBAL_DIRECTORY_SOURCE_URL`) |
-| The only fetch | `company-directory-store.js:273` (inside `refreshGlobalDirectory`) |
-| Daily alarm + startup/install trigger | `background.js:304`, `background.js:307`, `background.js:312`, `background.js:318` |
-| Silent refresh message | `background.js:786` (`ENSURE_COMPANY_DIRECTORY`) |
-| The bundled offline copy | `libs/company-directory-global.js` |
+| Company list URL | `company-directory-store.js:23` (`GLOBAL_DIRECTORY_SOURCE_URL`) |
+| Title list URL | `job-title-directory-store.js:22` (`TITLE_DIRECTORY_SOURCE_URL`) |
+| Location list URL | `job-location-directory-store.js:22` (`LOCATION_DIRECTORY_SOURCE_URL`) |
+| The fetch | `directory-store.js:103` (shared `refreshGlobal`), `company-directory-store.js:273` |
+| Daily alarms + startup/install trigger | `background.js:309-332` |
+| Silent refresh messages | `background.js:885` (`ENSURE_COMPANY_DIRECTORY`), `background.js:894` (`ENSURE_TITLE_DIRECTORY`), `background.js:903` (`ENSURE_LOCATION_DIRECTORY`) |
+| The bundled offline copies | `libs/company-directory-global.js`, `libs/title-directory-global.js`, `libs/location-directory-global.js` |
 
-**What the request contains.** A plain `GET` with no body, no query string and no
-custom headers. It cannot carry resume content, a job posting, a correction or a URL,
-because none of those are ever read into it.
+**What the requests contain.** Plain `GET`s with no body, no query string and no custom
+headers. They cannot carry resume content, a job posting, a correction or a URL, because
+none of those are ever read into them.
 
-**What is stored.** The downloaded company list (names and domains only) in
-`chrome.storage.local` under `companyDirectoryGlobal`, plus a small `companyDirectoryMeta`
-record with the version, the fetch time and the last error.
+**What is stored.** The downloaded lists in `chrome.storage.local` under
+`companyDirectoryGlobal`, `jobTitleDirectoryGlobal` and `jobLocationDirectoryGlobal`,
+plus small `*Meta` records with the version, the fetch time and the last error.
 
-**Failure behaviour.** The last good copy is kept on any error (`company-directory-store.js:277`),
-a malformed payload is rejected before it can replace a working list, and the bundled
-list in `libs/company-directory-global.js` is used whenever storage is empty or broken.
+**Failure behaviour.** The last good copy is kept on any error, a malformed payload is
+rejected before it can replace a working list, and the bundled lists in `libs/` are used
+whenever storage is empty or broken.
 
 **The user's own data never leaves the device.** Corrections are written to
-`chrome.storage.local` under `companyDirectory` by the extension itself. Nothing in the
-company-directory code path sends them anywhere.
+`chrome.storage.local` under `companyDirectory`, `jobTitleDirectory` and
+`jobLocationDirectory` by the extension itself. Nothing in the directory code path sends
+them anywhere.
 
 ---
 
@@ -195,5 +199,5 @@ company-directory code path sends them anywhere.
 | The default quota is 10 MB | Chrome `chrome.storage` docs (`local.QUOTA_BYTES`) |
 | Drag-out needs stored bytes, not a blob URL | `sidebar.js:375-395`, `pdf-store.js:132` |
 | Nothing is stored about visited pages | no write to `chrome.storage.local` outside `pdf-store.js` / `options.js` / `tracker.js` |
-| The company directory refresh sends no personal data | `company-directory-store.js:273` — a bare `GET` of a static file |
-| The user's corrections never leave the device | `company-directory-store.js` writes only to `chrome.storage.local` |
+| The directory refresh sends no personal data | `directory-store.js:103` / `company-directory-store.js:273` — bare `GET`s of static files |
+| The user's corrections never leave the device | directory stores write only to `chrome.storage.local` |

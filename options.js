@@ -9,6 +9,22 @@ import {
   removePersonalAlias,
   updatePersonalCompany
 } from './company-directory-store.js';
+import {
+  addPersonalTitle,
+  addPersonalTitleAlias,
+  deletePersonalTitle,
+  listTitleDirectory,
+  removePersonalTitleAlias,
+  updatePersonalTitle
+} from './job-title-directory-store.js';
+import {
+  addPersonalLocation,
+  addPersonalLocationAlias,
+  deletePersonalLocation,
+  listLocationDirectory,
+  removePersonalLocationAlias,
+  updatePersonalLocation
+} from './job-location-directory-store.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const saveButton = document.getElementById('save');
@@ -68,6 +84,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   const companyDirectoryName = document.getElementById('companyDirectoryName');
   const companyDirectoryAddBtn = document.getElementById('companyDirectoryAddBtn');
   const companyDirectoryStatus = document.getElementById('companyDirectoryStatus');
+  const titleDirectoryDetails = document.getElementById('titleDirectoryDetails');
+  const titleDirectoryList = document.getElementById('titleDirectoryList');
+  const titleDirectoryPill = document.getElementById('titleDirectoryPill');
+  const titleDirectorySearch = document.getElementById('titleDirectorySearch');
+  const titleDirectoryName = document.getElementById('titleDirectoryName');
+  const titleDirectoryAddBtn = document.getElementById('titleDirectoryAddBtn');
+  const titleDirectoryStatus = document.getElementById('titleDirectoryStatus');
+  const locationDirectoryDetails = document.getElementById('locationDirectoryDetails');
+  const locationDirectoryList = document.getElementById('locationDirectoryList');
+  const locationDirectoryPill = document.getElementById('locationDirectoryPill');
+  const locationDirectorySearch = document.getElementById('locationDirectorySearch');
+  const locationDirectoryName = document.getElementById('locationDirectoryName');
+  const locationDirectoryAddBtn = document.getElementById('locationDirectoryAddBtn');
+  const locationDirectoryStatus = document.getElementById('locationDirectoryStatus');
 
   let resumes = [];
   let activeTabIndex = 0;
@@ -793,259 +823,370 @@ My resume:
 
   mountFeedbackForm();
 
-  function setCompanyDirectoryStatus(text) {
-    if (companyDirectoryStatus) companyDirectoryStatus.textContent = text || '';
-  }
+  function mountDirectoryManager(config) {
+    const {
+      details, list, pill, search, nameInput, addBtn, status,
+      typeLabel, personalLabel, officialLabel, addPlaceholder, emptyText, searchPlaceholder,
+      rowTitle, rowMeta, matches, api
+    } = config;
 
-  function companyDirectoryMatches(record, query) {
-    if (!query) return true;
-    const haystack = [record.canonicalName, record.legalName, ...(record.aliases || [])]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-    return haystack.includes(query);
-  }
+    const setStatus = (text) => {
+      if (status) status.textContent = text || '';
+    };
 
-  function buildCompanyAliasChip(alias, removable) {
-    const chip = document.createElement('span');
-    chip.className = 'company-alias';
-    chip.textContent = alias;
-    if (!removable) return chip;
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'company-alias-remove';
-    remove.dataset.action = 'remove-alias';
-    remove.dataset.alias = alias;
-    remove.setAttribute('aria-label', `Remove alias ${alias}`);
-    remove.textContent = '\u00d7';
-    chip.appendChild(remove);
-    return chip;
-  }
+    const buildAliasChip = (alias, removable) => {
+      const chip = document.createElement('span');
+      chip.className = 'company-alias';
+      chip.textContent = alias;
+      if (!removable) return chip;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'company-alias-remove';
+      remove.dataset.action = 'remove-alias';
+      remove.dataset.alias = alias;
+      remove.setAttribute('aria-label', `Remove alias ${alias}`);
+      remove.textContent = '\u00d7';
+      chip.appendChild(remove);
+      return chip;
+    };
 
-  function buildCompanyRow(record, official) {
-    const row = document.createElement('div');
-    row.className = official ? 'company-row official' : 'company-row';
-    row.dataset.id = record.id || '';
+    const buildRow = (record, official) => {
+      const row = document.createElement('div');
+      row.className = official ? 'company-row official' : 'company-row';
+      row.dataset.id = record.id || '';
 
-    const head = document.createElement('div');
-    head.className = 'company-row-head';
-    const name = document.createElement('span');
-    name.className = 'company-row-name';
-    name.textContent = record.canonicalName;
-    head.appendChild(name);
-    const badge = document.createElement('span');
-    badge.className = official ? 'company-row-badge' : 'company-row-badge mine';
-    badge.textContent = official ? 'Official' : 'Yours';
-    head.appendChild(badge);
-    if (!official && record.directoryId) {
-      const linked = document.createElement('span');
-      linked.className = 'company-row-badge';
-      linked.textContent = 'Alias of an official company';
-      head.appendChild(linked);
-    }
-    row.appendChild(head);
+      const head = document.createElement('div');
+      head.className = 'company-row-head';
+      const name = document.createElement('span');
+      name.className = 'company-row-name';
+      name.textContent = rowTitle(record);
+      head.appendChild(name);
+      const badge = document.createElement('span');
+      badge.className = official ? 'company-row-badge' : 'company-row-badge mine';
+      badge.textContent = official ? 'Official' : 'Yours';
+      head.appendChild(badge);
+      if (!official && record.directoryId) {
+        const linked = document.createElement('span');
+        linked.className = 'company-row-badge';
+        linked.textContent = 'Alias of an official entry';
+        head.appendChild(linked);
+      }
+      row.appendChild(head);
 
-    const aliases = document.createElement('div');
-    aliases.className = 'company-row-aliases';
-    (record.aliases || []).forEach((alias) => aliases.appendChild(buildCompanyAliasChip(alias, !official)));
-    row.appendChild(aliases);
+      const metaText = typeof rowMeta === 'function' ? rowMeta(record) : '';
+      if (metaText) {
+        const meta = document.createElement('small');
+        meta.className = 'company-row-meta resume-help';
+        meta.textContent = metaText;
+        row.appendChild(meta);
+      }
 
-    if (!official) {
-      const actions = document.createElement('div');
-      actions.className = 'company-row-actions';
-      const editBtn = document.createElement('button');
-      editBtn.type = 'button';
-      editBtn.className = 'ghost-btn';
-      editBtn.dataset.action = 'edit';
-      editBtn.textContent = 'Edit';
-      const deleteBtn = document.createElement('button');
-      deleteBtn.type = 'button';
-      deleteBtn.className = 'danger-btn';
-      deleteBtn.dataset.action = 'delete';
-      deleteBtn.textContent = 'Delete';
-      actions.appendChild(editBtn);
-      actions.appendChild(deleteBtn);
-      row.appendChild(actions);
+      const aliases = document.createElement('div');
+      aliases.className = 'company-row-aliases';
+      (record.aliases || []).forEach((alias) => aliases.appendChild(buildAliasChip(alias, !official)));
+      row.appendChild(aliases);
 
-      const editor = document.createElement('div');
-      editor.className = 'company-row-editor';
-      editor.hidden = true;
-      const nameInput = document.createElement('input');
-      nameInput.type = 'text';
-      nameInput.className = 'company-edit-name';
-      nameInput.value = record.canonicalName;
-      const aliasInput = document.createElement('input');
-      aliasInput.type = 'text';
-      aliasInput.className = 'company-edit-alias';
-      aliasInput.placeholder = 'Add an alias';
-      const editorActions = document.createElement('div');
-      editorActions.className = 'app-profile-actions';
-      const saveBtn = document.createElement('button');
-      saveBtn.type = 'button';
-      saveBtn.className = 'secondary-action-btn';
-      saveBtn.dataset.action = 'save';
-      saveBtn.textContent = 'Save name';
-      const aliasBtn = document.createElement('button');
-      aliasBtn.type = 'button';
-      aliasBtn.className = 'ghost-btn';
-      aliasBtn.dataset.action = 'add-alias';
-      aliasBtn.textContent = 'Add alias';
-      editorActions.appendChild(saveBtn);
-      editorActions.appendChild(aliasBtn);
-      editor.appendChild(nameInput);
-      editor.appendChild(aliasInput);
-      editor.appendChild(editorActions);
-      row.appendChild(editor);
-    }
+      if (!official) {
+        const actions = document.createElement('div');
+        actions.className = 'company-row-actions';
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'ghost-btn';
+        editBtn.dataset.action = 'edit';
+        editBtn.textContent = 'Edit';
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'danger-btn';
+        deleteBtn.dataset.action = 'delete';
+        deleteBtn.textContent = 'Delete';
+        actions.appendChild(editBtn);
+        actions.appendChild(deleteBtn);
+        row.appendChild(actions);
 
-    return row;
-  }
+        const editor = document.createElement('div');
+        editor.className = 'company-row-editor';
+        editor.hidden = true;
+        const editName = document.createElement('input');
+        editName.type = 'text';
+        editName.className = 'company-edit-name';
+        editName.value = rowTitle(record);
+        const aliasInput = document.createElement('input');
+        aliasInput.type = 'text';
+        aliasInput.className = 'company-edit-alias';
+        aliasInput.placeholder = 'Add an alias';
+        const editorActions = document.createElement('div');
+        editorActions.className = 'app-profile-actions';
+        const saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.className = 'secondary-action-btn';
+        saveBtn.dataset.action = 'save';
+        saveBtn.textContent = 'Save name';
+        const aliasBtn = document.createElement('button');
+        aliasBtn.type = 'button';
+        aliasBtn.className = 'ghost-btn';
+        aliasBtn.dataset.action = 'add-alias';
+        aliasBtn.textContent = 'Add alias';
+        editorActions.appendChild(saveBtn);
+        editorActions.appendChild(aliasBtn);
+        editor.appendChild(editName);
+        editor.appendChild(aliasInput);
+        editor.appendChild(editorActions);
+        row.appendChild(editor);
+      }
 
-  async function renderCompanyDirectory() {
-    if (!companyDirectoryList) return;
-    const query = (companyDirectorySearch?.value || '').trim().toLowerCase();
-    let directory = { personal: [], global: [] };
-    try {
-      directory = await listDirectory();
-    } catch (error) {
-      console.warn('[CompanyDirectory] could not read the directory:', error);
-    }
-    if (companyDirectoryPill) {
-      const count = directory.personal.length;
-      companyDirectoryPill.textContent = count === 1 ? '1 saved' : `${count} saved`;
-    }
-    companyDirectoryList.textContent = '';
+      return row;
+    };
 
-    const personal = directory.personal.filter((record) => companyDirectoryMatches(record, query));
-    const official = query
-      ? directory.global.filter((company) => companyDirectoryMatches(company, query)).slice(0, 80)
-      : [];
+    const render = async () => {
+      if (!list) return;
+      const query = (search?.value || '').trim().toLowerCase();
+      let directory = { personal: [], global: [] };
+      try {
+        directory = await api.list();
+      } catch (error) {
+        console.warn('[Directory] could not read the directory:', error);
+      }
+      if (pill) {
+        const count = directory.personal.length;
+        pill.textContent = count === 1 ? '1 saved' : `${count} saved`;
+      }
+      list.textContent = '';
 
-    if (!personal.length && !official.length) {
-      const empty = document.createElement('small');
-      empty.className = 'resume-help';
-      empty.textContent = query
-        ? 'No company matches that search.'
-        : 'No companies saved yet. Correct the company name in the side panel and it lands here.';
-      companyDirectoryList.appendChild(empty);
-      return;
-    }
+      const personal = directory.personal.filter((record) => matches(record, query));
+      const official = query
+        ? directory.global.filter((record) => matches(record, query)).slice(0, 80)
+        : [];
 
-    if (personal.length) {
-      const label = document.createElement('p');
-      label.className = 'app-profile-group-label';
-      label.textContent = 'Your companies';
-      companyDirectoryList.appendChild(label);
-      personal.forEach((record) => companyDirectoryList.appendChild(buildCompanyRow(record, false)));
-    }
-
-    if (official.length) {
-      const label = document.createElement('p');
-      label.className = 'app-profile-group-label';
-      label.textContent = 'Official directory';
-      companyDirectoryList.appendChild(label);
-      official.forEach((company) => companyDirectoryList.appendChild(buildCompanyRow(company, true)));
-    }
-  }
-
-  if (companyDirectorySearch) {
-    let searchTimer = null;
-    companyDirectorySearch.addEventListener('input', () => {
-      if (searchTimer) clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => renderCompanyDirectory(), 180);
-    });
-  }
-
-  if (companyDirectoryDetails) {
-    companyDirectoryDetails.addEventListener('toggle', () => {
-      if (companyDirectoryDetails.open) renderCompanyDirectory();
-    });
-  }
-
-  if (companyDirectoryAddBtn) {
-    companyDirectoryAddBtn.addEventListener('click', async () => {
-      const value = (companyDirectoryName?.value || '').trim();
-      if (!value) {
-        setCompanyDirectoryStatus('Type a company name first.');
+      if (!personal.length && !official.length) {
+        const empty = document.createElement('small');
+        empty.className = 'resume-help';
+        empty.textContent = query ? `No ${typeLabel} matches that search.` : emptyText;
+        list.appendChild(empty);
         return;
       }
-      const result = await addPersonalCompany({ canonicalName: value });
-      if (!result.ok) {
-        setCompanyDirectoryStatus(result.error === 'duplicate'
-          ? 'That company is already in your directory.'
-          : 'That does not look like a company name.');
-        return;
-      }
-      if (companyDirectoryName) companyDirectoryName.value = '';
-      setCompanyDirectoryStatus(`Added ${result.record.canonicalName}.`);
-      await renderCompanyDirectory();
-    });
-  }
 
-  if (companyDirectoryList) {
-    companyDirectoryList.addEventListener('click', async (event) => {
-      const target = event.target.closest('[data-action]');
-      if (!target) return;
-      const row = target.closest('.company-row');
-      if (!row) return;
-      const id = row.dataset.id || '';
-      const action = target.dataset.action;
+      if (personal.length) {
+        const label = document.createElement('p');
+        label.className = 'app-profile-group-label';
+        label.textContent = personalLabel;
+        list.appendChild(label);
+        personal.forEach((record) => list.appendChild(buildRow(record, false)));
+      }
 
-      if (action === 'edit') {
-        const editor = row.querySelector('.company-row-editor');
-        if (editor) editor.hidden = !editor.hidden;
-        return;
+      if (official.length) {
+        const label = document.createElement('p');
+        label.className = 'app-profile-group-label';
+        label.textContent = officialLabel;
+        list.appendChild(label);
+        official.forEach((record) => list.appendChild(buildRow(record, true)));
       }
-      if (action === 'delete') {
-        const name = row.querySelector('.company-row-name')?.textContent || 'this company';
-        if (!confirm(`Delete ${name} from your company directory?`)) return;
-        await deletePersonalCompany(id);
-        setCompanyDirectoryStatus(`Deleted ${name}.`);
-        await renderCompanyDirectory();
-        return;
-      }
-      if (action === 'remove-alias') {
-        await removePersonalAlias(id, target.dataset.alias || '');
-        await renderCompanyDirectory();
-        return;
-      }
-      if (action === 'save') {
-        const nameInput = row.querySelector('.company-edit-name');
+    };
+
+    if (search) {
+      let searchTimer = null;
+      search.placeholder = searchPlaceholder;
+      search.addEventListener('input', () => {
+        if (searchTimer) clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => render(), 180);
+      });
+    }
+
+    if (details) {
+      details.addEventListener('toggle', () => {
+        if (details.open) render();
+      });
+    }
+
+    if (addBtn) {
+      addBtn.addEventListener('click', async () => {
         const value = (nameInput?.value || '').trim();
         if (!value) {
-          setCompanyDirectoryStatus('Type a company name first.');
+          setStatus(`Type a ${typeLabel} first.`);
           return;
         }
-        const result = await updatePersonalCompany(id, { canonicalName: value });
+        const result = await api.add({ canonicalName: value });
         if (!result.ok) {
-          setCompanyDirectoryStatus('That does not look like a company name.');
+          setStatus(result.error === 'duplicate'
+            ? `That ${typeLabel} is already in your directory.`
+            : `That does not look like a ${typeLabel}.`);
           return;
         }
-        setCompanyDirectoryStatus(`Saved ${result.record.canonicalName}.`);
-        await renderCompanyDirectory();
-        return;
-      }
-      if (action === 'add-alias') {
-        const aliasInput = row.querySelector('.company-edit-alias');
-        const value = (aliasInput?.value || '').trim();
-        if (!value) {
-          setCompanyDirectoryStatus('Type the alias first.');
+        if (nameInput) nameInput.value = '';
+        setStatus(`Added ${rowTitle(result.record)}.`);
+        await render();
+      });
+    }
+
+    if (list) {
+      list.addEventListener('click', async (event) => {
+        const target = event.target.closest('[data-action]');
+        if (!target) return;
+        const row = target.closest('.company-row');
+        if (!row) return;
+        const id = row.dataset.id || '';
+        const action = target.dataset.action;
+
+        if (action === 'edit') {
+          const editor = row.querySelector('.company-row-editor');
+          if (editor) editor.hidden = !editor.hidden;
           return;
         }
-        const result = await addPersonalAlias(id, value);
-        if (!result.ok) {
-          setCompanyDirectoryStatus(result.error === 'duplicate'
-            ? 'That alias is already saved.'
-            : 'That does not look like a company name.');
+        if (action === 'delete') {
+          const name = row.querySelector('.company-row-name')?.textContent || `this ${typeLabel}`;
+          if (!confirm(`Delete ${name} from your ${typeLabel} directory?`)) return;
+          await api.remove(id);
+          setStatus(`Deleted ${name}.`);
+          await render();
           return;
         }
-        setCompanyDirectoryStatus(`Added the alias ${result.record.aliases[result.record.aliases.length - 1]}.`);
-        await renderCompanyDirectory();
-      }
-    });
+        if (action === 'remove-alias') {
+          await api.removeAlias(id, target.dataset.alias || '');
+          await render();
+          return;
+        }
+        if (action === 'save') {
+          const editName = row.querySelector('.company-edit-name');
+          const value = (editName?.value || '').trim();
+          if (!value) {
+            setStatus(`Type a ${typeLabel} first.`);
+            return;
+          }
+          const result = await api.update(id, { canonicalName: value });
+          if (!result.ok) {
+            setStatus(`That does not look like a ${typeLabel}.`);
+            return;
+          }
+          setStatus(`Saved ${rowTitle(result.record)}.`);
+          await render();
+          return;
+        }
+        if (action === 'add-alias') {
+          const aliasInput = row.querySelector('.company-edit-alias');
+          const value = (aliasInput?.value || '').trim();
+          if (!value) {
+            setStatus('Type the alias first.');
+            return;
+          }
+          const result = await api.addAlias(id, value);
+          if (!result.ok) {
+            setStatus(result.error === 'duplicate'
+              ? 'That alias is already saved.'
+              : `That does not look like a ${typeLabel}.`);
+            return;
+          }
+          setStatus(`Added the alias ${result.record.aliases[result.record.aliases.length - 1]}.`);
+          await render();
+        }
+      });
+    }
+
+    if (nameInput && addPlaceholder) nameInput.placeholder = addPlaceholder;
+    render();
+    return { render };
   }
 
-  renderCompanyDirectory();
+  mountDirectoryManager({
+    details: companyDirectoryDetails,
+    list: companyDirectoryList,
+    pill: companyDirectoryPill,
+    search: companyDirectorySearch,
+    nameInput: companyDirectoryName,
+    addBtn: companyDirectoryAddBtn,
+    status: companyDirectoryStatus,
+    typeLabel: 'company',
+    personalLabel: 'Your companies',
+    officialLabel: 'Official directory',
+    addPlaceholder: 'Acme Corporation',
+    emptyText: 'No companies saved yet. Correct the company name in the side panel and it lands here.',
+    searchPlaceholder: 'Search your companies and the official list',
+    rowTitle: (record) => record.canonicalName,
+    matches: (record, query) => {
+      if (!query) return true;
+      return [record.canonicalName, record.legalName, ...(record.aliases || [])]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(query);
+    },
+    api: {
+      add: addPersonalCompany,
+      update: updatePersonalCompany,
+      remove: deletePersonalCompany,
+      addAlias: addPersonalAlias,
+      removeAlias: removePersonalAlias,
+      list: listDirectory
+    }
+  });
+
+  mountDirectoryManager({
+    details: titleDirectoryDetails,
+    list: titleDirectoryList,
+    pill: titleDirectoryPill,
+    search: titleDirectorySearch,
+    nameInput: titleDirectoryName,
+    addBtn: titleDirectoryAddBtn,
+    status: titleDirectoryStatus,
+    typeLabel: 'job title',
+    personalLabel: 'Your job titles',
+    officialLabel: 'Official title list',
+    addPlaceholder: 'Senior Software Engineer',
+    emptyText: 'No job titles saved yet. Correct a title in the side panel and it lands here.',
+    searchPlaceholder: 'Search your titles and the official list',
+    rowTitle: (record) => record.canonicalName,
+    matches: (record, query) => {
+      if (!query) return true;
+      return [record.canonicalName, ...(record.aliases || [])]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(query);
+    },
+    api: {
+      add: addPersonalTitle,
+      update: updatePersonalTitle,
+      remove: deletePersonalTitle,
+      addAlias: addPersonalTitleAlias,
+      removeAlias: removePersonalTitleAlias,
+      list: listTitleDirectory
+    }
+  });
+
+  mountDirectoryManager({
+    details: locationDirectoryDetails,
+    list: locationDirectoryList,
+    pill: locationDirectoryPill,
+    search: locationDirectorySearch,
+    nameInput: locationDirectoryName,
+    addBtn: locationDirectoryAddBtn,
+    status: locationDirectoryStatus,
+    typeLabel: 'location',
+    personalLabel: 'Your locations',
+    officialLabel: 'Official location list',
+    addPlaceholder: 'Toronto, ON',
+    emptyText: 'No locations saved yet. Correct a location in the side panel and it lands here.',
+    searchPlaceholder: 'Search your locations and the official list',
+    rowTitle: (record) => record.displayName || record.canonicalName,
+    rowMeta: (record) => {
+      const title = record.displayName || record.canonicalName;
+      return record.canonicalName && record.canonicalName !== title ? record.canonicalName : '';
+    },
+    matches: (record, query) => {
+      if (!query) return true;
+      return [record.displayName, record.canonicalName, record.city, record.region, record.country, ...(record.aliases || [])]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(query);
+    },
+    api: {
+      add: addPersonalLocation,
+      update: updatePersonalLocation,
+      remove: deletePersonalLocation,
+      addAlias: addPersonalLocationAlias,
+      removeAlias: removePersonalLocationAlias,
+      list: listLocationDirectory
+    }
+  });
 
   function requestEndpointPermission(origin) {
     return chrome.permissions.request({ origins: [origin] }).catch(() => false);
@@ -1417,6 +1558,8 @@ My resume:
   // once a day, so this is a no-op on later opens.
   chrome.runtime.sendMessage({ type: 'ENSURE_SKILL_LEXICON' }, () => void chrome.runtime.lastError);
   chrome.runtime.sendMessage({ type: 'ENSURE_COMPANY_DIRECTORY' }, () => void chrome.runtime.lastError);
+  chrome.runtime.sendMessage({ type: 'ENSURE_TITLE_DIRECTORY' }, () => void chrome.runtime.lastError);
+  chrome.runtime.sendMessage({ type: 'ENSURE_LOCATION_DIRECTORY' }, () => void chrome.runtime.lastError);
 
   if (data.pendingExtract) {
     chrome.storage.local.remove('pendingExtract');

@@ -11,6 +11,7 @@ const item = (id, kind) => ({ id, kind, filename: `${id}.pdf`, dataUrl: 'data:ap
 assert.equal(normalizeUrlKey('https://jobs.example.com/post/1?utm_source=x&id=7#apply'), 'https://jobs.example.com/post/1?id=7');
 assert.equal(normalizeUrlKey('https://Jobs.Example.com/post/1'), 'https://jobs.example.com/post/1');
 assert.equal(normalizeUrlKey('https://jobs.example.com/post/1?gh_src=readme'), 'https://jobs.example.com/post/1');
+assert.notEqual(normalizeUrlKey('https://jobs.example.com/post/1'), normalizeUrlKey('https://careers.example.com/post/1'));
 assert.equal(normalizeUrlKey(''), '');
 assert.equal(normalizeUrlKey('not a url'), 'not a url');
 

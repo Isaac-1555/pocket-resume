@@ -16,6 +16,7 @@ Key runtime entrypoints (declared in `manifest.json`):
 - **Resume renderers**: `resume-renderers.js` — Double Sided and Academic CV PDF layouts
 - **Generated PDF store**: `pdf-store.js` — the side panel's file shelf (local storage, eviction rules)
 - **Company directory**: `company-directory.js` (pure engine) + `company-directory-store.js` (local storage, daily refresh) + `libs/company-directory-global.js` (the bundled official list) — employer resolution and learning from corrections
+- **Job title / location directories**: `job-title-directory.js` + `job-location-directory.js` (pure engines) + their `-store.js` modules + `libs/title-directory-global.js` (O*NET) and `libs/location-directory-global.js` (GeoNames) — title/location resolution, multi-city selection and learning from corrections. `directory-core.js` and `directory-store.js` hold the shared matching and storage primitives.
 - **Pro (optional)**: `src/cloud-sync.js` (source) → `cloud-sync.js` (options page, with Clerk UI) + `cloud-sync-core.js` (panel / tracker / worker, no UI) — both bundles gitignored — auth, plan gating, pricing, resume sync
 - **Convex backend (optional)**: `convex/` — auth config + resume schema/functions
 
@@ -61,8 +62,11 @@ cp node_modules/jspdf/dist/jspdf.umd.min.js libs/jspdf.umd.min.js
 
 ```sh
 npm run build:lexicon   # downloads O*NET 31.0 CSVs -> libs/skills-lexicon.js
+npm run build:titles    # downloads O*NET job titles -> libs/title-directory-global.js
+npm run build:locations # downloads GeoNames cities15000 -> libs/location-directory-global.js
 npm run test:align      # determinism + no-invented-numbers checks (no network)
 npm run test:render     # PDF layout: one-page fit, margins, pagination, duplication
+npm run test:directories # title/location matching, selection, learning (no network)
 ```
 
 ### Update vendored LDRS loader
@@ -97,7 +101,7 @@ Requires `CONVEX_DEPLOYMENT` in `.env.local`. Generated code goes to `convex/_ge
 
 ### Tests / lint
 
-`npm run test:align` (determinism, no-invented-numbers, parser fixtures, normalization), `npm run test:render` (Double Sided one-page fit, no text below the page margin, Academic CV pagination + footer, no duplicated projects), `npm run test:formfill` (form filler matchers and the resume → profile map), `npm run test:pdfstore` (file shelf URL keys and eviction rules), `npm run test:companydir` (company sanitization, matching, learning, persistence, failure fallbacks) and `npm run test:feedback` (feedback validation, payload, error mapping) are the automated checks. No linter. Otherwise: load unpacked, generate with a real account, inspect the PDF + the service worker console.
+`npm run test:align` (determinism, no-invented-numbers, parser fixtures, normalization), `npm run test:render` (Double Sided one-page fit, no text below the page margin, Academic CV pagination + footer, no duplicated projects), `npm run test:formfill` (form filler matchers and the resume → profile map), `npm run test:pdfstore` (file shelf URL keys and eviction rules), `npm run test:companydir` (company sanitization, matching, learning, persistence, failure fallbacks), `npm run test:directories` (title/location sanitization, abbreviation matching, multi-location selection, conservative rewrites, learning, bundled datasets) and `npm run test:feedback` (feedback validation, payload, error mapping) are the automated checks. No linter. Otherwise: load unpacked, generate with a real account, inspect the PDF + the service worker console.
 
 ### Versioning & changelog
 
@@ -112,7 +116,7 @@ Requires `CONVEX_DEPLOYMENT` in `.env.local`. Generated code goes to `convex/_ge
 
 Chrome Web Store upload = a zip with `manifest.json` at the root and **only runtime files**. Include:
 
-`manifest.json`, `background.js`, `content.js`, `form-filler.js`, `form-profile.js`, `feedback.js`, `sidebar.html`, `sidebar.js`, `pdf-store.js`, `options.html`, `options.js`, `tracker.html`, `tracker.js`, `resume-renderers.js`, `resume-align.js`, `resume-parse.js`, `resume-health.js`, `resume-letter.js`, `skill-lexicon.js`, `company-directory.js`, `company-directory-store.js`, `feature-video.js`, `feature-video.css`, `cloud-sync.js`, `cloud-sync-core.js`, `icon.png`, `libs/` (jsPDF, ldrs loader, animations, skills lexicon, global company directory), `assets/tour/`.
+`manifest.json`, `background.js`, `content.js`, `form-filler.js`, `form-profile.js`, `feedback.js`, `sidebar.html`, `sidebar.js`, `pdf-store.js`, `options.html`, `options.js`, `tracker.html`, `tracker.js`, `resume-renderers.js`, `resume-align.js`, `resume-parse.js`, `resume-health.js`, `resume-letter.js`, `skill-lexicon.js`, `company-directory.js`, `company-directory-store.js`, `directory-core.js`, `directory-store.js`, `job-title-directory.js`, `job-title-directory-store.js`, `job-location-directory.js`, `job-location-directory-store.js`, `feature-video.js`, `feature-video.css`, `cloud-sync.js`, `cloud-sync-core.js`, `icon.png`, `libs/` (jsPDF, ldrs loader, animations, skills lexicon, global company/title/location directories), `assets/tour/`.
 
 Exclude: `node_modules/`, `dist/`, `.git`, `.github/`, `convex/`, `scripts/`, `src/`, `store-assets/`, `redesign/`, `models/`, `*.md`, `package*.json`, `.env*`. Output to `dist/pocketresume-vX.Y.zip`.
 
@@ -276,6 +280,54 @@ Mirrors the skill lexicon: `chrome.alarms` (`companyDirectoryDaily`, 24 h) + `on
 
 Settings → **Company directory** (`#companyDirectoryDetails` in `options.html`): search (your companies always, the official list while searching), add, rename, add/remove alias, delete. Personal rows are editable, official rows are read-only with an *Official* badge.
 
+### Job title and location directories (v10.15.0)
+
+Same model as the company directory, with two important differences: **official job titles are suggestions only**, and **locations can be chosen from several candidates**.
+
+**Modules**
+
+- `directory-core.js` — shared primitives: comparison keys, loose keys, Jaro-Winkler/token similarity, suggestion scoring, alias upsert. Pure.
+- `directory-store.js` — the generic `chrome.storage.local` layer (personal records, global dataset, cached index, daily refresh). Each directory supplies its own normalizers/index builder.
+- `job-title-directory.js` — pure title engine: `sanitizeJobTitle` (strips `Job Title:` labels, req IDs, remote/full-time tails), `titleComparisonKey` (safe abbreviation expansion: `sr`→`senior`, `eng`→`engineer`, `swe`→`software engineer`; `Engineer II`/`III` stay distinct), `buildTitleIndex`, `matchTitle`, `suggestTitle`, `resolveTitle`, `decideTitleCorrection`, `applyTitleCorrection`, `describeTitleDecision`.
+- `job-location-directory.js` — pure location engine: `parseLocation` (`City, Region[, Country]`, `Remote (Canada)`, `Hybrid — Toronto, ON`), `sanitizeLocation`, `buildLocationIndex` (full/city-region/city-country/city/alias keys), `matchLocation`, `suggestLocation`, `resolveLocation`, `pickPreferredLocation`, `decideLocationCorrection`, `applyLocationCorrection`.
+- `job-title-directory-store.js` / `job-location-directory-store.js` — storage + `window.PocketResumeTitleDirectory` / `window.PocketResumeLocationDirectory` for the classic-script panel.
+- `libs/title-directory-global.js` — bundled O*NET titles/aliases (~6.5k), built by `scripts/build-title-directory.mjs`.
+- `libs/location-directory-global.js` — bundled GeoNames cities (~6.4k, population ≥100k or a national capital), built by `scripts/build-location-directory.mjs`. Region codes are state/province abbreviations for the US and Canada.
+
+**Storage keys**
+
+- `jobTitleDirectory` — personal title records `[{ id, canonicalName, aliases[], directoryId, source, createdAt, updatedAt }]`.
+- `jobTitleDirectoryGlobal` — downloaded `titles.json` copy (overrides the bundled list).
+- `jobTitleDirectoryMeta` — `{ version, fetchedAt, count, lastError }`.
+- `jobLocationDirectory` — personal location records `[{ id, canonicalName, displayName, city, region, regionCode, country, mode, aliases[], directoryId, source, createdAt, updatedAt }]`.
+- `jobLocationDirectoryGlobal` — downloaded `locations.json` copy.
+- `jobLocationDirectoryMeta` — `{ version, fetchedAt, count, lastError }`.
+
+All six are local-only and never synced.
+
+**Resolution (background, offline)**
+
+`parseJobPosting` returns `locationCandidates` (all JSON-LD `jobLocation` entries, then labeled `Location:` / `Based in:` lines, then the single-place text fallback). `background.js` → `runAlign`:
+
+1. `resolveExtractedTitle(jd)` → `titleMeta`. **Only a personal match rewrites `jd.title`**; an official O*NET match or fuzzy suggestion is stored for the dialog.
+2. `pickPreferredLocation(jd.locationCandidates, masterLocationForProfile(profile))` → if a candidate matches the master profile location (city+region, then city), that candidate is used; otherwise the first candidate (the posting's primary location) wins. **The master location is never injected when the posting does not list it.**
+3. `resolveExtractedLocation(jd)` → `locationMeta`. Only a personal location match rewrites the value; the posting's own wording is kept otherwise.
+4. `buildJobMeta` exposes `titleMeta` and `locationMeta` (`candidates`, `selectedReason`, `selected`, `suggestion`).
+
+Master location = selected resume `jsonContent.location` → first location-shaped `contact` segment → empty.
+
+**Learning (panel, job-details review)**
+
+`#jdTitleInput` and `#jdLocationInput` get the same hint + *Save as alias* / *Add as new* row as company (`#jdTitleHint`, `#jdTitleSuggestion`, `#jdLocationHint`, `#jdLocationSuggestion`). `sidebar.js` uses one `createFieldAnalyzer(...)` for all three fields. Multiple locations render as `#jdLocationCandidates` chips; clicking one fills the field, stops the countdown and marks the location as edited. *Don't ask again* still applies the merged values and learns title/location silently.
+
+**Global dataset refresh**
+
+`chrome.alarms` (`titleDirectoryDaily`, `locationDirectoryDaily`, 24 h) + `onStartup`/`onInstalled` + `ENSURE_TITLE_DIRECTORY` / `ENSURE_LOCATION_DIRECTORY` from `options.js` / `sidebar.js` → `GET https://pocket-resume.xyz/data/titles.json` / `locations.json`. Payloads: `{ version, updatedAt, source, titles: [{ id, canonicalName, aliases }] }` and `{ version, updatedAt, source, locations: [{ id, canonicalName, displayName, city, region, regionCode, country, aliases }] }`. Same failure rule: a broken or missing payload keeps the bundled copy and records `lastError`. The endpoints are not published yet, so the bundled lists are authoritative until they are.
+
+**Management UI**
+
+Settings → **Job title directory** (`#titleDirectoryDetails`) and **Location directory** (`#locationDirectoryDetails`), both mounted by one `mountDirectoryManager(...)` in `options.js`: search, add, rename, add/remove alias, delete. Official rows are read-only.
+
 ### Cover letter per resume (v10.5, gated in v10.6)
 
 Settings → **Cover letter** edits the **active resume tab's** letter (`resume.coverLetter = { greeting, body, signOff, updatedAt }`). The editor lives in the left panel, so switching resume tabs reloads it; pending edits flush before the switch. Under the hood, the dropdown writes to `resumes[activeTabIndex]`, bumps `updatedAt`, and auto-syncs.
@@ -383,6 +435,12 @@ Important keys:
 - `companyDirectory`: the personal company directory — `[{ id, canonicalName, aliases[], domains[], directoryId, source: 'user', createdAt, updatedAt }]`. Local only, never synced. See "Company directory".
 - `companyDirectoryGlobal`: the downloaded copy of the official company list (overrides `libs/company-directory-global.js`)
 - `companyDirectoryMeta`: `{ version, fetchedAt, count, lastError }` — refresh status (silent; no UI)
+- `jobTitleDirectory`: the personal job title directory — `[{ id, canonicalName, aliases[], directoryId, source, createdAt, updatedAt }]`. Local only, never synced.
+- `jobTitleDirectoryGlobal`: the downloaded copy of the official title list (overrides `libs/title-directory-global.js`)
+- `jobTitleDirectoryMeta`: `{ version, fetchedAt, count, lastError }`
+- `jobLocationDirectory`: the personal location directory — `[{ id, canonicalName, displayName, city, region, regionCode, country, mode, aliases[], directoryId, source, createdAt, updatedAt }]`. Local only, never synced.
+- `jobLocationDirectoryGlobal`: the downloaded copy of the official location list (overrides `libs/location-directory-global.js`)
+- `jobLocationDirectoryMeta`: `{ version, fetchedAt, count, lastError }`
 
 Legacy migration: `userProfile` → `resumes[0].content` → parsed into `jsonContent` on the next Settings load
 
@@ -449,7 +507,17 @@ PocketResume/
 ├── skill-lexicon.js         # O*NET CSV parsing, alias map, lexicon merge/compact (pure)
 ├── company-directory.js     # Company sanitization, matching, resolution, learning decisions (pure)
 ├── company-directory-store.js # Personal directory storage, global dataset + daily refresh, panel API
+├── directory-core.js        # Shared directory primitives: keys, fuzzy/token matching, alias upsert (pure)
+├── directory-store.js       # Generic directory storage: cache, dataset refresh, local records
+├── job-title-directory.js   # Job title sanitization, matching, conservative resolution, learning (pure)
+├── job-title-directory-store.js # Personal title storage, global O*NET list + daily refresh, panel API
+├── job-location-directory.js # Location parsing, matching, multi-location selection, learning (pure)
+├── job-location-directory-store.js # Personal location storage, global GeoNames list + daily refresh
+├── scripts/build-title-directory.mjs # O*NET titles -> libs/title-directory-global.js
+├── scripts/build-location-directory.mjs # GeoNames cities -> libs/location-directory-global.js
 ├── libs/company-directory-global.js # Bundled official company directory (read-only dataset)
+├── libs/title-directory-global.js # Bundled O*NET job title directory (read-only dataset)
+├── libs/location-directory-global.js # Bundled GeoNames location directory (read-only dataset)
 ├── src/cloud-sync.js        # Pro auth/plan/pricing/sync source (bundled → cloud-sync.js + cloud-sync-core.js)
 ├── cloud-sync.js            # [generated, gitignored] esbuild bundle, Clerk UI (options.html)
 ├── cloud-sync-core.js       # [generated, gitignored] esbuild bundle, no UI (panel / tracker / worker)
@@ -466,6 +534,7 @@ PocketResume/
 ├── scripts/test-align.mjs   # Engine tests (npm run test:align)
 ├── scripts/test-render.mjs  # PDF layout tests (npm run test:render)
 ├── scripts/test-company-directory.mjs # Company directory tests (npm run test:companydir)
+├── scripts/test-directories.mjs # Job title + location directory tests (npm run test:directories)
 ├── .env.example             # Template for .env.local
 ├── AGENTS.md                # This file
 ├── CHANGELOG.md             # Version history — update on every version bump
@@ -485,6 +554,8 @@ PocketResume/
 - **Change generation / JD alignment**: `resume-align.js` (`parseJobPosting`, `alignResumeJson`, verifier), `background.js` (`GENERATE`, `BUILD_COVER_LETTER`), `sidebar.js` (`runGeneration`, `refreshGate`) / `sidebar.html` (`#signinCard`, `#reviewCard`, `#planLockCard`).
 - **Change the skill vocabulary or update source**: `skill-lexicon.js` (parsers, `CURATED_ALIASES`, `AMBIGUOUS_SKILL_KEYS`, source URLs) + `scripts/build-lexicon.mjs` (bundled baseline) + `background.js` (`updateSkillLexicon`, daily alarm, `ENSURE_SKILL_LEXICON`). Keep the O*NET attribution in `NOTICE`.
 - **Change the company directory**: `company-directory.js` (sanitization, comparison keys, matching, learning decisions) + `libs/company-directory-global.js` (the bundled official list) + `company-directory-store.js` (storage, refresh) + `background.js` (`resolveExtractedCompany`, `ENSURE_COMPANY_DIRECTORY`) + `sidebar.js`/`sidebar.html` (the review-dialog hint and the alias confirmation) + `options.html`/`options.js` (`#companyDirectoryDetails` → the management list).
+- **Change the job title directory**: `job-title-directory.js` (sanitization, abbreviation keys, matching, learning) + `libs/title-directory-global.js` + `scripts/build-title-directory.mjs` + `job-title-directory-store.js` (storage, refresh) + `background.js` (`resolveExtractedTitle`, `ENSURE_TITLE_DIRECTORY`) + `sidebar.js`/`sidebar.html` (`#jdTitleHint`, `#jdTitleSuggestion`) + `options.html`/`options.js` (`#titleDirectoryDetails`).
+- **Change the location directory or multi-location selection**: `job-location-directory.js` (`parseLocation`, `matchLocation`, `pickPreferredLocation`) + `libs/location-directory-global.js` + `scripts/build-location-directory.mjs` + `job-location-directory-store.js` + `content.js` / `resume-align.js` (`locationCandidates`) + `background.js` (`masterLocationForProfile`, `resolveExtractedLocation`) + `sidebar.js`/`sidebar.html` (`#jdLocationCandidates`).
 - **Change Resume Health Check**: `resume-health.js` (`buildProviders`, `checkResumeHealth`, `validateHealthReport`, `SCORE_WEIGHTS`), `background.js` (`CHECK_RESUME_HEALTH`), `options.html`/`options.js` (`#resumeHealthDetails` → `renderHealthPanel` / `runResumeHealthCheck`, cooldown + local fix scoring).
 - **Change the cover letter**: `options.html`/`options.js` (Cover letter section: Generate letter + 60 s cooldown gate, prompt, sample, per-resume editor) + `resume-letter.js` (`generateCoverLetterBody`, `buildCoverLetterBodyPrompt`, `sanitizeLetter`, `COVER_LETTER_COOLDOWN_MS`) + `buildCoverLetterFromTemplate` in `resume-align.js` + `background.js` (`BUILD_AI_COVER_LETTER` gate + cooldown write).
 - **Change saved-answer resolution / canonical matchers**: `form-profile.js` (`CANONICAL_MATCHERS`, `resolveFormAnswers`, `normalizeFormAnswers`, `profileFromResume`) + `scripts/test-formfill.mjs`.
@@ -537,15 +608,20 @@ Buttons use semantic accent tokens so paired actions both read as intentional (n
 - **`jsonContent` is the only input the engine accepts.** There is no raw-text generation fallback anymore; if a resume has only `content`, it must be parsed and saved in Settings first.
 - **Generation requires a signed-in session.** Hard block, no offline grace: if the snapshot is stale or missing, the worker denies and the side panel shows `#signinCard`.
 - **Manifest `key` field is intentionally absent.** Chrome assigns a fresh extension ID on first load. Do not re-add it (it would lock all contributors to one ID).
-- **`host_permissions`** in `manifest.json` covers Clerk + Convex + `https://text.pollinations.ai/*` (Resume Health Check) + `https://www.onetcenter.org/*` (daily skill-directory refresh) + `https://pocket-resume.xyz/*` (daily company-directory refresh). Update both the manifest and this file if you add a new backend.
+- **`host_permissions`** in `manifest.json` covers Clerk + Convex + `https://text.pollinations.ai/*` (Resume Health Check) + `https://www.onetcenter.org/*` (daily skill and job-title directory refresh) + `https://pocket-resume.xyz/*` (daily company, job-title and location directory refresh). Update both the manifest and this file if you add a new backend.
 - **Chrome extension service workers can be killed** between messages. Do not store in-memory state across calls — read from `chrome.storage.local` each time.
 - **Content script CSP**: avoid inline scripts / eval in `content.js`. The page's CSP applies.
+- **Programmatic injection needs a `runtime.lastError` check.** `chrome.scripting.executeScript` fails on `chrome://` pages, the Web Store, PDFs and tabs where the extension was reloaded. The callback still runs, and Chrome logs *Unchecked runtime.lastError* unless the callback reads `chrome.runtime.lastError`. `getPageContentForTab` / `getPageUrlForTab` resolve an empty result instead of throwing; the panel then shows its normal "read the page" error rather than a console warning.
 - **Client-rendered job boards need the JSON-LD path.** Sites like `careers.atb.com` serve a 650-character shell at `domcontentloaded` ("We didn't find any …") and hydrate the posting a moment later; the only lexicon word in that shell is a footer link (`LinkedIn`). `content.js` waits up to 4 s for the body to fill in, and `background.js` merges `JobPosting.description` from the schema.org block, which is present in the initial HTML. Never rely on `document.body.innerText` alone for a JD.
+- **The page cache must be validated against the live URL.** `pendingGeneration` caches the extracted page by `tabId` for 15 minutes. Without the URL check and the `tabs.onUpdated` invalidation, navigating the same tab to another subdomain reuses the previous page text *and* URL, so the review dialog reopens with the previous posting's title and `jdCorrections` are read from the old URL. `getPageContentForTab` now compares `cached.url` with `GET_PAGE_URL` and clears the cache on navigation.
 - **Convex actions have no `ctx.db`.** An action cannot read or write the database directly; use `ctx.runQuery(internal.module.fn, …)` / `ctx.runMutation(internal.module.fn, …)`. The internal helpers must be **exported** from their file, or `internal.<module>.<fn>` does not resolve at runtime (the failure shows up as "Couldn't resolve api.<module>.<fn>", not as a type error).
 - **Do not commit** `cloud-sync.js` / `cloud-sync-core.js` (build artifacts), `convex/_generated/`, or anything from `.env.local`. See `.gitignore`.
-- **A broken directory must never break extraction.** Every directory call in `background.js` is wrapped: `resolveExtractedCompany` falls back to the raw DOM value, and the store returns an empty directory instead of throwing. If the directory is missing, malformed or offline, the page still generates exactly as before.
-- **A fuzzy match is a suggestion, never a merge.** `applyCorrection` only writes an alias for a `suggest` decision when the user clicked *Save as alias* in the review dialog. Never write on a similarity score alone.
-- **Global company records are read-only.** A personal record that adds an alias to an official company points at it with `directoryId`; the bundled record in `libs/company-directory-global.js` is never edited.
+- **A broken directory must never break extraction.** Every directory call in `background.js` is wrapped: `resolveExtractedCompany`, `resolveExtractedTitle` and `resolveExtractedLocation` fall back to the raw DOM value, and the stores return an empty directory instead of throwing. If a directory is missing, malformed or offline, the page still generates exactly as before.
+- **A fuzzy match is a suggestion, never a merge.** `applyCorrection` / `applyTitleCorrection` / `applyLocationCorrection` only write an alias for a `suggest` decision when the user clicked *Save as alias* in the review dialog. Never write on a similarity score alone.
+- **Global records are read-only.** A personal record that adds an alias to an official entry points at it with `directoryId`; the bundled records in `libs/*-global.js` are never edited.
+- **Official job titles never rewrite the extracted title.** `resolveTitle` only sets `apply: true` for a personal record. O*NET matches are suggestions; forced canonicalization would turn a real headline into an occupation category.
+- **The master location is never injected into a posting.** `pickPreferredLocation` only chooses among the DOM candidates. If none matches the resume location, the posting's primary location wins.
+- **Location city-only matches must stay ambiguous.** Two Portlands must not resolve to one city. `matchLocation` only accepts a city-only key when exactly one entry has it, and a suggestion is never applied.
 
 ## Privacy posture
 
@@ -555,5 +631,5 @@ PocketResume is privacy-first by default. See `privacy-policy.md` for the full p
 - Keeps the PDFs it generates in the side panel, in the browser's local storage only (`generatedPdfs`). They are never uploaded, and the shelf is emptied when a new posting is generated or when a file is dropped on the delete zone
 - Makes no AI requests except opt-in features the user starts: the Resume Health Check (redacted `jsonContent` to Pollinations, or local Ollama on fallback) and Generate letter (redacted resume profile to the same chain). Resume generation and filling stay local.
 - Sends nothing to Clerk/Convex unless you sign in, and then only resumes you sync
-- Keeps the personal company directory (`companyDirectory`) on the device. Corrections are never uploaded, never synced and never part of the resume payload. The only company-directory request is a plain GET for the public company list from `pocket-resume.xyz`, once a day, carrying no personal data
+- Keeps the personal company, job-title and location directories (`companyDirectory`, `jobTitleDirectory`, `jobLocationDirectory`) on the device. Corrections are never uploaded, never synced and never part of the resume payload. The only directory requests are plain GETs for the public lists from `pocket-resume.xyz`, once a day, carrying no personal data
 - Sends one thing without a sign-in: the feedback message you type in Settings → Feedback, with your email address, the extension version, the browser string and (only if you tick the box) the page address. It goes to the developer's own Convex deployment and is emailed to the developer. Nothing is kept in local storage

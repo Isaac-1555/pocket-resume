@@ -68,6 +68,51 @@ function flattenJobPostings(node, out) {
     if (node.mainEntity) flattenJobPostings(node.mainEntity, out);
 }
 
+function addressLocation(address) {
+    if (!address || typeof address !== 'object') return '';
+    const locality = String(address.addressLocality || '').split(',')[0].trim();
+    const region = String(address.addressRegion || '').split(',')[0].trim();
+    const countryValue = address.addressCountry;
+    const country = typeof countryValue === 'string'
+        ? countryValue.trim()
+        : String((countryValue && countryValue.name) || '').trim();
+    const parts = [locality, region].filter(Boolean);
+    const place = parts.join(', ');
+    if (!place) return country;
+    if (country && !parts.some((part) => part.toLowerCase() === country.toLowerCase())) {
+        return `${place}, ${country}`;
+    }
+    return place;
+}
+
+function structuredLocations(posting) {
+    const nodes = [].concat(posting && posting.jobLocation ? posting.jobLocation : []);
+    const out = [];
+    const seen = new Set();
+    nodes.forEach((node) => {
+        if (!node) return;
+        const address = node.address || node;
+        const value = addressLocation(address);
+        if (!value) return;
+        const key = value.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(value);
+    });
+    if (!out.length) {
+        const requirements = [].concat(posting && posting.applicantLocationRequirements ? posting.applicantLocationRequirements : []);
+        requirements.forEach((node) => {
+            const value = addressLocation(node.address || node);
+            if (!value) return;
+            const key = value.toLowerCase();
+            if (seen.has(key)) return;
+            seen.add(key);
+            out.push(value);
+        });
+    }
+    return out;
+}
+
 function extractStructuredData() {
     const postings = [];
     document.querySelectorAll('script[type="application/ld+json"]').forEach((script) => {
@@ -78,14 +123,8 @@ function extractStructuredData() {
     });
 
     const posting = postings[0] || null;
-    const address = posting && posting.jobLocation
-        ? [].concat(posting.jobLocation)[0]?.address || null
-        : null;
-    const locality = address ? String(address.addressLocality || '').split(',')[0].trim() : '';
-    const region = address ? String(address.addressRegion || '').split(',')[0].trim() : '';
-    const location = address
-        ? [locality, region].filter(Boolean).join(', ') || (address.addressCountry?.name || address.addressCountry || '')
-        : '';
+    const locations = structuredLocations(posting);
+    const location = locations[0] || '';
 
     const ogTitle = document.querySelector('meta[property="og:title"]');
     const h1 = document.querySelector('h1');
@@ -94,6 +133,7 @@ function extractStructuredData() {
         title: posting?.title || (ogTitle ? ogTitle.getAttribute('content') : '') || '',
         company: posting?.hiringOrganization?.name || posting?.hiringOrganization?.[0]?.name || '',
         location,
+        locations,
         remote: posting?.jobLocationType === 'TELECOMMUTE',
         description: posting?.description ? htmlToText(posting.description).substring(0, 20000) : '',
         employmentType: [].concat(posting?.employmentType || []).join(', '),

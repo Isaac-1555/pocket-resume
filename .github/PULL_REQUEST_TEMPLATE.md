@@ -44,3 +44,4 @@ assignees: ''
 - [ ] For engine changes: `npm run test:align` passes
 - [ ] For PDF layout changes: `npm run test:render` passes
 - [ ] For company directory changes: `npm run test:companydir` passes
+- [ ] For job title / location directory changes: `npm run test:directories` passes

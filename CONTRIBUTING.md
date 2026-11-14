@@ -57,7 +57,15 @@ PocketResume/
 ├── skill-lexicon.js         # O*NET skill vocabulary (pure)
 ├── company-directory.js     # Company sanitization, matching, resolution, learning (pure)
 ├── company-directory-store.js # Personal company directory + official list refresh
+├── directory-core.js        # Shared directory primitives (keys, fuzzy/token matching, alias upsert)
+├── directory-store.js       # Generic directory storage, cache and daily refresh
+├── job-title-directory.js   # Job title sanitization, matching, conservative resolution, learning (pure)
+├── job-title-directory-store.js # Personal title directory + official O*NET list refresh
+├── job-location-directory.js # Location parsing, matching, multi-location selection, learning (pure)
+├── job-location-directory-store.js # Personal location directory + official GeoNames list refresh
 ├── libs/company-directory-global.js # Bundled official company directory (read-only)
+├── libs/title-directory-global.js # Bundled O*NET job title directory (read-only)
+├── libs/location-directory-global.js # Bundled GeoNames location directory (read-only)
 ├── src/cloud-sync.js        # Pro auth/plan/pricing source (bundled → cloud-sync.js)
 ├── cloud-sync.js            # [generated] esbuild bundle of src/cloud-sync.js
 ├── convex/                  # Convex backend (resumes schema)
@@ -75,12 +83,16 @@ npm run test:formfill   # saved-answer resolution, option matching, EEO gate, ma
 npm run test:render     # Double Sided one-page fit, page margins, Academic CV pagination, no duplicated projects
 npm run test:pdfstore   # file shelf URL keys + eviction rules (one posting at a time)
 npm run test:companydir # company sanitization, matching, learning, persistence, directory failure fallbacks
+npm run test:directories # job title + location sanitization, matching, multi-location selection, learning
 npm run test:feedback   # feedback validation, payload, error mapping, mailto fallback
 npm run build:clerk   # bundle src/cloud-sync.js → cloud-sync.js + cloud-sync-core.js
+npm run build:lexicon # refresh libs/skills-lexicon.js from O*NET
+npm run build:titles  # refresh libs/title-directory-global.js from O*NET
+npm run build:locations # refresh libs/location-directory-global.js from GeoNames
 npm run build:zip     # dist/pocketresume-vX.Y.zip from the runtime file list
 ```
 
-Keep `test:align`, `test:formfill`, `test:render`, `test:pdfstore`, `test:companydir` and `test:feedback` green. There is no linter; otherwise load unpacked and check the PDF plus the service worker console.
+Keep `test:align`, `test:formfill`, `test:render`, `test:pdfstore`, `test:companydir`, `test:directories` and `test:feedback` green. There is no linter; otherwise load unpacked and check the PDF plus the service worker console.
 
 ## Pull Requests
 
@@ -110,14 +122,17 @@ Generation is deterministic and runs on-device. If you change the parser, the JD
 
 `resume-renderers.js` owns the Double Sided and Academic CV layouts. Run `npm run test:render` after any change; it checks one-page Double Sided fit, no text below the page margin, Academic CV pagination and footer, and that projects render once.
 
-## Company Directory Changes
+## Directory Changes
 
-`company-directory.js` is pure (no `chrome.*`, no network); `company-directory-store.js` owns storage and the once-a-day refresh of `libs/company-directory-global.js`.
+`company-directory.js`, `job-title-directory.js` and `job-location-directory.js` are pure (no `chrome.*`, no network). Their `-store.js` modules own storage and the once-a-day refresh of the bundled lists in `libs/`. `directory-core.js` holds the shared matching primitives; `directory-store.js` holds the generic cache/refresh layer.
 
-- Matching stays deterministic: exact canonical → exact alias → suffix-stripped normalized → domain → fuzzy. A fuzzy hit is a **suggestion only** and must never rewrite the extracted company or merge two companies without the user confirming.
-- The official list is read-only. A correction that belongs to an official company is stored as a personal record with `directoryId` set — never by editing the bundled entry.
-- Run `npm run test:companydir`. It covers sanitization, matching, learning, persistence and the failure fallbacks (missing directory, malformed payload, corrupted storage).
-- Adding a company to `libs/company-directory-global.js` needs a unique `id`, a `canonicalName` and `source: 'official'`; alias and domain lists are deduped on load.
+- Matching stays deterministic. A fuzzy hit is a **suggestion only** and must never rewrite the extracted value or merge two entries without the user confirming.
+- Official lists are read-only. A correction that belongs to an official entry is stored as a personal record with `directoryId` set — never by editing the bundled entry.
+- **Official job titles never rewrite an extracted title.** Only a personal correction may. O*NET titles are suggestions; forcing them would turn a real headline into an occupation category.
+- **Locations are chosen, not invented.** `pickPreferredLocation` only picks among the DOM candidates; if none matches the resume location, the posting's primary location wins. The master location is never injected.
+- **City-only location matches must stay ambiguous.** Two Portlands must not resolve to one city; a city-only key is accepted only when exactly one entry has it.
+- Run `npm run test:companydir` and `npm run test:directories`. They cover sanitization, matching, learning, persistence, multi-location selection and the failure fallbacks (missing directory, malformed payload, corrupted storage).
+- Adding a company/title/location to `libs/*-global.js` needs a unique `id`, a `canonicalName` and `source: 'official'`; aliases are deduped on load. Regenerate the bundled lists with `build:titles` / `build:locations` rather than editing the generated files by hand.
 
 ## Pro / Analytics Backend Changes
 

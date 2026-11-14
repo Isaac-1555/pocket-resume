@@ -17,11 +17,21 @@
 - **Job Tracker** — every generation drops a card with the job URL, company, and role. Pipeline board + analytics, no extra calls
 - **Form Filler** — fills the empty fields on an application form from answers you save once. Fully local: no AI, no upload. Questions with no saved answer stay empty and are highlighted for you. Never submits, never overwrites a field you filled
 - **Quick Download** — re-download your saved resume as a professional PDF without reading the page
-- **A company directory that learns** — correct the employer once in the review dialog and the next posting from that company is recognized on its own. A bundled official list resolves legal variants (`Google LLC` → `Google`); everything is matched locally, and your corrections stay on your device
+- **Directories that learn** — correct the employer, job title or location once in the review dialog and the next posting is recognized on its own. Bundled official lists resolve variants (`Google LLC` → `Google`, `Sr. Software Engineer` → `Senior Software Engineer`, `SF` → `San Francisco, CA`); everything is matched locally, and your corrections stay on your device
+- **Smart location choice** — when a posting lists several locations and one matches your resume's location, that one is used; otherwise the posting's primary location wins
 - **Feedback box** — send a bug report or an idea from Settings, with your email so the answer can come back to you. No account needed
 - **PDF Export** — clean, print-ready PDFs via jsPDF for every layout
 - **Multi-Profile** — save up to 3 master profiles and switch between them
-- **Privacy First** — resumes stay in `chrome.storage.local`; the engine makes no network requests
+- **Privacy First** — resumes stay in `chrome.storage.local`; generation and form filling are local. The only network calls are the opt-in Resume health/letter providers and the daily refresh of the public company/title/location lists
+
+### What's New in v10.15.0
+
+- **A job title directory that learns.** Correct a title in the review dialog and PocketResume remembers it. Official O*NET titles are suggestions only — your own correction is the only thing that rewrites the extracted title.
+- **A location directory with multi-city support.** When a posting lists several locations and one matches your resume's location, that one is used. If none matches, the posting's primary location wins.
+- **Official title and location lists.** A bundled O*NET title list and a GeoNames city list resolve spelling and region variants — *Sr. Software Engineer* is recognised as *Senior Software Engineer*, *SF* as *San Francisco, CA*. Both refresh once a day; a failed refresh keeps the last good copy.
+- **Full review-dialog parity.** Job title and Location get the same match hint and *Save as alias* / *Add as new* actions as Company. Multiple locations appear as clickable chips.
+- **Two new Settings sections.** Settings → **Job title directory** and **Location directory** list what you saved, search the official lists, add aliases and delete entries.
+- **Your directories stay on your device.** Titles and locations are stored in the browser, never uploaded, never synced.
 
 ### What's New in v10.14.0
 
@@ -159,6 +169,7 @@ Without `RESEND_API_KEY` the message is still stored in the `feedback` table, bu
 - **PDF:** [jsPDF](libs/jspdf.umd.min.js) (vendored)
 - **Resume engine:** deterministic in-extension parser + JD aligner (`resume-parse.js`, `resume-align.js`, `skill-lexicon.js`)
 - **Company directory:** deterministic local matcher + learner (`company-directory.js`, `company-directory-store.js`, `libs/company-directory-global.js`)
+- **Job title / location directories:** deterministic local matchers + learners (`job-title-directory.js`, `job-location-directory.js`, `directory-core.js`) with bundled O*NET and GeoNames lists
 - **Cloud (optional):** [Clerk](https://clerk.com) auth + pricing (Pro), [Convex](https://convex.dev) resume sync and the feedback endpoint
 - **Feedback mail:** [Resend](https://resend.com) (server-side only, optional)
 - **Build:** esbuild (only for `cloud-sync.js` bundle); no bundler for app code

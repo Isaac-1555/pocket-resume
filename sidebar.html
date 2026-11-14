@@ -1977,6 +1977,32 @@
       border-color: var(--accent-blue-border);
     }
 
+    .jd-location-candidates {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: -4px 0 10px;
+    }
+
+    .jd-location-candidate {
+      border: 1px solid var(--glass-border);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 10.5px;
+      padding: 4px 9px;
+    }
+
+    .jd-location-candidate:hover,
+    .jd-location-candidate.active {
+      color: var(--text);
+      border-color: var(--accent-blue-border);
+      background: var(--accent-blue-fill);
+    }
+
     .jd-skip-row input {
       width: 13px;
       height: 13px;
@@ -2620,6 +2646,14 @@
           <span>Job title</span>
           <input id="jdTitleInput" type="text" placeholder="Not found on the page" autocomplete="off" spellcheck="false">
         </label>
+        <p id="jdTitleHint" class="jd-company-hint" style="display: none;"></p>
+        <div id="jdTitleSuggestion" class="jd-company-suggestion" style="display: none;">
+          <span id="jdTitleSuggestionText"></span>
+          <div class="jd-company-suggestion-actions">
+            <button type="button" id="jdTitleAliasBtn" class="cloud-secondary-btn">Save as alias</button>
+            <button type="button" id="jdTitleNewBtn" class="jd-company-link-btn">Add as new</button>
+          </div>
+        </div>
         <label class="jd-field">
           <span>Company</span>
           <input id="jdCompanyInput" type="text" placeholder="Not found on the page" autocomplete="off" spellcheck="false">
@@ -2636,6 +2670,15 @@
           <span>Location</span>
           <input id="jdLocationInput" type="text" placeholder="Not found on the page" autocomplete="off" spellcheck="false">
         </label>
+        <p id="jdLocationHint" class="jd-company-hint" style="display: none;"></p>
+        <div id="jdLocationSuggestion" class="jd-company-suggestion" style="display: none;">
+          <span id="jdLocationSuggestionText"></span>
+          <div class="jd-company-suggestion-actions">
+            <button type="button" id="jdLocationAliasBtn" class="cloud-secondary-btn">Save as alias</button>
+            <button type="button" id="jdLocationNewBtn" class="jd-company-link-btn">Add as new</button>
+          </div>
+        </div>
+        <div id="jdLocationCandidates" class="jd-location-candidates" style="display: none;"></div>
         <label class="jd-field">
           <span>Recipient</span>
           <input id="jdRecipientInput" type="text" placeholder="Hiring Manager" autocomplete="off" spellcheck="false">
@@ -2699,17 +2742,18 @@
       <div class="onboarding-icon" aria-hidden="true">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m5.6 5.6 2.8 2.8"/><path d="m15.6 15.6 2.8 2.8"/><path d="m18.4 5.6-2.8 2.8"/><path d="m8.4 15.6-2.8 2.8"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> &mdash; tell us what to fix</h2>
+      <h2>New in <span id="whatsNewVersion"></span> &mdash; titles and locations learn too</h2>
       <p class="error-message">
-        PocketResume now learns the employers it sees. Correct a company name once and it is recognized on the next posting.
+        PocketResume now remembers the job titles and locations it sees, and picks the right one when a posting lists several.
       </p>
       <ul class="whatsnew-collected">
-        <li><strong>A company directory that learns.</strong> When you fix the company in the review dialog, PocketResume remembers it. The next posting from the same employer is recognized on its own.</li>
-        <li><strong>An official list to match against.</strong> A bundled directory of well-known employers resolves the legal variants &mdash; <strong>Google LLC</strong> becomes <strong>Google</strong> &mdash; before anything reaches your PDF.</li>
-        <li><strong>Your directory stays on your device.</strong> Corrections are stored in the browser, never uploaded. No account, no sync, no tracking.</li>
-        <li><strong>It asks before it merges.</strong> When a correction looks like a company you already have, the panel offers to save it as an alias instead of quietly creating a duplicate.</li>
-        <li><strong>Manage it in Settings.</strong> Settings &rarr; Company directory lists what you saved, lets you search the official list, add aliases and delete anything.</li>
-        <li><strong>Still no guessing.</strong> Everything is matched locally. No AI reads the page, and the directory is refreshed once a day from the extension's own server.</li>
+        <li><strong>A job title directory that learns.</strong> Correct a title once and the next posting with the same wording is recognized. Official titles are suggestions only &mdash; your own correction is the only thing that rewrites it.</li>
+        <li><strong>Multiple locations, one choice.</strong> When a posting lists several locations and one matches your resume's location, that one is used. If none matches, the posting's primary location wins.</li>
+        <li><strong>An official location list.</strong> A bundled city list resolves spelling and region variants &mdash; <strong>SF</strong> and <strong>San Francisco, CA</strong> point at the same place.</li>
+        <li><strong>Your corrections stay on your device.</strong> Titles and locations are stored in the browser, never uploaded. No account, no sync, no tracking.</li>
+        <li><strong>It asks before it merges.</strong> A near-match offers to save your wording as an alias instead of quietly creating a duplicate.</li>
+        <li><strong>Manage it in Settings.</strong> Search, add, edit, alias and delete entries in the Job title and Location directory sections.</li>
+        <li><strong>Still no guessing.</strong> Everything is matched locally. No AI reads the page, and the public lists refresh once a day from the extension's own server.</li>
       </ul>
       <div class="onboarding-actions">
         <button id="whatsNewPlansBtn" class="cloud-primary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Open Settings</span></button>
@@ -2723,6 +2767,8 @@
   <script src="resume-renderers.js"></script>
   <script type="module" src="pdf-store.js"></script>
   <script type="module" src="company-directory-store.js"></script>
+  <script type="module" src="job-title-directory-store.js"></script>
+  <script type="module" src="job-location-directory-store.js"></script>
   <script src="sidebar.js"></script>
 </body>
 </html>

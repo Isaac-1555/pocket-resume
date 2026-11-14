@@ -6,13 +6,30 @@ PocketResume's skill directory is derived from the O*NET 31.0 Database
 (Software Skills, Essential Skills, and Transferable Skills files), published by
 the U.S. Department of Labor, Employment and Training Administration.
 
+The bundled job title directory is derived from the O*NET 31.0 Database
+(Sample of Reported Titles and Job Titles files), published by the same agency.
+
 - Source: https://www.onetcenter.org/database.html
 - License: Creative Commons Attribution 4.0 International (CC BY 4.0)
 - License text: https://www.onetcenter.org/license_db.html
 
-The bundled snapshot lives in `libs/skills-lexicon.js` and is regenerated with
-`npm run build:lexicon`. Updates downloaded by the extension are stored locally
-and are not redistributed.
+The bundled snapshots live in `libs/skills-lexicon.js` and
+`libs/title-directory-global.js` and are regenerated with
+`npm run build:lexicon` and `npm run build:titles`. Updates downloaded by the
+extension are stored locally and are not redistributed.
+
+## GeoNames
+
+PocketResume's bundled location directory is derived from the GeoNames
+`cities15000` dataset.
+
+- Source: https://download.geonames.org/export/dump/
+- License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+- License text: https://creativecommons.org/licenses/by/4.0/
+
+The bundled snapshot lives in `libs/location-directory-global.js` and is
+regenerated with `npm run build:locations`. Updates downloaded by the extension
+are stored locally and are not redistributed.
 
 ## jsPDF
 

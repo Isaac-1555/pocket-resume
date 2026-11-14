@@ -86,6 +86,36 @@ function findPlaceInText(text) {
     return null;
 }
 
+function findLabeledLocations(text) {
+    const out = [];
+    const lines = String(text || '').split(/\n+/).map((line) => normalizeSpace(line)).filter(Boolean);
+    for (const line of lines) {
+        if (line.length > 240) continue;
+        const match = line.match(/^(?:locations?|work location|based in|based out of|hiring in|office)\s*[:\-–—]\s*(.+)$/i);
+        if (!match) continue;
+        String(match[1])
+            .split(/\s*[;|·•]\s*/)
+            .map((part) => normalizeSpace(part))
+            .filter((part) => part && part.length <= 120)
+            .forEach((part) => out.push(part));
+    }
+    return out;
+}
+
+function mergeLocationCandidates(...lists) {
+    const out = [];
+    const seen = new Set();
+    lists.flat().forEach((candidate) => {
+        const value = normalizeSpace(candidate);
+        if (!value) return;
+        const key = value.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(value);
+    });
+    return out.slice(0, 10);
+}
+
 function normalizeSpace(text) {
     return String(text || '').replace(/\s+/g, ' ').trim();
 }
@@ -247,14 +277,30 @@ function parseJobPosting({ title = '', text = '', structured = null } = {}) {
         }
     }
 
-    let location = normalizeSpace(structuredData.location || '');
-    if (!location) {
-        const remote = bodyText.match(/\b(fully remote|remote|hybrid|on-?site)\b/i);
-        const place = findPlaceInText(bodyText);
-        if (place && remote) location = `${place.city}, ${place.region} (${remote[1]})`;
-        else if (place) location = `${place.city}, ${place.region}`;
-        else if (remote) location = remote[1];
-    }
+    const structuredLocations = Array.isArray(structuredData.locations)
+        ? structuredData.locations
+            .filter((value) => typeof value === 'string')
+            .map((value) => normalizeSpace(value))
+            .filter(Boolean)
+        : [];
+    const labeledLocations = findLabeledLocations(bodyText);
+    const remote = bodyText.match(/\b(fully remote|remote|hybrid|on-?site)\b/i);
+    const place = findPlaceInText(bodyText);
+    const fallbackLocation = place
+        ? `${place.city}, ${place.region}${remote ? ` (${remote[1]})` : ''}`
+        : remote
+            ? remote[1]
+            : '';
+    const hasDeclaredLocations = structuredLocations.length > 0
+        || !!normalizeSpace(structuredData.location || '')
+        || labeledLocations.length > 0;
+    const locationCandidates = mergeLocationCandidates(
+        structuredLocations,
+        structuredData.location ? [structuredData.location] : [],
+        labeledLocations,
+        hasDeclaredLocations || !fallbackLocation ? [] : [fallbackLocation]
+    );
+    const location = locationCandidates[0] || '';
 
     const recruiterMatch = bodyText.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\s*[,(]?\s*(?:recruiter|hiring manager|talent)\b/);
     const recruiterEmailMatch = bodyText.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
@@ -264,6 +310,7 @@ function parseJobPosting({ title = '', text = '', structured = null } = {}) {
         company,
         companySource,
         location,
+        locationCandidates,
         recruiterName: normalizeSpace(structuredData.recruiterName || (recruiterMatch ? recruiterMatch[1] : '')),
         recruiterEmail: normalizeSpace(structuredData.recruiterEmail || (recruiterEmailMatch ? recruiterEmailMatch[0] : '')),
         text: bodyText,

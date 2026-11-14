@@ -1,5 +1,22 @@
 # Changelog
 
+## [10.15.0] — 2026-11-14
+### Added
+- **A job title directory that learns.** Correct the job title in the review dialog and PocketResume remembers it. The next posting that uses the same wording is recognized on its own.
+- **A location directory with multi-city support.** Every location you correct is saved. When a posting lists several locations and one matches your resume's location, that one is used; if none matches, the posting's primary location wins.
+- **Official title and location lists.** A bundled O*NET title list and a GeoNames city list resolve common variants locally — *Sr. Software Engineer* is recognised as *Senior Software Engineer*, *SF* as *San Francisco, CA*. Both lists refresh once a day from the extension's own server; a failed refresh keeps the last good copy.
+- **Full review-dialog parity.** Job title and Location now get the same match hint and *Save as alias* / *Add as new* actions as Company. Multiple locations appear as clickable chips.
+- **Two new Settings sections.** Settings → Job title directory and Settings → Location directory list what you saved, search the official list, add aliases and delete entries.
+
+### Changed
+- **Job titles never rewrite themselves from the official list.** O*NET titles are suggestions only; only your own saved correction changes the extracted title. Locations keep the posting's wording unless you saved a correction.
+- **Locations are chosen before alignment.** The selected location flows into the resume header and the review dialog, so the PDF and the saved application agree.
+
+### Fixed
+- **A new subdomain no longer reuses the previous posting's title.** The 15-minute page cache is now validated against the live tab URL and cleared on navigation, so the review dialog reads the new posting instead of showing the title you typed on the old subdomain.
+- **No more `Unchecked runtime.lastError` on restricted pages.** Programmatic content-script injection now checks `chrome.runtime.lastError`, so `chrome://` pages, the Web Store and tabs opened before an extension reload fail quietly instead of logging an unchecked runtime error.
+- Nothing else. Company resolution, resume generation, the file shelf, the Job Tracker and the Form Filler behave exactly as before.
+
 ## [10.14.0] — 2026-11-14
 ### Added
 - **A company directory that learns.** Correct the company name in the side-panel review dialog and PocketResume remembers it. The next posting from that employer is recognized on its own — no second correction.

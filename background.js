@@ -23,6 +23,9 @@ import { generateCoverLetterBody, COVER_LETTER_COOLDOWN_MS } from './resume-lett
 import { resolveFormAnswers, normalizeFormAnswers } from './form-profile.js';
 import { resolveCompanyName, refreshGlobalDirectory } from './company-directory-store.js';
 import { APPLY_CONFIDENCE } from './company-directory.js';
+import { resolveTitleName, refreshGlobalTitleDirectory } from './job-title-directory-store.js';
+import { resolveLocationName, refreshGlobalLocationDirectory } from './job-location-directory-store.js';
+import { pickPreferredLocation, parseLocation } from './job-location-directory.js';
 
 async function setCoverLetterCooldown(resumeId, cooldownUntil) {
     if (!resumeId) return;
@@ -131,14 +134,20 @@ const PAGE_CACHE_TTL_MS = 15 * 60 * 1000;
 async function getPageContentForTab(tabId, { skipCache = false } = {}) {
     const cached = (await chrome.storage.local.get(PAGE_CACHE_KEY))[PAGE_CACHE_KEY];
     const now = Date.now();
-    if (
+    let cacheFresh = !!(
         !skipCache &&
         cached &&
         cached.tabId === tabId &&
         typeof cached.jobText === 'string' &&
         cached.jobText.trim() &&
         now - (cached.savedAt || 0) < PAGE_CACHE_TTL_MS
-    ) {
+    );
+    if (cacheFresh && !cached.url) cacheFresh = false;
+    if (cacheFresh) {
+        const current = await getPageUrlForTab(tabId, { inject: false });
+        if (!current.url || current.url !== cached.url) cacheFresh = false;
+    }
+    if (cacheFresh) {
         return { jobText: cached.jobText, structured: cached.structured || {}, title: cached.title || '', url: cached.url || '' };
     }
 
@@ -149,9 +158,18 @@ async function getPageContentForTab(tabId, { skipCache = false } = {}) {
                     target: { tabId },
                     files: ['content.js']
                 }, () => {
+                    if (chrome.runtime.lastError) {
+                        console.warn('[Content] Could not read the page:', chrome.runtime.lastError.message);
+                        resolve({ text: '' });
+                        return;
+                    }
                     chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_CONTENT' }, (res) => {
-                        if (chrome.runtime.lastError) resolve({ text: "" });
-                        else resolve(res);
+                        if (chrome.runtime.lastError) {
+                            console.warn('[Content] Could not read the page:', chrome.runtime.lastError.message);
+                            resolve({ text: '' });
+                        } else {
+                            resolve(res);
+                        }
                     });
                 });
             } else {
@@ -170,14 +188,28 @@ async function getPageContentForTab(tabId, { skipCache = false } = {}) {
     return { jobText, structured, title, url };
 }
 
-async function getPageUrlForTab(tabId) {
+async function getPageUrlForTab(tabId, { inject = true } = {}) {
     return new Promise((resolve) => {
         chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_URL' }, (response) => {
             if (chrome.runtime.lastError || !response || !response.url) {
+                if (!inject) {
+                    chrome.tabs.get(tabId, (tab) => {
+                        if (chrome.runtime.lastError) {
+                            resolve({ url: '', title: '' });
+                            return;
+                        }
+                        resolve({ url: (tab && tab.url) || '', title: (tab && tab.title) || '' });
+                    });
+                    return;
+                }
                 chrome.scripting.executeScript({
                     target: { tabId },
                     files: ['content.js']
                 }, () => {
+                    if (chrome.runtime.lastError) {
+                        resolve({ url: '', title: '' });
+                        return;
+                    }
                     chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_URL' }, (res) => {
                         if (chrome.runtime.lastError || !res) resolve({ url: '', title: '' });
                         else resolve({ url: res.url || '', title: res.title || '' });
@@ -202,6 +234,8 @@ const SKILL_LEXICON_META_KEY = 'skillLexiconMeta';
 const SKILL_LEXICON_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const SKILL_LEXICON_ALARM = 'skillLexiconDaily';
 const COMPANY_DIRECTORY_ALARM = 'companyDirectoryDaily';
+const TITLE_DIRECTORY_ALARM = 'titleDirectoryDaily';
+const LOCATION_DIRECTORY_ALARM = 'locationDirectoryDaily';
 
 function getBundledLexicon() {
     const expanded = expandLexicon(SKILL_LEXICON_BASE);
@@ -301,22 +335,49 @@ function enableSidePanel() {
     });
 }
 
+function clearPageCacheForTab(tabId) {
+    chrome.storage.local.get(PAGE_CACHE_KEY, (data) => {
+        const cached = data && data[PAGE_CACHE_KEY];
+        if (cached && cached.tabId === tabId) {
+            chrome.storage.local.remove(PAGE_CACHE_KEY, () => void chrome.runtime.lastError);
+        }
+    });
+}
+
+if (chrome.tabs && chrome.tabs.onUpdated) {
+    chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+        if (!changeInfo || (!changeInfo.url && changeInfo.status !== 'loading')) return;
+        clearPageCacheForTab(tabId);
+    });
+}
+if (chrome.tabs && chrome.tabs.onRemoved) {
+    chrome.tabs.onRemoved.addListener((tabId) => clearPageCacheForTab(tabId));
+}
+
 chrome.alarms.create(SKILL_LEXICON_ALARM, { periodInMinutes: 24 * 60, delayInMinutes: 3 });
 chrome.alarms.create(COMPANY_DIRECTORY_ALARM, { periodInMinutes: 24 * 60, delayInMinutes: 5 });
+chrome.alarms.create(TITLE_DIRECTORY_ALARM, { periodInMinutes: 24 * 60, delayInMinutes: 7 });
+chrome.alarms.create(LOCATION_DIRECTORY_ALARM, { periodInMinutes: 24 * 60, delayInMinutes: 9 });
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === SKILL_LEXICON_ALARM) maybeAutoUpdateSkillLexicon();
     if (alarm.name === COMPANY_DIRECTORY_ALARM) maybeAutoUpdateCompanyDirectory();
+    if (alarm.name === TITLE_DIRECTORY_ALARM) maybeAutoUpdateTitleDirectory();
+    if (alarm.name === LOCATION_DIRECTORY_ALARM) maybeAutoUpdateLocationDirectory();
 });
 chrome.runtime.onStartup.addListener(() => {
     chrome.alarms.clear('skillLexiconWeekly');
     maybeAutoUpdateSkillLexicon();
     maybeAutoUpdateCompanyDirectory();
+    maybeAutoUpdateTitleDirectory();
+    maybeAutoUpdateLocationDirectory();
     enableSidePanel();
 });
 chrome.runtime.onInstalled.addListener(() => {
     chrome.alarms.clear('skillLexiconWeekly');
     maybeAutoUpdateSkillLexicon();
     maybeAutoUpdateCompanyDirectory();
+    maybeAutoUpdateTitleDirectory();
+    maybeAutoUpdateLocationDirectory();
     enableSidePanel();
 });
 maybeAutoUpdateSkillLexicon();
@@ -374,7 +435,9 @@ function buildJobMeta(jd, resume) {
         location: jd.location || '',
         recruiterName: jd.recruiterName || '',
         recruiterEmail: jd.recruiterEmail || '',
-        companyMeta: jd.companyMeta || null
+        companyMeta: jd.companyMeta || null,
+        titleMeta: jd.titleMeta || null,
+        locationMeta: jd.locationMeta || null
     };
 }
 
@@ -407,6 +470,75 @@ async function maybeAutoUpdateCompanyDirectory() {
         await refreshGlobalDirectory();
     } catch (error) {
         console.warn('[CompanyDirectory] auto-update failed:', error);
+    }
+}
+
+// --- Job title + location directories (offline, deterministic) ---
+
+function masterLocationForProfile(profile) {
+    const direct = String((profile && profile.location) || '').trim();
+    if (direct) return direct;
+    const contact = String((profile && profile.contact) || '');
+    const segments = contact.split('|').map((part) => part.trim()).filter(Boolean);
+    for (const segment of segments) {
+        const parsed = parseLocation(segment);
+        if (parsed.valid && (parsed.city || parsed.mode)) return segment;
+    }
+    return '';
+}
+
+async function resolveExtractedTitle(jd) {
+    const raw = String(jd.title || '').trim();
+    const fallback = {
+        value: raw,
+        originalValue: raw,
+        matchType: 'none',
+        directoryId: null,
+        confidence: 0,
+        suggestion: null,
+        apply: false
+    };
+    try {
+        return await resolveTitleName(raw);
+    } catch (error) {
+        console.warn('[TitleDirectory] Resolution failed, keeping the extracted title:', error);
+        return fallback;
+    }
+}
+
+async function resolveExtractedLocation(jd) {
+    const raw = String(jd.location || '').trim();
+    const fallback = {
+        value: raw,
+        originalValue: raw,
+        displayValue: raw,
+        matchType: 'none',
+        directoryId: null,
+        confidence: 0,
+        suggestion: null,
+        apply: false
+    };
+    try {
+        return await resolveLocationName(raw);
+    } catch (error) {
+        console.warn('[LocationDirectory] Resolution failed, keeping the extracted location:', error);
+        return fallback;
+    }
+}
+
+async function maybeAutoUpdateTitleDirectory() {
+    try {
+        await refreshGlobalTitleDirectory();
+    } catch (error) {
+        console.warn('[TitleDirectory] auto-update failed:', error);
+    }
+}
+
+async function maybeAutoUpdateLocationDirectory() {
+    try {
+        await refreshGlobalLocationDirectory();
+    } catch (error) {
+        console.warn('[LocationDirectory] auto-update failed:', error);
     }
 }
 
@@ -551,7 +683,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     sendResponse({ status: 'error', message: 'No active tab' });
                     return;
                 }
-                const page = await getPageUrlForTab(tab.id);
+                const page = await getPageUrlForTab(tab.id, { inject: false });
                 sendResponse({ status: 'success', tabId: tab.id, url: page.url, title: page.title });
             } catch (error) {
                 console.warn('[ActivePage] failed:', error);
@@ -601,11 +733,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
                 const tab = await chrome.tabs.get(tabId);
                 const lexicon = await getSkillLexicon();
+                const masterLocation = masterLocationForProfile(profile);
                 const runAlign = async (page) => {
                     const jd = parseJobPosting({ title: page.title || tab.title, text: buildJobText(page), structured: page.structured });
                     const companyMeta = await resolveExtractedCompany(jd, page);
                     if (companyMeta.value) jd.company = companyMeta.value;
                     jd.companyMeta = companyMeta;
+
+                    const titleMeta = await resolveExtractedTitle(jd);
+                    if (titleMeta.apply && titleMeta.value) jd.title = titleMeta.value;
+                    jd.titleMeta = titleMeta;
+
+                    const picked = pickPreferredLocation(jd.locationCandidates, masterLocation);
+                    if (picked.value) jd.location = picked.value;
+                    const locationMeta = await resolveExtractedLocation(jd);
+                    if (locationMeta.apply && locationMeta.value) jd.location = locationMeta.value;
+                    jd.locationMeta = {
+                        ...locationMeta,
+                        candidates: picked.candidates,
+                        selectedReason: picked.reason,
+                        selected: jd.location
+                    };
+
                     const aligned = alignResumeJson(profile, jd, {
                         lexicon,
                         styleConfig,
@@ -784,6 +933,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'ENSURE_COMPANY_DIRECTORY') {
         (async () => {
             await maybeAutoUpdateCompanyDirectory();
+            sendResponse({ status: 'success' });
+        })();
+
+        return true;
+    }
+
+    if (message.type === 'ENSURE_TITLE_DIRECTORY') {
+        (async () => {
+            await maybeAutoUpdateTitleDirectory();
+            sendResponse({ status: 'success' });
+        })();
+
+        return true;
+    }
+
+    if (message.type === 'ENSURE_LOCATION_DIRECTORY') {
+        (async () => {
+            await maybeAutoUpdateLocationDirectory();
             sendResponse({ status: 'success' });
         })();
 

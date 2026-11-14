@@ -2041,6 +2041,12 @@
       color: var(--text);
     }
 
+    .company-row-meta {
+      margin: -2px 0 0;
+      font-size: 10.5px;
+      color: var(--text-dim);
+    }
+
     .company-row-badge {
       font-size: 9.5px;
       font-weight: 700;
@@ -2860,6 +2866,56 @@
             <button type="button" id="companyDirectoryAddBtn" class="secondary-action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add company</span></button>
           </div>
           <small id="companyDirectoryStatus" class="resume-help"></small>
+        </div>
+      </details>
+
+      <details class="cloud-sync-details" id="titleDirectoryDetails">
+        <summary>Job title directory <span id="titleDirectoryPill" class="cloud-status-pill">0 saved</span></summary>
+        <div class="app-profile-body">
+          <small class="resume-help">PocketResume reads the job title from the posting. Every title you correct is saved here so the next posting is recognized. Stored on this device only — never uploaded.</small>
+
+          <div class="app-profile-grid">
+            <div class="app-profile-field span2">
+              <label for="titleDirectorySearch">Search</label>
+              <input type="search" id="titleDirectorySearch" placeholder="Search your titles and the official list" autocomplete="off">
+            </div>
+          </div>
+
+          <div id="titleDirectoryList" class="company-directory-list"></div>
+
+          <p class="app-profile-group-label">Add a job title</p>
+          <div class="app-profile-field">
+            <input type="text" id="titleDirectoryName" placeholder="Senior Software Engineer" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="app-profile-actions">
+            <button type="button" id="titleDirectoryAddBtn" class="secondary-action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add title</span></button>
+          </div>
+          <small id="titleDirectoryStatus" class="resume-help"></small>
+        </div>
+      </details>
+
+      <details class="cloud-sync-details" id="locationDirectoryDetails">
+        <summary>Location directory <span id="locationDirectoryPill" class="cloud-status-pill">0 saved</span></summary>
+        <div class="app-profile-body">
+          <small class="resume-help">PocketResume reads the location from the posting. Every location you correct is saved here so the next posting is recognized. Stored on this device only — never uploaded.</small>
+
+          <div class="app-profile-grid">
+            <div class="app-profile-field span2">
+              <label for="locationDirectorySearch">Search</label>
+              <input type="search" id="locationDirectorySearch" placeholder="Search your locations and the official list" autocomplete="off">
+            </div>
+          </div>
+
+          <div id="locationDirectoryList" class="company-directory-list"></div>
+
+          <p class="app-profile-group-label">Add a location</p>
+          <div class="app-profile-field">
+            <input type="text" id="locationDirectoryName" placeholder="Toronto, ON" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="app-profile-actions">
+            <button type="button" id="locationDirectoryAddBtn" class="secondary-action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add location</span></button>
+          </div>
+          <small id="locationDirectoryStatus" class="resume-help"></small>
         </div>
       </details>
 
