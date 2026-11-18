@@ -1,6 +1,7 @@
 // form-filler.js
-// Injected on demand by background.js (FILL_APPLICATION_FORM) with allFrames: true.
-// Exposes globalThis.__PocketResumeForm for follow-up executeScript calls.
+// Declarative content script (manifest: <all_urls>, all_frames: true). Runs in every
+// frame and exposes the frame-local detect/fill/flag/toast API on
+// globalThis.__PocketResumeForm. content.js drives it over the FORM_* messages.
 
 (() => {
     if (globalThis.__PocketResumeForm) return;
@@ -21,8 +22,11 @@
 
     const MAX_QUESTION_LENGTH = 300;
     const MAX_OPTIONS = 30;
+    const MAX_LABEL_LENGTH = 120;
+    const MAX_GROUP_LABEL_LENGTH = 220;
 
     const CONSENT_PATTERN = /consent|agree|terms|privacy|policy|newsletter|marketing|subscribe|opt.?in|gdpr|communication|spam|cookies?/i;
+    const HONEYPOT_PATTERN = /honey|honeypot|nickname|leave\s+(this\s+|the\s+)?field\s+blank|do\s+not\s+fill/i;
 
     const FRAME_TOKEN = 'pf' + Math.random().toString(36).slice(2, 8);
     const ID_ATTR = 'data-pocketresume-id';
@@ -33,6 +37,30 @@
         return (text || '').replace(/\s+/g, ' ').trim();
     }
 
+    // Text of a node without the controls, option lists and hidden markup inside
+    // it. A label that wraps a select must read as the question, not as
+    // "RaceHispanic or LatinoWhite...".
+    function textOf(node) {
+        if (!node) return '';
+        const clone = node.cloneNode(true);
+        clone.querySelectorAll(
+            'input, textarea, select, option, script, style, noscript, ul, ol, [role="listbox"], [role="list"], [hidden], [aria-hidden="true"]'
+        ).forEach((n) => n.remove());
+        clone.querySelectorAll('a').forEach((n) => {
+            const text = cleanText(n.textContent);
+            if (text.length <= 2) n.remove();
+        });
+        const text = cleanText(clone.textContent);
+        // Lever and Fabric wrap a question and its field in one <label>: the
+        // question is the first block, the rest is the control.
+        const lead = clone.firstElementChild;
+        if (lead && /^(div|p|label|legend|fieldset|h[1-6])$/i.test(lead.tagName)) {
+            const leadText = cleanText(lead.textContent);
+            if (leadText.length >= 3 && leadText.length < text.length) return leadText;
+        }
+        return text;
+    }
+
     function humanizeName(name) {
         return (name || '')
             .replace(/[_\-]+/g, ' ')
@@ -41,13 +69,33 @@
             .trim();
     }
 
+    // Custom form libraries (MUI, Fabric, Ashby) style a real input with
+    // opacity: 0 and paint the look on top of it. Those inputs are fillable,
+    // so opacity alone must not hide them. Parked-off-canvas fields are not:
+    // that is how honeypots are hidden.
+    function isParkedOffscreen(rect) {
+        const width = window.innerWidth || document.documentElement.clientWidth || 0;
+        if (!width) return false;
+        return rect.right <= 0 || rect.left >= width;
+    }
+
     function isVisible(el) {
         if (!el.isConnected) return false;
-        if (el.closest('[aria-hidden="true"]')) return false;
         const style = window.getComputedStyle(el);
-        if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
         const rect = el.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0;
+        if (rect.width <= 0 && rect.height <= 0) return false;
+        if (isParkedOffscreen(rect)) return false;
+        if (el.closest('[aria-hidden="true"]')) return false;
+        if (Number(style.opacity) === 0 && !labelForControl(el)) return false;
+        return true;
+    }
+
+    function isHoneypot(el) {
+        const attrs = `${el.getAttribute('name') || ''} ${el.getAttribute('id') || ''} ${el.getAttribute('placeholder') || ''}`;
+        if (HONEYPOT_PATTERN.test(attrs)) return true;
+        const label = labelForControl(el);
+        return !!(label && HONEYPOT_PATTERN.test(label));
     }
 
     function truncate(text, max) {
@@ -58,13 +106,14 @@
     function labelForControl(el) {
         if (el.id) {
             const label = el.ownerDocument.querySelector(`label[for="${CSS.escape(el.id)}"]`);
-            if (label) return cleanText(label.textContent);
+            if (label) {
+                const text = textOf(label);
+                if (text) return text;
+            }
         }
         const wrappingLabel = el.closest('label');
         if (wrappingLabel) {
-            const clone = wrappingLabel.cloneNode(true);
-            clone.querySelectorAll('input, textarea, select').forEach((n) => n.remove());
-            const text = cleanText(clone.textContent);
+            const text = textOf(wrappingLabel);
             if (text) return text;
         }
         const labelledBy = el.getAttribute('aria-labelledby');
@@ -79,6 +128,32 @@
         return cleanText(el.getAttribute('aria-label') || el.title || '');
     }
 
+    // Many forms put the question in a sibling element instead of a <label for>.
+    // BambooHR (MUI) and Lever do this for every radio group.
+    function siblingCandidateText(node, maxLength) {
+        if (!node || node.matches('button, a, script, style')) return '';
+        if (node.querySelector('input, textarea, select, button')) return '';
+        const text = textOf(node);
+        if (!text || text.length > maxLength) return '';
+        return text;
+    }
+
+    function siblingLabelText(el, maxLength) {
+        let node = el;
+        for (let depth = 0; node && depth < 3; depth++) {
+            const parent = node.parentElement;
+            if (!parent || parent.matches('form, body, html')) break;
+            let prev = node.previousElementSibling;
+            while (prev) {
+                const text = siblingCandidateText(prev, maxLength);
+                if (text) return text;
+                prev = prev.previousElementSibling;
+            }
+            node = parent;
+        }
+        return '';
+    }
+
     function questionFromContext(el) {
         const block = el.closest('[data-qa], [class*="question" i], fieldset, li, td');
         if (block) {
@@ -86,7 +161,7 @@
             if (legend) return cleanText(legend.textContent);
             const heading = block.querySelector('h1, h2, h3, h4, h5, h6, label, p, [data-qa], span');
             if (heading && !heading.contains(el)) {
-                const text = cleanText(heading.textContent);
+                const text = textOf(heading);
                 if (text) return text;
             }
         }
@@ -94,9 +169,7 @@
         let container = el.parentElement;
         for (let depth = 0; container && depth < 3; depth++) {
             if (container.matches('form, body, html')) break;
-            const clone = container.cloneNode(true);
-            clone.querySelectorAll('input, textarea, select, script, style, button').forEach((n) => n.remove());
-            const text = cleanText(clone.textContent);
+            const text = textOf(container);
             if (text && text.length <= MAX_QUESTION_LENGTH) return text;
             container = container.parentElement;
         }
@@ -107,6 +180,8 @@
     function questionForField(el) {
         const direct = labelForControl(el);
         if (direct) return direct;
+        const sibling = siblingLabelText(el, MAX_LABEL_LENGTH);
+        if (sibling) return sibling;
         const contextual = questionFromContext(el);
         if (contextual) return contextual;
         const placeholder = cleanText(el.getAttribute('placeholder') || '');
@@ -125,6 +200,7 @@
         if (el.disabled || el.readOnly) return null;
         if (el.closest('[class*="captcha" i], [id*="captcha" i], [aria-hidden="true"]')) return null;
         if (!isVisible(el)) return null;
+        if (isHoneypot(el)) return null;
         if ((el.name + ' ' + el.id).toLowerCase().match(/search|query|filter|captcha/)) return null;
 
         const isEditable = el.isContentEditable;
@@ -162,34 +238,53 @@
         return entry;
     }
 
+    function groupContainer(inputs) {
+        let container = inputs[0].parentElement;
+        while (container && !container.matches('form, body, html') && !inputs.every((r) => container.contains(r))) {
+            container = container.parentElement;
+        }
+        return container;
+    }
+
     function inputGroupQuestion(inputs) {
         const first = inputs[0];
         const legend = first.closest('fieldset')?.querySelector('legend');
-        if (legend) return cleanText(legend.textContent);
+        if (legend) {
+            const text = textOf(legend);
+            if (text) return text;
+        }
 
         for (const input of inputs) {
             const aria = cleanText(input.getAttribute('aria-label') || input.title || '');
             if (aria) return aria;
         }
 
-        const forIds = new Set(inputs.map((r) => r.id).filter(Boolean));
-        let container = first.parentElement;
-        while (container && !container.matches('form, body, html') && !inputs.every((r) => container.contains(r))) {
-            container = container.parentElement;
+        // Ashby and MUI point a <label for> at the group name, not at an input.
+        const groupName = first.name || '';
+        if (groupName) {
+            const labelled = document.querySelector(`label[for="${CSS.escape(groupName)}"]`);
+            if (labelled) {
+                const text = textOf(labelled);
+                if (text) return text;
+            }
         }
-        if (container && !container.matches('form, body, html')) {
+
+        const container = groupContainer(inputs);
+        if (container) {
+            const forIds = new Set(inputs.map((r) => r.id).filter(Boolean));
             const questionLabel = Array.from(container.querySelectorAll('label')).find((label) => {
                 const forId = label.getAttribute('for');
                 if (forId && forIds.has(forId)) return false;
                 if (label.querySelector('input, textarea, select')) return false;
-                return cleanText(label.textContent).length > 0;
+                return textOf(label).length > 0;
             });
-            if (questionLabel) return cleanText(questionLabel.textContent);
+            if (questionLabel) {
+                const text = textOf(questionLabel);
+                if (text) return text;
+            }
 
-            const clone = container.cloneNode(true);
-            clone.querySelectorAll('input, textarea, select, script, style, button, label').forEach((n) => n.remove());
-            const text = cleanText(clone.textContent);
-            if (text) return text;
+            const sibling = siblingLabelText(container, MAX_GROUP_LABEL_LENGTH);
+            if (sibling) return sibling;
         }
 
         return labelForControl(first);
@@ -215,6 +310,7 @@
             const first = visible[0];
             if ((first.name + ' ' + first.id).toLowerCase().match(/captcha/)) continue;
             if (first.closest('[class*="captcha" i], [id*="captcha" i]')) continue;
+            if (isHoneypot(first)) continue;
 
             const options = [];
             for (const radio of visible) {
@@ -262,6 +358,7 @@
             const first = visible[0];
             if ((first.name + ' ' + first.id).toLowerCase().match(/captcha/)) continue;
             if (first.closest('[class*="captcha" i], [id*="captcha" i]')) continue;
+            if (isHoneypot(first)) continue;
 
             const question = inputGroupQuestion(visible);
             if (CONSENT_PATTERN.test(question) || CONSENT_PATTERN.test(first.name + ' ' + first.id)) continue;
@@ -301,6 +398,7 @@
             if (box.disabled || box.readOnly) continue;
             if (box.checked || box.indeterminate) continue;
             if (!box.isConnected || !isVisible(box)) continue;
+            if (isHoneypot(box)) continue;
             if (box.name && box.closest('form')) {
                 const siblings = Array.from(
                     (box.form || document).querySelectorAll(`input[type="checkbox"][name="${CSS.escape(box.name)}"]`)
@@ -322,6 +420,50 @@
                 required: !!(box.required || box.getAttribute('aria-required') === 'true')
             };
             box.setAttribute(ID_ATTR, entry.id);
+            entries.push(entry);
+        }
+        return entries;
+    }
+
+    // BambooHR (Fabric) and other custom design systems hide the real <select>
+    // and paint a dropdown on a button. The choices live in a menu that only
+    // exists after a click, so the field cannot be filled from here, but the
+    // user should still see it marked as one they have to answer.
+    function isPlaceholderWidgetText(text) {
+        const value = cleanText(text);
+        if (!value) return true;
+        if (/^(select|choose|pick|please|--|–|—|-|…|\.\.\.)/i.test(value)) return true;
+        return /\bselect\b\s*[.…]*$/i.test(value);
+    }
+
+    function widgetQuestion(button) {
+        let text = cleanText(button.getAttribute('aria-label') || button.getAttribute('title') || '');
+        if (!text) text = textOf(button);
+        return text.replace(/[\s–—-]*select[\s–—.…]*$/i, '').replace(/[\s–—-]*choose[\s–—.…]*$/i, '').trim();
+    }
+
+    function detectWidgetSelects() {
+        const entries = [];
+        let index = 0;
+        for (const button of document.querySelectorAll('button[aria-haspopup="true"]')) {
+            index++;
+            if (button.disabled) continue;
+            if (!button.closest('form')) continue;
+            if (!isVisible(button)) continue;
+            if (!isPlaceholderWidgetText(button.textContent)) continue;
+            const question = widgetQuestion(button);
+            if (!question) continue;
+
+            const entry = {
+                id: `${FRAME_TOKEN}-w${index}`,
+                tag: 'select-widget',
+                type: 'select',
+                question: truncate(question, MAX_QUESTION_LENGTH),
+                options: null,
+                maxLength: null,
+                required: button.getAttribute('aria-required') === 'true'
+            };
+            button.setAttribute(ID_ATTR, entry.id);
             entries.push(entry);
         }
         return entries;
@@ -350,7 +492,18 @@
             if (fields.length >= limit) break;
             fields.push(group);
         }
+        for (const widget of detectWidgetSelects()) {
+            if (fields.length >= limit) break;
+            fields.push(widget);
+        }
         return fields;
+    }
+
+    function isFillableControl(el) {
+        if (!el) return false;
+        if (el.disabled || el.readOnly) return false;
+        if (el.tagName === 'BUTTON' || el.tagName === 'A') return false;
+        return 'value' in el || el.isContentEditable;
     }
 
     function setNativeValue(el, value) {
@@ -363,6 +516,20 @@
     function dispatchEvents(el) {
         el.dispatchEvent(new Event('input', { bubbles: true }));
         el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // React reads radio and checkbox changes from the click event, so a real
+    // click is the only way the page learns about the answer.
+    function setChecked(el, checked) {
+        if (el.checked === checked) return true;
+        try {
+            el.click();
+        } catch (error) {
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set;
+            if (setter) setter.call(el, checked);
+            dispatchEvents(el);
+        }
+        return el.checked === checked;
     }
 
     function matchOption(answer, options) {
@@ -404,9 +571,7 @@
         const wants = /^(yes|y|true|1)\b/i.test(cleanText(answer));
         if (!wants) return true;
         if (el.checked) return true;
-        el.checked = true;
-        dispatchEvents(el);
-        return true;
+        return setChecked(el, true);
     }
 
     function fillCheckboxGroup(id, answer) {
@@ -422,8 +587,7 @@
                 acted = true;
                 continue;
             }
-            boxes[idx].checked = true;
-            dispatchEvents(boxes[idx]);
+            setChecked(boxes[idx], true);
             acted = true;
         }
         return acted;
@@ -435,9 +599,7 @@
         const labels = radios.map((r) => labelForControl(r) || humanizeName(r.value));
         const idx = matchOption(answer, labels);
         if (idx < 0) return false;
-        radios[idx].checked = true;
-        dispatchEvents(radios[idx]);
-        return true;
+        return setChecked(radios[idx], true);
     }
 
     function fill(answers) {
@@ -472,7 +634,7 @@
             }
 
             const el = document.querySelector(`[${ID_ATTR}="${CSS.escape(id)}"]`);
-            if (!el || el.disabled || el.readOnly) continue;
+            if (!el || !isFillableControl(el)) continue;
             if (el.type === 'checkbox') {
                 if (el.checked) continue;
                 attempted++;

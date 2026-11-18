@@ -37,3 +37,7 @@ coverage/
 
 # Local model artifacts (if any)
 models/
+
+# Tooling scratch
+.playwright-mcp/
+.opencode/

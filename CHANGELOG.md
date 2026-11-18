@@ -1,5 +1,23 @@
 # Changelog
 
+## [10.16.2] — 2026-11-18
+### Fixed
+- **The Form Filler finds radio buttons on custom-built forms.** BambooHR, Ashby, Lever and other design systems hide the real control (transparent input) and paint their own on top. The filler treated those fields as missing, so every sponsorship, work-authorization and yes/no question on those sites stayed blank. They are detected and answered from your saved answers now.
+- **The filler reads the question, not the options.** Forms that keep the question in a neighbouring block instead of a `<label for>` (BambooHR, Lever) produced a blank or a garbled question, so the saved answer never matched. The question is now read from the label, the group legend or the neighbouring block.
+- **A label no longer reads as the question plus every option.** Lever prints its EEO option descriptions next to the select, which made &ldquo;Race&rdquo; look like a race question with &ldquo;Hispanic&rdquo; in it and blocked the match.
+- **Custom dropdowns are marked instead of missing.** A state, province or country dropdown that only exists after a click (BambooHR Fabric) cannot be opened from outside the page, so it is highlighted for you and counted as a field you have to answer.
+- **Spam traps are never filled.** Honeypot fields (the hidden &ldquo;nickname&rdquo; box) are skipped even when they sit on the page in the open.
+- **The panel says what to do when there is no form yet.** Pressing Fill Form on a job description instead of the application form now reads &ldquo;Open the Apply form, then run Fill Form again&rdquo; instead of &ldquo;No empty application fields were found&rdquo;.
+
+Tests: `npm run test:formfill` (answers, mapping, wiring) and `npm run test:formfill-dom` (detection and filling against BambooHR, Ashby and Lever markup).
+
+## [10.16.1] — 2026-11-18
+### Fixed
+- **The Form Filler reaches the page again.** Filling a form used to inject a script into the tab, which needs a host permission for that site. PocketResume grants none for job boards, so every attempt failed with *"Could not reach the page. Reload the tab and try again."* — and reloading did not help, because the cause was permissions, not a stale page. The Form Filler now runs as a content script, the same way the page reader already does, and needs no permission for the site.
+- **Forms inside an application iframe are found.** When a career site renders the application form in a cross-origin frame (Greenhouse, Lever, Workday, HiBob), the fields there are now detected and filled instead of the page reporting nothing to fill.
+
+Nothing else. Job titles, the review dialog, the file shelf, the Job Tracker and resume generation behave exactly as before.
+
 ## [10.16.0] — 2026-11-14
 ### Added
 - **Title candidate arbitration.** A posting now offers the title from every source on the page — JSON-LD, `og:title`, `twitter:title`, the heading, job-title class names, the page title and the first body lines — and the deterministic extractor picks the best valid one. The review dialog shows the runners-up as chips.

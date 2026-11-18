@@ -55,6 +55,7 @@ const CANONICAL_MATCHERS = [
     { key: 'streetAddress', kind: 'text', patterns: [/street address/, /address line 1/, /^address$/, /mailing address/, /home address/, /residential address/], guards: [/city/, /state/, /province/, /zip/, /postal/, /country/, /e mail/, /email/] },
     { key: 'addressLine2', kind: 'text', patterns: [/address line 2/, /apt/, /apartment/, /suite/, /unit number/] },
     { key: 'city', kind: 'text', patterns: [/^city$/, /city you live/, /town/] },
+    { key: 'city', kind: 'location', patterns: [/current location/, /^location$/, /city and state/, /city state/, /where are you located/] },
     { key: 'state', kind: 'text', patterns: [/^state$/, /state or province/, /province/, /region/] },
     { key: 'postalCode', kind: 'text', patterns: [/zip/, /postal code/, /postcode/, /pin code/] },
     { key: 'country', kind: 'text', patterns: [/country/, /nationality/] },
@@ -194,7 +195,7 @@ function resolveFieldAnswer(field, profile, customQaAnswer) {
     }
 
     const isSingleCheckbox = field.tag === 'checkbox';
-    const needsOptionMatch = field.tag === 'select' || field.tag === 'radio' || field.tag === 'checkbox-group';
+    const needsOptionMatch = field.tag === 'select' || field.tag === 'radio' || field.tag === 'checkbox-group' || field.tag === 'select-widget';
 
     for (const matcher of CANONICAL_MATCHERS) {
         if (matcher.guards && matcher.guards.some((guard) => guard.test(questionNorm))) continue;
@@ -213,6 +214,10 @@ function resolveFieldAnswer(field, profile, customQaAnswer) {
         }
         if (matcher.kind === 'salary') {
             candidate = salaryAnswer(field, questionNorm, profile);
+        } else if (matcher.kind === 'location') {
+            const city = String(profileValue(profile, 'city') || '').trim();
+            const state = String(profileValue(profile, 'state') || '').trim();
+            candidate = city ? (state ? `${city}, ${state}` : city) : null;
         } else if (matcher.kind === 'number') {
             const num = Number(raw);
             candidate = Number.isFinite(num) ? String(num) : null;
@@ -229,7 +234,7 @@ function resolveFieldAnswer(field, profile, customQaAnswer) {
 }
 
 function verifyAnswerForField(field, answer) {
-    if (field.tag === 'select' || field.tag === 'radio' || field.tag === 'checkbox-group') {
+    if (field.tag === 'select' || field.tag === 'radio' || field.tag === 'checkbox-group' || field.tag === 'select-widget') {
         return optionTextMatchesAnswer(answer, field.options) ? answer : null;
     }
     return answer;

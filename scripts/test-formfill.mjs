@@ -1,10 +1,17 @@
 // scripts/test-formfill.mjs
 // Deterministic Form Filler tests: saved-answer resolution, answer validation,
-// and the resume -> application profile mapping. No framework, no network.
+// the resume -> application profile mapping, and the wiring the Form Filler
+// needs to reach a page without host permissions. No framework, no network.
 // Usage: npm run test:formfill
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { resolveFormAnswers, normalizeFormAnswers, profileFromResume } from '../form-profile.js';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const profile = {
     firstName: 'Jordan',
@@ -236,5 +243,59 @@ assert.deepEqual(mapped, mappedAgain, 'profile mapping is deterministic');
 const remote = profileFromResume({ name: 'Solo', location: 'Remote' }, { now: new Date('2026-01-01T00:00:00Z') });
 assert.equal(remote.city, '', 'a remote location has no city');
 assert.equal(remote.state, '', 'a remote location has no state');
+
+// --- Wiring: the Form Filler must reach a page without host permissions ---
+//
+// chrome.scripting.executeScript needs a host permission for the target site.
+// PocketResume grants none (host_permissions covers only its own backend), so
+// programmatic injection fails on every job site with "Cannot access contents
+// of the page" and the panel reports "Could not reach the page". The Form
+// Filler therefore has to ride the declarative content script, which needs no
+// host permission and reaches cross-origin frames.
+
+const manifest = JSON.parse(read('manifest.json'));
+const contentScript = manifest.content_scripts.find((entry) => (entry.js || []).includes('content.js'));
+assert.ok(contentScript, 'content.js is a declared content script');
+assert.ok(
+    (contentScript.js || []).includes('form-filler.js'),
+    'form-filler.js is declared as a declarative content script'
+);
+assert.equal(contentScript.all_frames, true, 'the content script runs in every frame');
+assert.ok(
+    (contentScript.matches || []).includes('<all_urls>'),
+    'the content script matches every site'
+);
+
+const background = read('background.js');
+const formFillerSection = background.slice(
+    background.indexOf('// --- Form filler'),
+    background.indexOf('function buildCoverLetterPayload')
+);
+assert.ok(formFillerSection.length > 0, 'the Form Filler section is present');
+assert.ok(
+    !/executeScript/.test(formFillerSection),
+    'the Form Filler does not use chrome.scripting.executeScript (it needs a host permission)'
+);
+assert.ok(
+    /FORM_DETECT/.test(formFillerSection) && /FORM_FILL/.test(formFillerSection),
+    'the Form Filler drives the frames over the FORM_DETECT / FORM_FILL messages'
+);
+
+const content = read('content.js');
+assert.ok(
+    /FORM_DETECT/.test(content) && /FORM_FILL/.test(content) && /FORM_TOAST/.test(content),
+    'content.js answers the Form Filler messages in every frame'
+);
+assert.ok(
+    /FORM_FRAME_DETECTED/.test(content) && /FORM_FRAME_FILLED/.test(content),
+    'each frame replies with its own runtime message'
+);
+
+// The Form Filler is a Chrome Web Store runtime file and must stay in the zip.
+const buildZip = read('scripts/build-zip.mjs');
+assert.ok(
+    /'form-filler\.js'/.test(buildZip),
+    'form-filler.js is part of the runtime file list in the store build'
+);
 
 console.log('form fill tests passed');
