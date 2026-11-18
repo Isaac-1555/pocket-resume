@@ -2165,7 +2165,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (fillResultText) {
       fillResultText.textContent = total
         ? 'Every empty field PocketResume knew the answer to was filled.'
-        : 'No empty application fields were found on this page.';
+        : 'No application form was found on this page. Open the Apply form, then run Fill Form again.';
     }
     if (fillManualCount) {
       if (unanswered.length) {
@@ -2324,8 +2324,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.16.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.16.0';
+  const ANNOUNCEMENT_VERSION = '10.16.2';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.16.2';
 
   function dismissWhatsNew() {
     chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_SEEN_VALUE });

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PocketResume",
-  "version": "10.16.0",
+  "version": "10.16.2",
   "description": "Tailor your resume to any job posting on-device.",
   "minimum_chrome_version": "114",
   "permissions": [
@@ -44,7 +44,8 @@
       ],
       "all_frames": true,
       "js": [
-        "content.js"
+        "content.js",
+        "form-filler.js"
       ]
     }
   ]

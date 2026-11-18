@@ -308,6 +308,40 @@ function isTopFrame() {
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === 'FORM_DETECT' || request.type === 'FORM_FILL' || request.type === 'FORM_TOAST') {
+        const api = globalThis.__PocketResumeForm;
+        if (request.type === 'FORM_DETECT') {
+            let fields = [];
+            try {
+                const limit = request.limit || 30;
+                fields = api && api.detect ? api.detect(limit) : [];
+            } catch (error) {
+                fields = [];
+            }
+            chrome.runtime.sendMessage({ type: 'FORM_FRAME_DETECTED', payload: { requestId: request.requestId, fields } }, () => {
+                void chrome.runtime.lastError;
+            });
+            return false;
+        }
+        if (request.type === 'FORM_FILL') {
+            let filled = 0;
+            let flagged = 0;
+            try {
+                if (api && api.fill) filled = api.fill(request.answers || []).filled;
+                if (api && api.flag && Array.isArray(request.flagIds) && request.flagIds.length) {
+                    flagged = api.flag(request.flagIds);
+                }
+            } catch (error) {
+                filled = 0;
+            }
+            chrome.runtime.sendMessage({ type: 'FORM_FRAME_FILLED', payload: { requestId: request.requestId, filled, flagged } }, () => {
+                void chrome.runtime.lastError;
+            });
+            return false;
+        }
+        if (api && api.toast && isTopFrame()) api.toast(request.message || '');
+        return false;
+    }
     if (request.type === 'COLLECT_FRAME_SNAPSHOT') {
         try {
             const snapshot = frameSnapshotData();

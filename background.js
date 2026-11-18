@@ -666,99 +666,88 @@ async function maybeAutoUpdateLocationDirectory() {
 
 const FORM_FIELD_LIMIT = 30;
 
-async function injectFormFiller(tabId) {
-    try {
-        await chrome.scripting.executeScript({
-            target: { tabId, allFrames: true },
-            files: ['form-filler.js']
-        });
-        return true;
-    } catch (error) {
-        console.warn('[FormFill] Could not inject the form filler:', error);
-        return false;
-    }
-}
+// The form filler runs as a declarative content script (see manifest.json), so
+// every frame answers on its own. Broadcasts go out with chrome.tabs.sendMessage
+// and each frame replies with its own runtime message; sendResponse would
+// resolve on the first reply only.
+const formCollectors = new Map();
 
-async function runInFrames(tabId, func, args) {
-    try {
-        const results = await chrome.scripting.executeScript({
-            target: { tabId, allFrames: true },
-            func,
-            args: args || []
-        });
-        return (results || [])
-            .map((entry) => entry && entry.result)
-            .filter((value) => value !== undefined && value !== null);
-    } catch (error) {
-        console.warn('[FormFill] Frame script failed:', error);
-        return [];
-    }
-}
-
-async function toastInMainFrame(tabId, message) {
-    try {
-        await chrome.scripting.executeScript({
-            target: { tabId, frameIds: [0] },
-            func: (text) => {
-                const api = globalThis.__PocketResumeForm;
-                if (api && typeof api.toast === 'function') api.toast(text);
-            },
-            args: [message]
-        });
-    } catch (error) {
-        console.warn('[FormFill] Toast failed:', error);
-    }
+function collectFormFrames(tabId, type, extra) {
+    return new Promise((resolve) => {
+        const requestId = `form_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const results = [];
+        let settle = null;
+        let first = null;
+        let hard = null;
+        const finish = () => {
+            if (settle) clearTimeout(settle);
+            if (first) clearTimeout(first);
+            if (hard) clearTimeout(hard);
+            settle = null;
+            first = null;
+            hard = null;
+            formCollectors.delete(requestId);
+            resolve(results);
+        };
+        // One frame answering clears the first-response deadline; the settle
+        // window then waits for the remaining frames to report.
+        const bump = () => {
+            if (first) {
+                clearTimeout(first);
+                first = null;
+            }
+            if (settle) clearTimeout(settle);
+            settle = setTimeout(finish, 250);
+        };
+        formCollectors.set(requestId, { tabId, results, bump, finish });
+        hard = setTimeout(finish, 3000);
+        try {
+            chrome.tabs.sendMessage(tabId, { type, requestId, ...extra }, () => {
+                void chrome.runtime.lastError;
+            });
+        } catch (error) {
+            finish();
+            return;
+        }
+        first = setTimeout(finish, 1200);
+    });
 }
 
 async function fillApplicationForm(tabId, profile) {
-    const injected = await injectFormFiller(tabId);
-    if (!injected) {
+    const detected = await collectFormFrames(tabId, 'FORM_DETECT', { limit: FORM_FIELD_LIMIT });
+    if (!detected.length) {
         return { status: 'error', message: 'Could not reach the page. Reload the tab and try again.' };
     }
-
-    const detected = await runInFrames(tabId, (limit) => {
-        const api = globalThis.__PocketResumeForm;
-        if (!api || typeof api.detect !== 'function') return [];
-        return api.detect(limit);
-    }, [FORM_FIELD_LIMIT]);
-
     const fields = [];
-    for (const group of detected) {
-        if (Array.isArray(group)) fields.push(...group);
+    for (const entry of detected) {
+        if (Array.isArray(entry.fields)) fields.push(...entry.fields);
     }
     if (!fields.length) {
-        await toastInMainFrame(tabId, 'No empty application fields found on this page.');
+        chrome.tabs.sendMessage(tabId, { type: 'FORM_TOAST', message: 'No application form found here. Open the Apply form on the page, then press Fill Form again.' }, () => {
+            void chrome.runtime.lastError;
+        });
         return { status: 'success', filled: 0, total: 0, cached: 0, unresolved: [], noFields: true };
     }
 
     const { resolved, unresolved } = resolveFormAnswers(fields, profile);
     const answers = normalizeFormAnswers(resolved);
 
-    const fillResults = await runInFrames(tabId, (list) => {
-        const api = globalThis.__PocketResumeForm;
-        if (!api || typeof api.fill !== 'function') return { attempted: 0, filled: 0 };
-        return api.fill(list);
-    }, [answers]);
-
+    const applied = await collectFormFrames(tabId, 'FORM_FILL', {
+        answers,
+        flagIds: unresolved.map((field) => field.id)
+    });
     let filled = 0;
-    for (const result of fillResults) {
-        filled += Number((result && result.filled) || 0);
-    }
-
-    const unansweredIds = unresolved.map((field) => field.id);
-    if (unansweredIds.length) {
-        await runInFrames(tabId, (ids) => {
-            const api = globalThis.__PocketResumeForm;
-            if (!api || typeof api.flag !== 'function') return 0;
-            return api.flag(ids);
-        }, [unansweredIds]);
+    for (const entry of applied) {
+        filled += Number((entry && entry.filled) || 0);
     }
 
     const needYou = unresolved.length;
     const message = needYou
         ? `Filled ${filled} of ${fields.length} fields (${answers.length} from saved answers). ${needYou} ${needYou === 1 ? 'needs' : 'need'} you.`
         : `Filled ${filled} of ${fields.length} fields from your saved answers.`;
-    await toastInMainFrame(tabId, message);
+    chrome.tabs.sendMessage(tabId, { type: 'FORM_TOAST', message }, () => {
+        void chrome.runtime.lastError;
+    });
     console.log(`[FormFill] Filled ${filled} of ${fields.length} fields. (${answers.length} saved, ${needYou} need you)`);
 
     return {
@@ -788,6 +777,17 @@ function buildCoverLetterPayload(template, resume, jobMeta) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message && (message.type === 'FORM_FRAME_DETECTED' || message.type === 'FORM_FRAME_FILLED')) {
+        const payload = message.payload;
+        if (payload && payload.requestId) {
+            const collector = formCollectors.get(payload.requestId);
+            if (collector && sender && sender.tab && sender.tab.id === collector.tabId) {
+                collector.results.push({ frameId: sender.frameId, ...payload });
+                collector.bump();
+            }
+        }
+        return false;
+    }
     if (message && message.type === 'FRAME_SNAPSHOT_RESULT') {
         const payload = message.payload;
         if (payload && payload.requestId) {
