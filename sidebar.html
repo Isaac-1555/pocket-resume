@@ -1316,6 +1316,13 @@
       #quickDownloadBtn.has-badge .list-row-label {
         font-size: 10.5px;
       }
+      .file-btn {
+        width: 23px;
+        height: 23px;
+      }
+      .file-actions {
+        gap: 3px;
+      }
     }
 
     .list-row-left {
@@ -2586,7 +2593,7 @@
       </div>
     </div>
     <p class="files-title hidden" id="filesTitle"><span id="filesTitleText"></span><span class="files-caret done" id="filesCaret"></span></p>
-    <p class="files-hint" id="filesHint">Generate a resume to keep it here — then drag it onto any page.</p>
+    <p class="files-hint" id="filesHint">Generate a resume to keep it here — then drag it onto any page or tap Attach.</p>
     <div class="files-list" id="filesList"></div>
   </section>
 
@@ -2748,15 +2755,15 @@
       <div class="onboarding-icon" aria-hidden="true">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m5.6 5.6 2.8 2.8"/><path d="m15.6 15.6 2.8 2.8"/><path d="m18.4 5.6-2.8 2.8"/><path d="m8.4 15.6-2.8 2.8"/></svg>
       </div>
-      <h2>New in <span id="whatsNewVersion"></span> &mdash; the Form Filler fills more sites</h2>
+      <h2>New in <span id="whatsNewVersion"></span> &mdash; your resume lands on the application form</h2>
       <p class="error-message">
-        Forms built with custom design systems are filled now, not skipped.
+        Drop a file anywhere on the page and it reaches the upload box, a page that never answered no longer ends the Form Filler run, and a new Attach button does the same with one click.
       </p>
       <ul class="whatsnew-collected">
-        <li><strong>Transparent radio buttons are found.</strong> BambooHR, Ashby and other systems hide the real button and paint their own on top. The Form Filler read those pages as empty, so sponsorship and work-authorization questions stayed blank. They are detected and answered now.</li>
-        <li><strong>The question behind the answer is read.</strong> When a form keeps the question in a neighbouring block instead of a label, the filler now knows it asks &ldquo;Do you require sponsorship?&rdquo; and answers with the right saved answer.</li>
-        <li><strong>Dropdown fields are marked, not missed.</strong> A custom dropdown (state, province, country) cannot be opened from outside the page, so it is highlighted for you instead of disappearing from the count.</li>
-        <li><strong>Your answers are still yours.</strong> Only the fields you saved in Settings are filled, nothing is guessed, consent boxes are never touched, spam traps are never filled and the form is never submitted.</li>
+        <li><strong>Dropping works on every Chrome.</strong> Chrome used to hand the page an empty file when you dragged a PDF out of the panel, so the form quietly ignored it. The page now takes the drop and reads the real file from the panel, so it lands in the upload box every time.</li>
+        <li><strong>Attach is one click.</strong> Every file in the shelf has an Attach button: it finds the upload field on the page and puts the PDF there, with no drag at all.</li>
+        <li><strong>If the page asks you to agree, you will see it.</strong> Some application forms hold the upload behind a privacy-agreement dialog. It is scrolled into view and outlined now, with a note on the page to answer it.</li>
+        <li><strong>The Form Filler reloads the page for you.</strong> When a tab never answered &mdash; usually because it was already open when the extension loaded &mdash; the filler reloads it once and tries again. You only see an error if that fails too.</li>
       </ul>
       <div class="onboarding-actions">
         <button id="whatsNewPlansBtn" class="cloud-primary-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Open Settings</span></button>

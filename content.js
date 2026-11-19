@@ -307,7 +307,85 @@ function isTopFrame() {
     }
 }
 
+// Chrome drops the bytes of a File that a page builds at dragstart when the drag
+// crosses renderers, so a file dragged out of the side panel reaches the page
+// empty. The panel also puts the shelf id on the drag; the drop is taken over
+// here and the file is read from storage instead.
+const DRAG_ITEM_TYPE = 'application/x-pocketresume-file';
+
+function isPanelDrag(dataTransfer) {
+    if (!dataTransfer) return false;
+    try {
+        return Array.from(dataTransfer.types || []).includes(DRAG_ITEM_TYPE);
+    } catch (error) {
+        return false;
+    }
+}
+
+document.addEventListener('dragover', (event) => {
+    if (!isPanelDrag(event.dataTransfer)) return;
+    event.preventDefault();
+    try {
+        event.dataTransfer.dropEffect = 'copy';
+    } catch (error) {
+        // the drop effect is advisory
+    }
+}, true);
+
+document.addEventListener('drop', (event) => {
+    if (!isPanelDrag(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    let itemId = '';
+    let name = '';
+    try {
+        itemId = event.dataTransfer.getData(DRAG_ITEM_TYPE) || '';
+    } catch (error) {
+        itemId = '';
+    }
+    try {
+        name = event.dataTransfer.getData('text/plain') || '';
+    } catch (error) {
+        name = '';
+    }
+    const api = globalThis.__PocketResumeForm;
+    chrome.runtime.sendMessage({ type: 'GET_STORED_PDF', payload: { itemId, filename: name } }, (response) => {
+        if (chrome.runtime.lastError) return;
+        if (!response || response.status !== 'success' || !response.dataUrl) {
+            if (api && api.toast) api.toast('Could not read that file. Use the Attach button in the panel.');
+            return;
+        }
+        let attached = null;
+        try {
+            attached = api && api.attachFile
+                ? api.attachFile({ filename: response.filename, mime: 'application/pdf', dataUrl: response.dataUrl })
+                : null;
+        } catch (error) {
+            attached = null;
+        }
+        if (!attached || !attached.attached) {
+            if (api && api.toast) api.toast('No upload field found on this page. Open the Apply form and drop it there.');
+        }
+    });
+}, true);
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === 'ATTACH_FILE') {
+        const api = globalThis.__PocketResumeForm;
+        let result = { attached: false, filename: request.filename || '' };
+        try {
+            if (api && api.attachFile) result = api.attachFile(request);
+        } catch (error) {
+            result = { attached: false, filename: request.filename || '', error: error.message };
+        }
+        chrome.runtime.sendMessage({
+            type: 'ATTACH_FRAME_ATTACHED',
+            payload: { requestId: request.requestId, ...result }
+        }, () => {
+            void chrome.runtime.lastError;
+        });
+        return false;
+    }
     if (request.type === 'FORM_DETECT' || request.type === 'FORM_FILL' || request.type === 'FORM_TOAST') {
         const api = globalThis.__PocketResumeForm;
         if (request.type === 'FORM_DETECT') {

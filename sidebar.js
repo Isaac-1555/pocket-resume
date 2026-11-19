@@ -43,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastFilesUrlKey = '';
   let activePageUrl = '';
   let activePageTitle = '';
+  let attachBusy = false;
   const settingsBtn = document.getElementById('settingsBtn');
   const quickDownloadBtn = document.getElementById('quickDownloadBtn');
   const resumeType = document.getElementById('resumeType');
@@ -246,6 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Files shelf: generated PDFs kept in chrome.storage.local ---
   const FILE_DRAG_TYPE = 'application/x-pocketresume-file';
   const ICON_DOWNLOAD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+  const ICON_ATTACH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>';
   const ICON_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
   const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
 
@@ -311,7 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!filesHint) return;
     const items = (state && state.items) || [];
     if (!items.length) {
-      filesHint.textContent = 'Generate a resume to keep it here — then drag it onto any page.';
+      filesHint.textContent = 'Generate a resume to keep it here — then drag it onto any page or tap Attach.';
       filesHint.classList.remove('stale');
       return;
     }
@@ -323,7 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
       filesHint.classList.add('stale');
       return;
     }
-    filesHint.textContent = 'Drag a file onto the page to attach it.';
+    filesHint.textContent = 'Drag it onto the page — or tap Attach.';
     filesHint.classList.remove('stale');
   }
 
@@ -383,6 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const actions = document.createElement('div');
     actions.className = 'file-actions';
+    actions.appendChild(fileButton('Attach to the page', ICON_ATTACH, () => attachStoredPdf(item)));
     actions.appendChild(fileButton('Download', ICON_DOWNLOAD, () => downloadStoredPdf(item)));
     actions.appendChild(fileButton('Open in a new tab', ICON_OPEN, () => openStoredPdf(item)));
     actions.appendChild(fileButton('Delete', ICON_TRASH, () => removeStoredPdf(item.id), true));
@@ -407,12 +410,15 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     event.dataTransfer.effectAllowed = 'copyMove';
+    // The id and the name go on the data transfer first: some engines refuse
+    // more text once a file item is in the list.
+    event.dataTransfer.setData(FILE_DRAG_TYPE, item.id);
+    event.dataTransfer.setData('text/plain', item.filename || 'document.pdf');
     try {
       event.dataTransfer.items.add(file);
     } catch (error) {
       console.warn('[Files] file drag unsupported:', error);
     }
-    event.dataTransfer.setData(FILE_DRAG_TYPE, item.id);
     card.classList.add('dragging');
   }
 
@@ -488,6 +494,41 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       console.warn('[Files] could not open the PDF:', error);
     }
+  }
+
+  // Dragging a file out of the panel loses its bytes on some Chrome builds, so
+  // the page can also be handed the file directly.
+  async function attachStoredPdf(item) {
+    const store = window.PocketResumePdfStore;
+    if (!store || !item || attachBusy) return;
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id) {
+      flashFilesHint('No active tab found. Open the application form and try again.');
+      return;
+    }
+    const filename = item.filename || 'document.pdf';
+    attachBusy = true;
+    flashFilesHint(`Attaching ${filename}...`);
+    chrome.runtime.sendMessage({
+      type: 'ATTACH_FILE_TO_PAGE',
+      payload: {
+        tabId: tab.id,
+        filename,
+        mime: 'application/pdf',
+        dataUrl: item.dataUrl || ''
+      }
+    }, (response) => {
+      attachBusy = false;
+      if (chrome.runtime.lastError) {
+        flashFilesHint('Could not reach the page. Reload the tab and try again.');
+        return;
+      }
+      if (!response || response.status === 'error') {
+        flashFilesHint((response && response.message) || 'Could not attach the file to this page.');
+        return;
+      }
+      flashFilesHint(`Attached ${filename} to the page.`);
+    });
   }
 
   function setupFiles() {
@@ -2163,9 +2204,13 @@ document.addEventListener('DOMContentLoaded', () => {
       fillResultTitle.textContent = total ? `Filled ${filled} of ${total} fields` : 'No fields to fill';
     }
     if (fillResultText) {
-      fillResultText.textContent = total
-        ? 'Every empty field PocketResume knew the answer to was filled.'
-        : 'No application form was found on this page. Open the Apply form, then run Fill Form again.';
+      if (total) {
+        fillResultText.textContent = response?.reloaded
+          ? 'The page was reloaded first, then every field PocketResume knew the answer to was filled.'
+          : 'Every empty field PocketResume knew the answer to was filled.';
+      } else {
+        fillResultText.textContent = 'No application form was found on this page. Open the Apply form, then run Fill Form again.';
+      }
     }
     if (fillManualCount) {
       if (unanswered.length) {
@@ -2324,8 +2369,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.16.2';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.16.2';
+  const ANNOUNCEMENT_VERSION = '10.17.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.17.0';
 
   function dismissWhatsNew() {
     chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_SEEN_VALUE });

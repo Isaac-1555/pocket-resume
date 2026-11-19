@@ -713,10 +713,63 @@ function collectFormFrames(tabId, type, extra) {
     });
 }
 
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Reloads the tab and waits for the new document. Resolves false when the tab
+// cannot be reloaded (a privileged URL) or when it does not finish in time.
+function reloadTabAndWait(tabId, timeoutMs = 12000) {
+    return new Promise((resolve) => {
+        let settled = false;
+        const finish = (ok) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            try {
+                chrome.tabs.onUpdated.removeListener(onUpdated);
+            } catch (error) {
+                // listener already gone
+            }
+            resolve(ok);
+        };
+        const onUpdated = (id, changeInfo) => {
+            if (id !== tabId) return;
+            if (changeInfo && changeInfo.status === 'complete') finish(true);
+        };
+        const timer = setTimeout(() => finish(false), timeoutMs);
+        try {
+            chrome.tabs.onUpdated.addListener(onUpdated);
+            chrome.tabs.reload(tabId, {}, () => {
+                if (chrome.runtime.lastError) finish(false);
+            });
+        } catch (error) {
+            finish(false);
+        }
+    });
+}
+
 async function fillApplicationForm(tabId, profile) {
-    const detected = await collectFormFrames(tabId, 'FORM_DETECT', { limit: FORM_FIELD_LIMIT });
+    let detected = await collectFormFrames(tabId, 'FORM_DETECT', { limit: FORM_FIELD_LIMIT });
+    let reloaded = false;
     if (!detected.length) {
-        return { status: 'error', message: 'Could not reach the page. Reload the tab and try again.' };
+        // No frame answered: the content script is not in that tab yet (the tab
+        // was open before the extension loaded) or the page never settled.
+        // Reload once and try again before giving up.
+        reloaded = await reloadTabAndWait(tabId);
+        if (reloaded) {
+            await sleep(400);
+            detected = await collectFormFrames(tabId, 'FORM_DETECT', { limit: FORM_FIELD_LIMIT });
+        }
+    }
+    if (!detected.length) {
+        return {
+            status: 'error',
+            reloaded,
+            message: reloaded
+                ? 'Could not reach the page even after reloading it. Open the application form and try again.'
+                : 'Could not reach the page. Reload the tab and try again.'
+        };
     }
     const fields = [];
     for (const entry of detected) {
@@ -726,7 +779,7 @@ async function fillApplicationForm(tabId, profile) {
         chrome.tabs.sendMessage(tabId, { type: 'FORM_TOAST', message: 'No application form found here. Open the Apply form on the page, then press Fill Form again.' }, () => {
             void chrome.runtime.lastError;
         });
-        return { status: 'success', filled: 0, total: 0, cached: 0, unresolved: [], noFields: true };
+        return { status: 'success', filled: 0, total: 0, cached: 0, unresolved: [], noFields: true, reloaded };
     }
 
     const { resolved, unresolved } = resolveFormAnswers(fields, profile);
@@ -755,12 +808,29 @@ async function fillApplicationForm(tabId, profile) {
         filled,
         total: fields.length,
         cached: answers.length,
+        reloaded,
         unresolved: unresolved.slice(0, 12).map((field) => ({
             id: field.id,
             question: field.question || '',
             tag: field.tag || ''
         }))
     };
+}
+
+// Hands a stored PDF to the page's upload field. The drag path loses the
+// bytes of a JS-built File on some Chrome builds, so the file is handed over
+// through the frames instead.
+async function attachFileToPage(tabId, request) {
+    const applied = await collectFormFrames(tabId, 'ATTACH_FILE', {
+        filename: String((request && request.filename) || 'document.pdf'),
+        mime: 'application/pdf',
+        dataUrl: String((request && request.dataUrl) || '')
+    });
+    let attached = 0;
+    for (const entry of applied) {
+        if (entry && entry.attached) attached++;
+    }
+    return { status: 'success', attached, frames: applied.length };
 }
 
 function buildCoverLetterPayload(template, resume, jobMeta) {
@@ -777,7 +847,7 @@ function buildCoverLetterPayload(template, resume, jobMeta) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message && (message.type === 'FORM_FRAME_DETECTED' || message.type === 'FORM_FRAME_FILLED')) {
+    if (message && (message.type === 'FORM_FRAME_DETECTED' || message.type === 'FORM_FRAME_FILLED' || message.type === 'ATTACH_FRAME_ATTACHED')) {
         const payload = message.payload;
         if (payload && payload.requestId) {
             const collector = formCollectors.get(payload.requestId);
@@ -1146,6 +1216,62 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 sendResponse({ ...result, ...access });
             } catch (error) {
                 console.error('[FormFill] Failed:', error);
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+
+        return true;
+    }
+
+    if (message.type === 'GET_STORED_PDF') {
+        (async () => {
+            try {
+                const payload = message.payload || {};
+                const data = await chrome.storage.local.get('generatedPdfs');
+                const store = data && data.generatedPdfs;
+                const items = Array.isArray(store && store.items) ? store.items : [];
+                const item = items.find((entry) => entry && entry.id === payload.itemId)
+                    || (payload.filename
+                        ? items.find((entry) => entry && entry.filename === payload.filename)
+                        : null);
+                if (!item || !item.dataUrl) {
+                    sendResponse({ status: 'error', message: 'That file is no longer in the panel.' });
+                    return;
+                }
+                sendResponse({
+                    status: 'success',
+                    filename: item.filename || 'document.pdf',
+                    dataUrl: item.dataUrl
+                });
+            } catch (error) {
+                console.warn('[Files] could not read the stored PDF:', error);
+                sendResponse({ status: 'error', message: error.message });
+            }
+        })();
+
+        return true;
+    }
+
+    if (message.type === 'ATTACH_FILE_TO_PAGE') {
+        (async () => {
+            try {
+                const payload = message.payload || {};
+                const tabId = payload.tabId;
+                if (!tabId) {
+                    sendResponse({ status: 'error', message: 'Open the application form tab first.' });
+                    return;
+                }
+                const result = await attachFileToPage(tabId, payload);
+                if (!result.attached) {
+                    sendResponse({
+                        status: 'error',
+                        message: 'No upload field found on this page. Open the Apply form and try again.'
+                    });
+                    return;
+                }
+                sendResponse(result);
+            } catch (error) {
+                console.error('[Attach] failed:', error);
                 sendResponse({ status: 'error', message: error.message });
             }
         })();
