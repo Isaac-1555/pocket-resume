@@ -27,6 +27,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let letterScrambleTimer = null;
   let letterStatusTimer = null;
   let motionPreference = true;
+  let pendingResumeLoop = null;
+  let pendingLetterLoop = null;
+  let resumeLoopWatchdog = null;
+  let letterLoopWatchdog = null;
+  let generationRequestTimer = null;
   let fillStatusTimer = null;
   let fillRunning = false;
   let fillPromoActive = false;
@@ -1831,6 +1836,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (coverLetterBtn) coverLetterBtn.disabled = !enabled;
   }
 
+  function syncGenerateEnabled() {
+    if (gate.state !== 'ready') return;
+    const busy = generationActive
+      || document.body.dataset.status === 'generating'
+      || document.body.dataset.letterStatus === 'generating';
+    setGenerateEnabled(!busy);
+  }
+
   function hideGateCards() {
     [signinCard, reviewCard, planLockCard, setupCard, setupCompact].forEach((card) => {
       if (card) card.style.display = 'none';
@@ -1888,10 +1901,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setGenerateEnabled(false);
       return;
     }
-    const busy = generationActive
-      || document.body.dataset.status === 'generating'
-      || document.body.dataset.letterStatus === 'generating';
-    setGenerateEnabled(!busy);
+    syncGenerateEnabled();
   }
 
   // Signing in happens in the Settings tab (the panel bundle has no Clerk UI).
@@ -1983,23 +1993,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function runGeneration(output = 'resume') {
     if (generationActive) return;
-    const checked = await refreshGate();
-    if (checked.state !== 'ready') return;
-
+    generationActive = true;
+    setGenerateEnabled(false);
     const letterRun = output === 'cover-letter';
     const errorTarget = letterRun ? 'letter' : 'resume';
+    let checked;
+    try {
+      checked = await refreshGate();
+    } catch (error) {
+      generationActive = false;
+      syncGenerateEnabled();
+      setError(error.message || 'Could not check your plan. Please try again.', errorTarget);
+      return;
+    }
+    if (checked.state !== 'ready') {
+      generationActive = false;
+      syncGenerateEnabled();
+      return;
+    }
 
     const selectedStyle = normalizeResumeStyle(resumeType.value || 'professional');
     const styleConfig = getResumeStyleConfig(selectedStyle);
 
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    let tab;
+    try {
+      [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    } catch (error) {
+      generationActive = false;
+      setError('No active tab found. Open the job posting and try again.', errorTarget);
+      return;
+    }
     if (!tab || !tab.id) {
+      generationActive = false;
       setError('No active tab found. Open the job posting and try again.', errorTarget);
       return;
     }
 
-    generationActive = true;
-    setGenerateEnabled(false);
     lastError = '';
     lastErrorRaw = '';
     if (errorInfoBtn) errorInfoBtn.style.display = 'none';
@@ -2012,7 +2041,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (generateLabel) generateLabel.textContent = 'Matching job description\u2026';
     }
 
-    chrome.runtime.sendMessage({
+    const request = {
       type: 'GENERATE',
       payload: {
         tabId: tab.id,
@@ -2020,7 +2049,28 @@ document.addEventListener('DOMContentLoaded', () => {
         resumeId: selectedResumeId,
         output
       }
-    }, async (response) => {
+    };
+
+    try {
+      chrome.runtime.sendMessage(request, handleGenerationResponse);
+    } catch (error) {
+      generationActive = false;
+      setError(error.message || 'Could not reach the background service. Please try again.', errorTarget);
+      return;
+    }
+    if (generationRequestTimer) clearTimeout(generationRequestTimer);
+    generationRequestTimer = setTimeout(() => {
+      generationRequestTimer = null;
+      if (!generationActive) return;
+      generationActive = false;
+      setError('The job page took too long to read. Reload it and try again.', errorTarget);
+    }, GENERATION_TIMEOUT_MS);
+
+    async function handleGenerationResponse(response) {
+      if (generationRequestTimer) {
+        clearTimeout(generationRequestTimer);
+        generationRequestTimer = null;
+      }
       generationActive = false;
 
       if (chrome.runtime.lastError) {
@@ -2145,7 +2195,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (generateLabel) generateLabel.textContent = 'Generate Resume';
         setGenerateEnabled(true);
       }
-    });
+    }
   }
 
   if (coverLetterBtn) {
@@ -2458,20 +2508,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
   generateBtn.addEventListener('click', () => runGeneration('resume'));
 
-  const BUSY_LABELS = ['Reading job page…', 'Matching keywords…', 'Tailoring bullets…', 'Polishing layout…', 'Almost there…'];
-  const BUSY_LETTER_LABELS = ['Reading job page…', 'Filling company and role…', 'Matching your template…', 'Typesetting the letter…'];
+  const BUSY_LABELS = ['Reading job page…', 'Matching keywords…', 'Polishing layout…'];
+  const BUSY_LETTER_LABELS = ['Reading job page…', 'Matching your template…', 'Typesetting the letter…'];
   const SCRAMBLE_CHARS = 'ABCDEFGHKMNPRSTUVWXYZ23456789#/<>*+';
+  const LOOP_WATCHDOG_MS = 8000;
+  const GENERATION_TIMEOUT_MS = 60000;
 
-  function stopScramble() {
+  function clearScrambleTimers() {
     if (scrambleTimer) {
       clearInterval(scrambleTimer);
       scrambleTimer = null;
     }
+    if (resumeLoopWatchdog) {
+      clearTimeout(resumeLoopWatchdog);
+      resumeLoopWatchdog = null;
+    }
+  }
+
+  function clearLetterScrambleTimers() {
+    if (letterScrambleTimer) {
+      clearInterval(letterScrambleTimer);
+      letterScrambleTimer = null;
+    }
+    if (letterLoopWatchdog) {
+      clearTimeout(letterLoopWatchdog);
+      letterLoopWatchdog = null;
+    }
+  }
+
+  function finishResumeLoop() {
+    const done = pendingResumeLoop;
+    pendingResumeLoop = null;
+    if (!done) return;
+    clearScrambleTimers();
+    done();
+  }
+
+  function finishLetterLoop() {
+    const done = pendingLetterLoop;
+    pendingLetterLoop = null;
+    if (!done) return;
+    clearLetterScrambleTimers();
+    done();
+  }
+
+  function stopScramble() {
+    clearScrambleTimers();
+    finishResumeLoop();
   }
 
   function startScramble() {
     if (!generateLabel) return;
-    stopScramble();
+    pendingResumeLoop = null;
+    clearScrambleTimers();
     if (!motionOn()) {
       generateLabel.textContent = 'Generating…';
       return;
@@ -2510,7 +2599,7 @@ document.addEventListener('DOMContentLoaded', () => {
         out += SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
       }
     }
-    generateLabel.textContent = out;
+    if (generateLabel) generateLabel.textContent = out;
   }
 
   function playResumeLoop(done) {
@@ -2518,39 +2607,62 @@ document.addEventListener('DOMContentLoaded', () => {
       done();
       return;
     }
-    stopScramble();
-    if (!motionOn()) {
+    pendingResumeLoop = null;
+    clearScrambleTimers();
+    if (!motionOn() || document.hidden) {
       generateLabel.textContent = 'Generating…';
       done();
       return;
     }
+    let finished = false;
+    let timerId = null;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (timerId) {
+        clearInterval(timerId);
+        if (scrambleTimer === timerId) scrambleTimer = null;
+      }
+      if (resumeLoopWatchdog) {
+        clearTimeout(resumeLoopWatchdog);
+        resumeLoopWatchdog = null;
+      }
+      if (pendingResumeLoop === finish) pendingResumeLoop = null;
+      done();
+    };
+    pendingResumeLoop = finish;
+    resumeLoopWatchdog = setTimeout(finish, LOOP_WATCHDOG_MS);
     let labelIdx = 0;
     let frame = 0;
-    const settleFrames = 9;
-    const holdFrames = 15;
-    scrambleTimer = setInterval(() => {
+    const settleFrames = 8;
+    const holdFrames = 10;
+    timerId = setInterval(() => {
       frame++;
       const target = BUSY_LABELS[labelIdx % BUSY_LABELS.length];
       if (frame > settleFrames + holdFrames) {
         labelIdx++;
         frame = 0;
         if (labelIdx >= BUSY_LABELS.length) {
-          stopScramble();
           generateLabel.textContent = BUSY_LABELS[BUSY_LABELS.length - 1];
-          done();
+          finish();
           return;
         }
         return;
       }
       renderScrambleFrame(target, Math.floor((frame / settleFrames) * target.length));
-    }, 32);
+    }, 30);
+    scrambleTimer = timerId;
   }
 
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) return;
+    finishResumeLoop();
+    finishLetterLoop();
+  });
+
   function stopLetterScramble() {
-    if (letterScrambleTimer) {
-      clearInterval(letterScrambleTimer);
-      letterScrambleTimer = null;
-    }
+    clearLetterScrambleTimers();
+    finishLetterLoop();
   }
 
   function renderLetterFrame(target, settledCount) {
@@ -2568,7 +2680,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function startLetterScramble() {
     if (!coverLetterLabel) return;
-    stopLetterScramble();
+    pendingLetterLoop = null;
+    clearLetterScrambleTimers();
     if (!motionOn()) {
       coverLetterLabel.textContent = 'Building cover letter…';
       return;
@@ -2594,32 +2707,51 @@ document.addEventListener('DOMContentLoaded', () => {
       done();
       return;
     }
-    stopLetterScramble();
-    if (!motionOn()) {
+    pendingLetterLoop = null;
+    clearLetterScrambleTimers();
+    if (!motionOn() || document.hidden) {
       coverLetterLabel.textContent = 'Building cover letter…';
       done();
       return;
     }
+    let finished = false;
+    let timerId = null;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (timerId) {
+        clearInterval(timerId);
+        if (letterScrambleTimer === timerId) letterScrambleTimer = null;
+      }
+      if (letterLoopWatchdog) {
+        clearTimeout(letterLoopWatchdog);
+        letterLoopWatchdog = null;
+      }
+      if (pendingLetterLoop === finish) pendingLetterLoop = null;
+      done();
+    };
+    pendingLetterLoop = finish;
+    letterLoopWatchdog = setTimeout(finish, LOOP_WATCHDOG_MS);
     let labelIdx = 0;
     let frame = 0;
-    const settleFrames = 9;
-    const holdFrames = 15;
-    letterScrambleTimer = setInterval(() => {
+    const settleFrames = 8;
+    const holdFrames = 10;
+    timerId = setInterval(() => {
       frame++;
       const target = BUSY_LETTER_LABELS[labelIdx % BUSY_LETTER_LABELS.length];
       if (frame > settleFrames + holdFrames) {
         labelIdx++;
         frame = 0;
         if (labelIdx >= BUSY_LETTER_LABELS.length) {
-          stopLetterScramble();
           coverLetterLabel.textContent = BUSY_LETTER_LABELS[BUSY_LETTER_LABELS.length - 1];
-          done();
+          finish();
           return;
         }
         return;
       }
       renderLetterFrame(target, Math.floor((frame / settleFrames) * target.length));
-    }, 32);
+    }, 30);
+    letterScrambleTimer = timerId;
   }
 
   function setLetterStatus(state) {
@@ -2632,6 +2764,7 @@ document.addEventListener('DOMContentLoaded', () => {
       delete document.body.dataset.letterStatus;
       stopLetterScramble();
       if (coverLetterLabel) coverLetterLabel.textContent = 'Generate Cover Letter';
+      syncGenerateEnabled();
       return;
     }
     document.body.dataset.letterStatus = uiState;
@@ -2639,12 +2772,14 @@ document.addEventListener('DOMContentLoaded', () => {
       startLetterScramble();
       return;
     }
+    if (uiState === 'failure') pendingLetterLoop = null;
     stopLetterScramble();
     if (coverLetterLabel) {
       coverLetterLabel.textContent =
         uiState === 'success' ? 'Cover letter ready'
           : 'Failed \u2014 try again';
     }
+    syncGenerateEnabled();
     if (uiState === 'failure') return;
     letterStatusTimer = setTimeout(() => {
       setLetterStatus('idle');
@@ -2676,6 +2811,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (uiState === 'generating') {
       startScramble();
     } else {
+      if (uiState === 'failure') pendingResumeLoop = null;
       stopScramble();
       if (generateLabel) {
         generateLabel.textContent =
@@ -2683,6 +2819,7 @@ document.addEventListener('DOMContentLoaded', () => {
             : uiState === 'failure' ? 'Failed \u2014 try again'
               : 'Generate Resume';
       }
+      syncGenerateEnabled();
     }
 
     if (statusTimer) {
