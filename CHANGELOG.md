@@ -1,5 +1,18 @@
 # Changelog
 
+## [10.17.0] — 2026-11-18
+### Added
+- **Attach puts the resume on the page.** Every file in the panel's shelf has an Attach button now. It finds the upload field on the current page (including a form inside a frame) and hands over the PDF as a real file. Nothing is uploaded anywhere — the file goes from the panel straight into the page.
+- **A file input is picked, not guessed.** The upload field is chosen by its label (resume, CV, cover letter, upload, attach), its visibility and its `accept` filter. Spam-trap inputs are skipped.
+
+### Fixed
+- **Dropping the card works on every Chrome.** Chromium throws away the bytes of a file that a page builds for a drag once the drag crosses renderers, so a card dragged out of the panel reached the page empty and the application form ignored it. The drag now carries the shelf id as well, the page takes the drop over, reads the file from the panel's storage and puts it on the upload field itself. Drop it anywhere on the application form — the upload box, the page, the form itself.
+- **A page that asks for consent is pointed out.** Eightfold-built career sites (Autodesk, and others) hold every resume upload behind a *Data Privacy Agreement* dialog that only opens after a file is picked, and silently throw the file away if it is not answered. The dialog is now scrolled into view and outlined, and the page toast says to answer it.
+- **The Form Filler reloads the page instead of giving up.** A tab that never answered (usually because it was already open when the extension loaded) ended the run with *"Could not reach the page. Reload the tab and try again."* The filler now reloads the tab once, waits for the page to settle and tries again. You only get an error when that fails too.
+- **The drag payload is complete.** The shelf file id and the file name are put on the data transfer before the file itself, so the drag keeps both the id and the name on every Chrome build.
+
+Tests: `npm run test:formfill` (answers, mapping, wiring, reload-and-retry, drag bridge) and `npm run test:formfill-dom` (detection, filling, attaching and the consent prompt against BambooHR, Ashby, Lever and Eightfold markup).
+
 ## [10.16.2] — 2026-11-18
 ### Fixed
 - **The Form Filler finds radio buttons on custom-built forms.** BambooHR, Ashby, Lever and other design systems hide the real control (transparent input) and paint their own on top. The filler treated those fields as missing, so every sponsorship, work-authorization and yes/no question on those sites stayed blank. They are detected and answered from your saved answers now.

@@ -71,7 +71,7 @@ Pocket Resume stores the following data locally on your device using Chrome's bu
 * Your Form Filler answers (the application questions you saved in Settings), kept on this device only and never synced to the cloud
 * Your preferences (selected resume style, tracker capture toggle)
 * Generated resumes, cover letters, and captured job applications
-* The PDFs you generate in the side panel (kept in the browser's local storage so you can drag them onto a page). Only the current posting's files are kept: generating on a new posting replaces them, and dropping a file on the delete zone removes it
+* The PDFs you generate in the side panel (kept in the browser's local storage so you can drag them onto a page, or hand them to the page with the Attach button). Only the current posting's files are kept: generating on a new posting replaces them, and dropping a file on the delete zone removes it. Attaching a file hands it straight from local storage to the page you are on — it is not uploaded anywhere
 * Job details you correct in the review dialog (job title, company, location, recipient), remembered per posting URL so the same posting does not need the same edit twice. The URL is stored with tracking parameters removed, and nothing about the posting's page content is kept
 * Your company, job title and location directories — the entries and aliases you corrected, plus the downloaded copies of the public lists. All stay on this device and are never synced to the cloud
 

@@ -186,5 +186,90 @@ assert.equal(filled.state['sponsor-1'], true, 'the radio group holds the answer'
 assert.equal(filled.state['sponsor-0'], false, 'the other radio stays empty');
 assert.equal(filled.state.consent, false, 'a consent checkbox is never touched');
 
+// --- Attaching: the file lands on the page's upload field. ---
+
+async function attachIn(html, filename) {
+    const page = await browser.newPage();
+    await page.setContent(html);
+    await page.addScriptTag({ content: source });
+    const result = await page.evaluate((name) => {
+        const dataUrl = 'data:application/pdf;base64,' + btoa('%PDF-1.4 pocketresume');
+        const outcome = globalThis.__PocketResumeForm.attachFile({ filename: name, mime: 'application/pdf', dataUrl });
+        const state = {};
+        for (const el of document.querySelectorAll('input[type="file"]')) {
+            state[el.id || el.name] = el.files && el.files[0] ? el.files[0].name : '';
+        }
+        return { outcome, state };
+    }, filename);
+    await page.close();
+    return result;
+}
+
+const attached = await attachIn(`
+    <form>
+        <label for="nickname">Nickname</label>
+        <input type="file" id="nickname" name="nickname" style="position: absolute; left: -9999px">
+        <label for="resumeUpload">Resume</label>
+        <input type="file" id="resumeUpload" name="resumeUpload" accept="application/pdf">
+    </form>
+`, 'Jordan_Lee_Resume.pdf');
+assert.equal(attached.outcome.attached, true, 'the file is attached');
+assert.equal(attached.outcome.filename, 'Jordan_Lee_Resume.pdf', 'the attached file keeps its name');
+assert.equal(attached.state.resumeUpload, 'Jordan_Lee_Resume.pdf', 'the resume upload field holds the file');
+assert.equal(attached.state.nickname, '', 'the spam trap is never used');
+
+const hiddenUpload = await attachIn(`
+    <form>
+        <div>
+            <button type="button">Upload resume</button>
+            <input type="file" id="cv" name="cv" style="display: none">
+        </div>
+    </form>
+`, 'Jordan_Lee_Resume.pdf');
+assert.equal(hiddenUpload.outcome.attached, true, 'a hidden input behind an upload button is used');
+assert.equal(hiddenUpload.state.cv, 'Jordan_Lee_Resume.pdf', 'the hidden upload field holds the file');
+
+const noInput = await attachIn(`
+    <form>
+        <label for="firstName">First Name</label>
+        <input type="text" id="firstName" name="firstName">
+    </form>
+`, 'Jordan_Lee_Resume.pdf');
+assert.equal(noInput.outcome.attached, false, 'a page without an upload field reports no attachment');
+
+// --- The page holds the upload behind a consent dialog (Eightfold): the dialog
+// must be brought into view instead of leaving the page looking unchanged. ---
+
+const prompt = await (async () => {
+    const page = await browser.newPage();
+    await page.setContent(`
+        <form>
+            <label for="resumeUpload">Resume</label>
+            <input type="file" id="resumeUpload" name="resumeUpload" accept="application/pdf">
+        </form>
+        <div id="consent" role="dialog" style="display: none">Data Privacy Agreement — I agree</div>
+        <script>
+            document.getElementById('resumeUpload').addEventListener('change', () => {
+                document.getElementById('consent').style.display = 'block';
+            });
+        </script>
+    `);
+    await page.addScriptTag({ content: source });
+    const outcome = await page.evaluate(() => {
+        const dataUrl = 'data:application/pdf;base64,' + btoa('%PDF-1.4 pocketresume');
+        return globalThis.__PocketResumeForm.attachFile({ filename: 'Jordan_Lee_Resume.pdf', mime: 'application/pdf', dataUrl });
+    });
+    await page.waitForTimeout(800);
+    const state = await page.evaluate(() => ({
+        flagged: document.getElementById('consent').classList.contains('pr-flag'),
+        toast: document.getElementById('pocketresume-form-toast')?.textContent || ''
+    }));
+    await page.close();
+    return { outcome, state };
+})();
+assert.equal(prompt.outcome.attached, true, 'the file is attached before the dialog opens');
+assert.equal(prompt.state.flagged, true, 'the consent dialog is outlined so it cannot be missed');
+assert.match(prompt.state.toast, /answer the page's prompt to finish/, 'the toast says what to do next');
+
 await browser.close();
 console.log('form fill DOM tests passed');

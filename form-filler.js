@@ -718,5 +718,147 @@
         setTimeout(() => el.remove(), 5200);
     }
 
-    globalThis.__PocketResumeForm = { detect, fill, toast, flag, unflag };
+    function dataUrlToBytes(dataUrl) {
+        const base64 = String(dataUrl || '').split(',')[1] || '';
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+    }
+
+    // Everything that names an upload: the label, a nearby button or heading,
+    // and the input's own attributes. Used to pick the right file input.
+    function fileInputContext(el) {
+        const parts = [];
+        const direct = labelForControl(el);
+        if (direct) parts.push(direct);
+        let node = el;
+        for (let depth = 0; node && depth < 3; depth++) {
+            const parent = node.parentElement;
+            if (!parent || parent.matches('form, body, html')) break;
+            let prev = node.previousElementSibling;
+            while (prev) {
+                if (prev.matches('button, label')) {
+                    const text = cleanText(prev.textContent);
+                    if (text && text.length <= 80) {
+                        parts.push(text);
+                        break;
+                    }
+                }
+                prev = prev.previousElementSibling;
+            }
+            node = parent;
+        }
+        parts.push(el.getAttribute('name') || '');
+        parts.push(el.getAttribute('id') || '');
+        parts.push(el.getAttribute('accept') || '');
+        return cleanText(parts.join(' '));
+    }
+
+    function candidateFileInputs() {
+        return Array.from(document.querySelectorAll('input[type="file"]')).filter((el) => {
+            if (el.disabled || el.readOnly) return false;
+            return !isHoneypot(el);
+        });
+    }
+
+    function scoreFileInput(el, context, total) {
+        let score = 0;
+        if (/\bresume\b|curriculum|vitae|\bcv\b|cover\s*letter/i.test(context)) score += 5;
+        else if (/upload|attach|browse|choose|select\s+(a\s+)?file/i.test(context)) score += 2;
+        if (isVisible(el)) score += 2;
+        else if (context) score += 1;
+        if (/pdf/i.test(el.getAttribute('accept') || '')) score += 1;
+        if (total === 1) score += 1;
+        return score;
+    }
+
+    function visibleDialogs() {
+        const nodes = document.querySelectorAll(
+            '[role="dialog"], [aria-modal="true"], dialog[open], [class*="modal" i], [class*="dialog" i]'
+        );
+        const found = [];
+        for (const node of nodes) {
+            if (!isVisible(node)) continue;
+            if (cleanText(node.innerText || '').length < 8) continue;
+            found.push(node);
+        }
+        return found;
+    }
+
+    function highlightNode(node) {
+        ensureFlagStyle();
+        node.classList.add('pr-flag');
+        try {
+            node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        } catch (error) {
+            try {
+                node.scrollIntoView();
+            } catch (inner) {
+                // the node may already be detached
+            }
+        }
+        setTimeout(() => {
+            try {
+                node.classList.remove('pr-flag');
+            } catch (error) {
+                // the node is gone
+            }
+        }, 12000);
+    }
+
+    // Application forms can hold the upload behind a consent dialog that opens
+    // once a file is picked (Eightfold: "Data Privacy Agreement"). Nothing is
+    // uploaded until it is answered, so the dialog is brought into view instead
+    // of leaving the user with a page that looks like it did nothing.
+    function watchForPrompt(before, filename) {
+        const at = [250, 600, 1200, 2000];
+        const check = (index) => {
+            const fresh = visibleDialogs().filter((node) => !before.has(node));
+            if (fresh.length) {
+                highlightNode(fresh[0]);
+                toast(`Attached ${filename} — answer the page's prompt to finish`);
+                return;
+            }
+            if (index + 1 < at.length) {
+                setTimeout(() => check(index + 1), at[index + 1] - at[index]);
+            }
+        };
+        setTimeout(() => check(0), at[0]);
+    }
+
+    // Puts a file on the page's upload field. Dragging a file out of the panel
+    // loses its bytes on some Chrome builds, so the panel can ask the page to
+    // take the file directly.
+    function attachFile(payload) {
+        const request = payload || {};
+        const filename = cleanText(request.filename || 'document.pdf') || 'document.pdf';
+        const mime = cleanText(request.mime || 'application/pdf') || 'application/pdf';
+        const dialogsBefore = new Set(visibleDialogs());
+        const inputs = candidateFileInputs();
+        if (!inputs.length) return { attached: false, reason: 'no-input', filename };
+        let best = null;
+        let bestScore = -1;
+        for (const el of inputs) {
+            const score = scoreFileInput(el, fileInputContext(el), inputs.length);
+            if (score > bestScore) {
+                bestScore = score;
+                best = el;
+            }
+        }
+        if (!best) return { attached: false, reason: 'no-input', filename };
+        const file = new File([dataUrlToBytes(request.dataUrl || '')], filename, { type: mime });
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'files')?.set;
+        if (setter) setter.call(best, transfer.files);
+        else best.files = transfer.files;
+        best.dispatchEvent(new Event('input', { bubbles: true }));
+        best.dispatchEvent(new Event('change', { bubbles: true }));
+        toast(`Attached ${filename}`);
+        watchForPrompt(dialogsBefore, filename);
+        return { attached: true, filename, inputs: inputs.length };
+    }
+
+    globalThis.__PocketResumeForm = { detect, fill, toast, flag, unflag, attachFile };
 })();

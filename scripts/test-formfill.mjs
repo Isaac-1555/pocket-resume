@@ -281,6 +281,24 @@ assert.ok(
     'the Form Filler drives the frames over the FORM_DETECT / FORM_FILL messages'
 );
 
+// A tab that never answers (it was open before the extension loaded) used to
+// end the run with "Could not reach the page. Reload the tab and try again."
+// The filler reloads the tab once and detects again before it gives up.
+assert.ok(
+    /chrome\.tabs\.reload/.test(formFillerSection),
+    'the Form Filler can reload the tab it could not reach'
+);
+assert.ok(
+    /reloadTabAndWait/.test(formFillerSection),
+    'the reload waits for the new document before the retry'
+);
+const detectCalls = formFillerSection.match(/collectFormFrames\(tabId, 'FORM_DETECT'/g) || [];
+assert.equal(detectCalls.length, 2, 'the Form Filler detects again exactly once after the reload');
+assert.ok(
+    /onUpdated/.test(formFillerSection) && /status === 'complete'/.test(formFillerSection),
+    'the retry waits for the page to finish loading'
+);
+
 const content = read('content.js');
 assert.ok(
     /FORM_DETECT/.test(content) && /FORM_FILL/.test(content) && /FORM_TOAST/.test(content),
@@ -289,6 +307,43 @@ assert.ok(
 assert.ok(
     /FORM_FRAME_DETECTED/.test(content) && /FORM_FRAME_FILLED/.test(content),
     'each frame replies with its own runtime message'
+);
+assert.ok(
+    /ATTACH_FILE/.test(content) && /ATTACH_FRAME_ATTACHED/.test(content),
+    'content.js answers the attach message in every frame'
+);
+assert.ok(
+    /attachFile/.test(read('form-filler.js')),
+    'form-filler.js exposes the attach API'
+);
+assert.ok(
+    /ATTACH_FILE_TO_PAGE/.test(background) && /ATTACH_FRAME_ATTACHED/.test(background),
+    'the worker hands the file to the frames and counts the answers'
+);
+assert.ok(
+    /GET_STORED_PDF/.test(background),
+    'the worker serves a stored PDF to the page for a drop'
+);
+assert.ok(
+    /DRAG_ITEM_TYPE/.test(content) && /GET_STORED_PDF/.test(content),
+    'content.js takes over a panel drag and reads the file from storage'
+);
+assert.ok(
+    /application\/x-pocketresume-file/.test(content) && /application\/x-pocketresume-file/.test(read('sidebar.js')),
+    'the panel drag type is the same on both sides'
+);
+assert.ok(
+    /watchForPrompt/.test(read('form-filler.js')),
+    'form-filler.js points at a consent prompt the page opens after a file is picked'
+);
+const sidebar = read('sidebar.js');
+assert.ok(
+    /ATTACH_FILE_TO_PAGE/.test(sidebar),
+    'the panel asks the worker to attach a stored file to the page'
+);
+assert.ok(
+    /items\.add\(file\)/.test(sidebar),
+    'the shelf card still puts a real file on the drag data transfer'
 );
 
 // The Form Filler is a Chrome Web Store runtime file and must stay in the zip.
