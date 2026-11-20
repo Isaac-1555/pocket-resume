@@ -1,5 +1,21 @@
 # Changelog
 
+## [10.18.0] — 2026-11-19
+### Added
+- **Corrections teach the directories on their own.** The company, job title and location you fix in the review dialog are saved automatically: a typed value becomes the name, the raw text from the page becomes its alias, and the next posting from that employer resolves itself. Nothing is saved twice.
+- **`npm run test:jdcorrections`.** Covers the remembered job details: exact URL key, path drift, raw title/company signature, legacy entries, the ten-posting cap and the storage round trip.
+
+### Changed
+- **The directory lists are gone from Settings.** The company, job title and location sections were management screens for corrections that now save themselves. The local directories stay, they are just written by the review dialog only.
+
+### Fixed
+- **The cover letter forgot the job details you corrected.** Generating the resume and then the cover letter for the same posting reopened the review dialog with the page's raw title, company and location. The corrections are now keyed by URL, by path and by the raw title + company, so a changed query string or a move to `/apply` still finds them, and the last fix is reused inside the panel session. If the letter cannot be rebuilt, the corrected company and recipient are patched into the copy instead of silently keeping the old ones.
+- **Title and location corrections were never learned.** The panel asked the stores for `learnCorrection`, which only the company store exposes, so title and location fixes were dropped without an error. The correct learner is resolved now, and a suggestion merges as an alias without a confirmation click.
+- **A repeated correction no longer duplicates an alias.** The linked personal record of an official entry is checked before an alias is written, so the same value cannot be stored twice.
+- **What's New no longer soft-locks a small screen.** The update card is capped to the viewport and scrolls, the action buttons stay pinned to its bottom, short screens get a tighter layout, and the modal closes on Escape or a backdrop click. The job-details dialog gets the same scroll fix.
+
+Tests: `npm run test:jdcorrections`, `npm run test:companydir`, `npm run test:directories`.
+
 ## [10.17.0] — 2026-11-18
 ### Added
 - **Attach puts the resume on the page.** Every file in the panel's shelf has an Attach button now. It finds the upload field on the current page (including a form inside a frame) and hands over the PDF as a real file. Nothing is uploaded anywhere — the file goes from the panel straight into the page.

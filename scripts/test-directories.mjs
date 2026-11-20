@@ -147,6 +147,24 @@ const suggested = applyTitleCorrection([], {
 }, { original: 'Sr Software Eng', confirmed: false });
 assert.equal(suggested.action, 'skipped', 'a suggestion needs confirmation');
 
+const suggestedOfficialEntry = { id: 'onet-1', canonicalName: 'Senior Software Engineer', aliases: [], source: 'official' };
+const autoAliasTitle = applyTitleCorrection([], {
+    status: 'suggest',
+    entry: suggestedOfficialEntry,
+    sanitized: sanitizeJobTitle('Senior Software Engineer')
+}, { original: 'Sr Software Eng', confirmed: true });
+assert.equal(autoAliasTitle.action, 'alias-added');
+assert.equal(autoAliasTitle.records.length, 1);
+assert.deepEqual(autoAliasTitle.records[0].aliases, ['Senior Software Engineer', 'Sr Software Eng'], 'the typed title and the raw page value are both kept');
+
+const autoAliasTitleAgain = applyTitleCorrection(autoAliasTitle.records, {
+    status: 'suggest',
+    entry: suggestedOfficialEntry,
+    sanitized: sanitizeJobTitle('Senior Software Engineer')
+}, { original: 'Sr Software Eng', confirmed: true });
+assert.equal(autoAliasTitleAgain.action, 'none', 'a repeated correction never adds a second alias');
+assert.deepEqual(autoAliasTitleAgain.records[0].aliases, ['Senior Software Engineer', 'Sr Software Eng']);
+
 const learnedTitle = applyTitleCorrection([], {
     status: 'new',
     sanitized: sanitizeJobTitle('Senior Software Engineer')

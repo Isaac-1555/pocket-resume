@@ -25,6 +25,7 @@
     "test:feedback": "node scripts/test-feedback.mjs",
     "test:formfill": "node scripts/test-formfill.mjs",
     "test:formfill-dom": "node scripts/test-formfill-dom.mjs",
+    "test:jdcorrections": "node scripts/test-jdcorrections.mjs",
     "test:pdfstore": "node scripts/test-pdfstore.mjs",
     "test:render": "node scripts/test-render.mjs",
     "test:titles": "node scripts/test-title-extract.mjs",

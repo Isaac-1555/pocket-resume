@@ -10,6 +10,7 @@ import {
     normalizeStringList,
     stripSurroundingQuotes,
     suggestEntry,
+    uniqueAliasList,
     uniqueId,
     upsertAliasForEntry,
     DEFAULT_FUZZY_THRESHOLD,
@@ -874,12 +875,21 @@ export function applyTitleCorrection(records = [], decision = {}, options = {}) 
             return { records: list, action: 'skipped', message: 'needs confirmation', entry: decision.entry };
         }
         const entry = decision.entry;
-        const aliasName = decision.sanitized.normalizedName;
-        const added = upsertAliasForEntry(list, entry, aliasName, now, makeTitleId);
+        const aliases = uniqueAliasList([
+            decision.sanitized.normalizedName,
+            originalIsNew ? originalSanitized.normalizedName : ''
+        ]);
+        let working = list;
+        let changed = false;
+        aliases.forEach((aliasName) => {
+            const added = upsertAliasForEntry(working, entry, aliasName, now, makeTitleId);
+            working = added.records;
+            changed = changed || added.changed;
+        });
         return {
-            records: added.records,
-            action: added.changed ? 'alias-added' : 'none',
-            message: added.changed ? `saved "${aliasName}" as an alias of ${entry.canonicalName}` : 'already known',
+            records: working,
+            action: changed ? 'alias-added' : 'none',
+            message: changed ? `saved "${decision.sanitized.normalizedName}" as an alias of ${entry.canonicalName}` : 'already known',
             entry
         };
     }
@@ -906,7 +916,7 @@ export function describeTitleDecision(decision) {
         return { tone: 'good', text: `Matches ${decision.entry.canonicalName} in ${where}.` };
     }
     if (decision.status === 'suggest') {
-        return { tone: 'warn', text: `Looks like ${decision.entry.canonicalName}.` };
+        return { tone: 'warn', text: `Looks like ${decision.entry.canonicalName} — saved as an alias when you save.` };
     }
     return { tone: 'muted', text: 'Will be added to your job title directory.' };
 }

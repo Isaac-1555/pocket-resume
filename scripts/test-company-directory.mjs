@@ -269,7 +269,11 @@ const aliased = applyCorrection([], suggest, { original: 'Google', confirmed: tr
 assert.equal(aliased.action, 'alias-added');
 assert.equal(aliased.records.length, 1);
 assert.equal(aliased.records[0].directoryId, 'google');
-assert.deepEqual(aliased.records[0].aliases, ['Google Cloud Canada']);
+assert.deepEqual(aliased.records[0].aliases, ['Google Cloud Canada', 'Google'], 'the corrected name and the raw page value are both kept');
+
+const aliasedAgain = applyCorrection(aliased.records, suggest, { original: 'Google', confirmed: true, now: 4 });
+assert.equal(aliasedAgain.action, 'none', 'a repeated correction never adds a second alias');
+assert.deepEqual(aliasedAgain.records[0].aliases, ['Google Cloud Canada', 'Google']);
 
 const forced = applyCorrection([], suggest, { original: 'Google', forceNew: true, now: 5 });
 assert.equal(forced.action, 'created');
