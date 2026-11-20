@@ -27,6 +27,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let letterScrambleTimer = null;
   let letterStatusTimer = null;
   let motionPreference = true;
+  let pendingResumeLoop = null;
+  let pendingLetterLoop = null;
+  let resumeLoopWatchdog = null;
+  let letterLoopWatchdog = null;
+  let generationRequestTimer = null;
   let fillStatusTimer = null;
   let fillRunning = false;
   let fillPromoActive = false;
@@ -94,24 +99,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const jdCompanyHint = document.getElementById('jdCompanyHint');
   const jdCompanySuggestion = document.getElementById('jdCompanySuggestion');
   const jdCompanySuggestionText = document.getElementById('jdCompanySuggestionText');
-  const jdCompanyAliasBtn = document.getElementById('jdCompanyAliasBtn');
   const jdCompanyNewBtn = document.getElementById('jdCompanyNewBtn');
   const jdTitleHint = document.getElementById('jdTitleHint');
   const jdTitleSuggestion = document.getElementById('jdTitleSuggestion');
   const jdTitleSuggestionText = document.getElementById('jdTitleSuggestionText');
-  const jdTitleAliasBtn = document.getElementById('jdTitleAliasBtn');
   const jdTitleNewBtn = document.getElementById('jdTitleNewBtn');
   const jdTitleCandidates = document.getElementById('jdTitleCandidates');
   const jdTitleNote = document.getElementById('jdTitleNote');
   const jdLocationHint = document.getElementById('jdLocationHint');
   const jdLocationSuggestion = document.getElementById('jdLocationSuggestion');
   const jdLocationSuggestionText = document.getElementById('jdLocationSuggestionText');
-  const jdLocationAliasBtn = document.getElementById('jdLocationAliasBtn');
   const jdLocationNewBtn = document.getElementById('jdLocationNewBtn');
   const jdLocationCandidates = document.getElementById('jdLocationCandidates');
-  const companyDirectory = window.PocketResumeCompanyDirectory || null;
-  const titleDirectory = window.PocketResumeTitleDirectory || null;
-  const locationDirectory = window.PocketResumeLocationDirectory || null;
+  const directories = {
+    get company() { return window.PocketResumeCompanyDirectory || null; },
+    get title() { return window.PocketResumeTitleDirectory || null; },
+    get location() { return window.PocketResumeLocationDirectory || null; }
+  };
 
   const JD_REVIEW_TIMEOUT_MS = 30000;
   const JD_DETAIL_FIELDS = ['title', 'company', 'location', 'recruiterName'];
@@ -123,6 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let universalCoverLetter = null;
   let lastJobMeta = null;
+  let lastJdCorrection = null;
   let generationActive = false;
   let gate = { state: 'signin' };
 
@@ -1137,6 +1142,25 @@ document.addEventListener('DOMContentLoaded', () => {
     return showResumeFitWarning(pages);
   }
 
+  function jdMemory() {
+    return window.PocketResumeJdCorrections || null;
+  }
+
+  function correctionFields(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+    if (entry.fields && typeof entry.fields === 'object') return entry.fields;
+    return entry;
+  }
+
+  function rawJdDetails(jobMeta) {
+    const meta = jobMeta && typeof jobMeta === 'object' ? jobMeta : {};
+    return {
+      title: String((meta.titleMeta && meta.titleMeta.originalValue) || meta.title || '').trim(),
+      company: String((meta.companyMeta && meta.companyMeta.originalValue) || meta.company || '').trim(),
+      location: String((meta.locationMeta && meta.locationMeta.originalValue) || meta.location || '').trim()
+    };
+  }
+
   function legacyJdUrlKey(rawUrl) {
     const value = String(rawUrl || '').trim();
     if (!value) return '';
@@ -1153,26 +1177,69 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function jdUrlKey(rawUrl) {
+    const memory = jdMemory();
+    if (memory && typeof memory.normalizeUrlKey === 'function') return memory.normalizeUrlKey(rawUrl);
     const store = window.PocketResumePdfStore;
     if (store && typeof store.normalizeUrlKey === 'function') return store.normalizeUrlKey(rawUrl);
     return legacyJdUrlKey(rawUrl);
   }
 
+  function jdLooseUrlKey(rawUrl) {
+    const memory = jdMemory();
+    if (memory && typeof memory.looseUrlKey === 'function') return memory.looseUrlKey(rawUrl);
+    return legacyJdUrlKey(rawUrl).split('?')[0];
+  }
+
+  function jdSignature(raw) {
+    const memory = jdMemory();
+    if (memory && typeof memory.postingSignature === 'function') return memory.postingSignature(raw);
+    return '';
+  }
+
   function mergeJdCorrections(jobMeta, corrections) {
+    const memory = jdMemory();
+    const fields = correctionFields(corrections);
+    if (memory && typeof memory.mergeFields === 'function') return memory.mergeFields(jobMeta, fields);
     const meta = jobMeta && typeof jobMeta === 'object' ? jobMeta : {};
     const values = {};
     JD_DETAIL_FIELDS.forEach((field) => {
-      const base = String(meta[field] || '').trim();
-      if (corrections && Object.prototype.hasOwnProperty.call(corrections, field)) {
-        values[field] = String(corrections[field] || '').trim();
+      if (fields && Object.prototype.hasOwnProperty.call(fields, field)) {
+        values[field] = String(fields[field] || '').trim();
         return;
       }
-      values[field] = base;
+      values[field] = String(meta[field] || '').trim();
     });
     return values;
   }
 
-  async function readJdCorrections(url) {
+  function rememberJdCorrection(url, raw, entry) {
+    const fields = correctionFields(entry);
+    if (!fields) return;
+    const clean = {};
+    JD_DETAIL_FIELDS.forEach((field) => {
+      if (!Object.prototype.hasOwnProperty.call(fields, field)) return;
+      clean[field] = String(fields[field] || '').trim();
+    });
+    if (!Object.keys(clean).length) return;
+    lastJdCorrection = {
+      fields: clean,
+      urlKey: jdUrlKey(url),
+      looseKey: jdLooseUrlKey(url),
+      signature: jdSignature(raw)
+    };
+  }
+
+  function sessionJdCorrection(url, raw) {
+    if (!lastJdCorrection) return null;
+    const looseKey = jdLooseUrlKey(url);
+    const signature = jdSignature(raw);
+    const samePath = !!looseKey && looseKey === lastJdCorrection.looseKey;
+    const samePosting = !!signature && signature === lastJdCorrection.signature;
+    if (!samePath && !samePosting) return null;
+    return { fields: { ...lastJdCorrection.fields }, updatedAt: Date.now(), source: 'session' };
+  }
+
+  async function legacyReadJdCorrections(url) {
     const key = jdUrlKey(url);
     if (!key) return null;
     const data = await chrome.storage.local.get('jdCorrections');
@@ -1185,9 +1252,39 @@ document.addEventListener('DOMContentLoaded', () => {
     return entry && typeof entry === 'object' ? entry : null;
   }
 
+  async function readJdCorrections(url, jobMeta) {
+    const key = jdUrlKey(url);
+    if (!key) return null;
+    const raw = rawJdDetails(jobMeta);
+    const memory = jdMemory();
+    let entry = null;
+    try {
+      entry = memory && typeof memory.read === 'function'
+        ? await memory.read(url, raw)
+        : await legacyReadJdCorrections(url);
+    } catch (error) {
+      console.warn('[JdReview] could not read the remembered corrections:', error);
+    }
+    const resolved = entry || sessionJdCorrection(url, raw);
+    if (entry) rememberJdCorrection(url, raw, entry);
+    return resolved;
+  }
+
   async function saveJdCorrections(url, extracted, values) {
     const key = jdUrlKey(url);
     if (!key || !values) return;
+    const raw = rawJdDetails(extracted);
+    const memory = jdMemory();
+    if (memory && typeof memory.save === 'function') {
+      try {
+        const entry = await memory.save(url, extracted, values, raw);
+        rememberJdCorrection(url, raw, entry);
+        return;
+      } catch (error) {
+        console.warn('[JdReview] could not save the corrections:', error);
+      }
+    }
+
     const base = extracted && typeof extracted === 'object' ? extracted : {};
     const delta = {};
     JD_DETAIL_FIELDS.forEach((field) => {
@@ -1211,6 +1308,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .slice(0, JD_CORRECTIONS_LIMIT)
       .forEach(([entryKey, entryValue]) => { pruned[entryKey] = entryValue; });
     await chrome.storage.local.set({ jdCorrections: pruned });
+    rememberJdCorrection(url, raw, Object.keys(delta).length ? { ...delta } : null);
   }
 
   function jdReviewChipsFromReport(report) {
@@ -1230,12 +1328,22 @@ document.addEventListener('DOMContentLoaded', () => {
     return chips.slice(0, 16);
   }
 
+  function directoryLearner(directory) {
+    if (!directory) return null;
+    const names = ['learnCorrection', 'learnTitleCorrection', 'learnLocationCorrection'];
+    for (const name of names) {
+      if (typeof directory[name] === 'function') return directory[name].bind(directory);
+    }
+    return null;
+  }
+
   function saveDirectoryCorrection(directory, original, corrected, options = {}) {
-    if (!directory || typeof directory.learnCorrection !== 'function') return;
-    directory.learnCorrection({
+    const learn = directoryLearner(directory);
+    if (!learn) return;
+    learn({
       original: String(original || '').trim(),
       corrected: String(corrected || '').trim(),
-      confirmed: options.confirmed === true,
+      confirmed: options.confirmed !== false,
       forceNew: options.forceNew === true
     })
       .then((result) => {
@@ -1253,11 +1361,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function createFieldAnalyzer(config) {
     const {
-      input, hint, suggestion, suggestionText, aliasBtn, newBtn,
+      input, hint, suggestion, suggestionText, newBtn,
       directory, analyze, rawValue, prefix, newMessage
     } = config;
     let edited = false;
-    let confirmed = false;
     let forceNew = false;
     let timer = null;
     let token = 0;
@@ -1282,16 +1389,16 @@ document.addEventListener('DOMContentLoaded', () => {
       hint.style.display = text ? 'block' : 'none';
     };
 
-    const render = (analysis, value) => {
+    const render = (analysis) => {
       if (!analysis) return;
       const message = analysis.message || { tone: 'muted', text: '' };
       const leading = typeof prefix === 'function' ? prefix() : '';
       const text = !edited && analysis.status === 'new' ? '' : message.text;
       setHint(message.tone, `${leading}${text}`);
-      const canSuggest = analysis.status === 'suggest' && analysis.entry && !confirmed && !forceNew;
+      const canSuggest = analysis.status === 'suggest' && analysis.entry && !forceNew;
       if (suggestion && suggestionText) {
         const target = entryName(analysis.entry);
-        suggestionText.textContent = canSuggest ? `Save "${value}" as an alias of ${target}?` : '';
+        suggestionText.textContent = canSuggest ? `Saved as an alias of ${target} when you save.` : '';
         suggestion.style.display = canSuggest ? 'flex' : 'none';
       }
     };
@@ -1309,7 +1416,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           const analysis = await analyze(rawValue, value);
           if (current !== token) return;
-          render(analysis, value);
+          render(analysis);
         } catch (error) {
           console.warn('[Directory] analysis failed:', error);
         }
@@ -1318,7 +1425,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const markEdited = () => {
       edited = true;
-      confirmed = false;
       forceNew = false;
       schedule();
     };
@@ -1329,18 +1435,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     if (input) input.addEventListener('input', onInput);
-    if (aliasBtn) {
-      aliasBtn.onclick = () => {
-        confirmed = true;
-        forceNew = false;
-        if (suggestion) suggestion.style.display = 'none';
-        setHint('good', 'Saved as an alias when you save.');
-      };
-    }
     if (newBtn) {
       newBtn.onclick = () => {
         forceNew = true;
-        confirmed = false;
         if (suggestion) suggestion.style.display = 'none';
         setHint('muted', newMessage || 'Will be added to your directory as a new entry.');
       };
@@ -1358,7 +1455,7 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       learn: (corrected) => {
         if (!edited || !corrected) return;
-        saveDirectoryCorrection(directory, rawValue, corrected, { confirmed, forceNew });
+        saveDirectoryCorrection(directory, rawValue, corrected, { forceNew });
       }
     };
   }
@@ -1515,11 +1612,10 @@ document.addEventListener('DOMContentLoaded', () => {
         hint: jdCompanyHint,
         suggestion: jdCompanySuggestion,
         suggestionText: jdCompanySuggestionText,
-        aliasBtn: jdCompanyAliasBtn,
         newBtn: jdCompanyNewBtn,
-        directory: companyDirectory,
-        analyze: companyDirectory && typeof companyDirectory.analyzeCorrection === 'function'
-          ? (original, corrected) => companyDirectory.analyzeCorrection(original, corrected)
+        directory: directories.company,
+        analyze: directories.company && typeof directories.company.analyzeCorrection === 'function'
+          ? (original, corrected) => directories.company.analyzeCorrection(original, corrected)
           : null,
         rawValue: rawCompany,
         newMessage: 'Will be added to your directory as a new company.'
@@ -1530,11 +1626,10 @@ document.addEventListener('DOMContentLoaded', () => {
         hint: jdTitleHint,
         suggestion: jdTitleSuggestion,
         suggestionText: jdTitleSuggestionText,
-        aliasBtn: jdTitleAliasBtn,
         newBtn: jdTitleNewBtn,
-        directory: titleDirectory,
-        analyze: titleDirectory && typeof titleDirectory.analyzeTitleCorrection === 'function'
-          ? (original, corrected) => titleDirectory.analyzeTitleCorrection(original, corrected)
+        directory: directories.title,
+        analyze: directories.title && typeof directories.title.analyzeTitleCorrection === 'function'
+          ? (original, corrected) => directories.title.analyzeTitleCorrection(original, corrected)
           : null,
         rawValue: rawTitle,
         newMessage: 'Will be added to your job title directory.'
@@ -1545,11 +1640,10 @@ document.addEventListener('DOMContentLoaded', () => {
         hint: jdLocationHint,
         suggestion: jdLocationSuggestion,
         suggestionText: jdLocationSuggestionText,
-        aliasBtn: jdLocationAliasBtn,
         newBtn: jdLocationNewBtn,
-        directory: locationDirectory,
-        analyze: locationDirectory && typeof locationDirectory.analyzeLocationCorrection === 'function'
-          ? (original, corrected) => locationDirectory.analyzeLocationCorrection(original, corrected)
+        directory: directories.location,
+        analyze: directories.location && typeof directories.location.analyzeLocationCorrection === 'function'
+          ? (original, corrected) => directories.location.analyzeLocationCorrection(original, corrected)
           : null,
         rawValue: rawLocation,
         prefix: () => {
@@ -1680,11 +1774,12 @@ document.addEventListener('DOMContentLoaded', () => {
   async function maybeShowJdReview(jobMeta, report, url) {
     const [data, corrections] = await Promise.all([
       chrome.storage.local.get('jdReviewDisabled'),
-      readJdCorrections(url)
+      readJdCorrections(url, jobMeta)
     ]);
-    const values = mergeJdCorrections(jobMeta, corrections);
-    const hasCorrections = JD_DETAIL_FIELDS.some((field) => (
-      corrections && Object.prototype.hasOwnProperty.call(corrections, field)
+    const fields = correctionFields(corrections);
+    const values = mergeJdCorrections(jobMeta, fields);
+    const hasCorrections = !!fields && JD_DETAIL_FIELDS.some((field) => (
+      Object.prototype.hasOwnProperty.call(fields, field)
     ));
     if (data.jdReviewDisabled === true) {
       const extracted = {
@@ -1692,14 +1787,10 @@ document.addEventListener('DOMContentLoaded', () => {
         company: String((jobMeta && jobMeta.company) || '').trim(),
         location: String((jobMeta && jobMeta.location) || '').trim()
       };
-      const raws = {
-        title: String((jobMeta && jobMeta.titleMeta && jobMeta.titleMeta.originalValue) || extracted.title).trim(),
-        company: String((jobMeta && jobMeta.companyMeta && jobMeta.companyMeta.originalValue) || extracted.company).trim(),
-        location: String((jobMeta && jobMeta.locationMeta && jobMeta.locationMeta.originalValue) || extracted.location).trim()
-      };
-      if (values.title && values.title !== extracted.title) saveDirectoryCorrection(titleDirectory, raws.title, values.title);
-      if (values.company && values.company !== extracted.company) saveDirectoryCorrection(companyDirectory, raws.company, values.company);
-      if (values.location && values.location !== extracted.location) saveDirectoryCorrection(locationDirectory, raws.location, values.location);
+      const raws = rawJdDetails(jobMeta);
+      if (values.title && values.title !== extracted.title) saveDirectoryCorrection(directories.title, raws.title, values.title);
+      if (values.company && values.company !== extracted.company) saveDirectoryCorrection(directories.company, raws.company, values.company);
+      if (values.location && values.location !== extracted.location) saveDirectoryCorrection(directories.location, raws.location, values.location);
       return { values, changed: hasCorrections, skipped: true };
     }
     return showJdReview(jobMeta, report, values);
@@ -1784,6 +1875,44 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function patchLetterPayload(data, values) {
+    const letter = data && typeof data === 'object' ? data : null;
+    if (!letter || !values) return letter;
+    const swap = (text, from, to) => {
+      if (!text || !from || !to || from === to || from.length < 2) return text;
+      return String(text).split(from).join(to);
+    };
+
+    const oldCompany = String(letter.company_name || '').trim();
+    const newCompany = String(values.company || '').trim();
+    const oldRecipient = String(letter.recipient_name || '').trim();
+    const newRecipient = String(values.recruiterName || '').trim();
+    const recipientGiven = Object.prototype.hasOwnProperty.call(values, 'recruiterName');
+
+    if (newCompany) letter.company_name = newCompany;
+    if (recipientGiven && newRecipient !== oldRecipient) {
+      letter.recipient_name = newRecipient;
+      const greeting = String(letter.greeting || '').trim();
+      if (!newRecipient) {
+        if (oldRecipient && greeting.includes(oldRecipient)) letter.greeting = 'Dear Hiring Manager,';
+      } else if (oldRecipient && greeting.includes(oldRecipient)) {
+        letter.greeting = swap(greeting, oldRecipient, newRecipient);
+      } else if (!oldRecipient && /^dear hiring manager/i.test(greeting)) {
+        letter.greeting = `Dear ${newRecipient},`;
+      }
+    }
+
+    if (newCompany && oldCompany && newCompany !== oldCompany) {
+      ['opening_paragraph', 'closing_paragraph', 'sign_off'].forEach((key) => {
+        letter[key] = swap(letter[key], oldCompany, newCompany);
+      });
+      if (Array.isArray(letter.body_paragraphs)) {
+        letter.body_paragraphs = letter.body_paragraphs.map((paragraph) => swap(paragraph, oldCompany, newCompany));
+      }
+    }
+    return letter;
+  }
+
   async function coverLetterPayload(review, resumeData, existingData) {
     let data = existingData || null;
     if (review && review.changed && review.values) {
@@ -1791,12 +1920,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (rebuilt) data = rebuilt;
     }
     if (!data) return null;
+    let parsed = null;
     try {
-      return JSON.parse(sanitizeJsonControlChars(String(data)));
+      parsed = JSON.parse(sanitizeJsonControlChars(String(data)));
     } catch (error) {
       console.warn('[JdReview] could not parse cover letter payload:', error);
       return null;
     }
+    return patchLetterPayload(parsed, review && review.values);
   }
 
   window.PocketResumeJdReview = {
@@ -1829,6 +1960,14 @@ document.addEventListener('DOMContentLoaded', () => {
   function setGenerateEnabled(enabled) {
     if (generateBtn) generateBtn.disabled = !enabled;
     if (coverLetterBtn) coverLetterBtn.disabled = !enabled;
+  }
+
+  function syncGenerateEnabled() {
+    if (gate.state !== 'ready') return;
+    const busy = generationActive
+      || document.body.dataset.status === 'generating'
+      || document.body.dataset.letterStatus === 'generating';
+    setGenerateEnabled(!busy);
   }
 
   function hideGateCards() {
@@ -1888,10 +2027,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setGenerateEnabled(false);
       return;
     }
-    const busy = generationActive
-      || document.body.dataset.status === 'generating'
-      || document.body.dataset.letterStatus === 'generating';
-    setGenerateEnabled(!busy);
+    syncGenerateEnabled();
   }
 
   // Signing in happens in the Settings tab (the panel bundle has no Clerk UI).
@@ -1983,23 +2119,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function runGeneration(output = 'resume') {
     if (generationActive) return;
-    const checked = await refreshGate();
-    if (checked.state !== 'ready') return;
-
+    generationActive = true;
+    setGenerateEnabled(false);
     const letterRun = output === 'cover-letter';
     const errorTarget = letterRun ? 'letter' : 'resume';
+    let checked;
+    try {
+      checked = await refreshGate();
+    } catch (error) {
+      generationActive = false;
+      syncGenerateEnabled();
+      setError(error.message || 'Could not check your plan. Please try again.', errorTarget);
+      return;
+    }
+    if (checked.state !== 'ready') {
+      generationActive = false;
+      syncGenerateEnabled();
+      return;
+    }
 
     const selectedStyle = normalizeResumeStyle(resumeType.value || 'professional');
     const styleConfig = getResumeStyleConfig(selectedStyle);
 
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    let tab;
+    try {
+      [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    } catch (error) {
+      generationActive = false;
+      setError('No active tab found. Open the job posting and try again.', errorTarget);
+      return;
+    }
     if (!tab || !tab.id) {
+      generationActive = false;
       setError('No active tab found. Open the job posting and try again.', errorTarget);
       return;
     }
 
-    generationActive = true;
-    setGenerateEnabled(false);
     lastError = '';
     lastErrorRaw = '';
     if (errorInfoBtn) errorInfoBtn.style.display = 'none';
@@ -2012,7 +2167,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (generateLabel) generateLabel.textContent = 'Matching job description\u2026';
     }
 
-    chrome.runtime.sendMessage({
+    const request = {
       type: 'GENERATE',
       payload: {
         tabId: tab.id,
@@ -2020,7 +2175,28 @@ document.addEventListener('DOMContentLoaded', () => {
         resumeId: selectedResumeId,
         output
       }
-    }, async (response) => {
+    };
+
+    try {
+      chrome.runtime.sendMessage(request, handleGenerationResponse);
+    } catch (error) {
+      generationActive = false;
+      setError(error.message || 'Could not reach the background service. Please try again.', errorTarget);
+      return;
+    }
+    if (generationRequestTimer) clearTimeout(generationRequestTimer);
+    generationRequestTimer = setTimeout(() => {
+      generationRequestTimer = null;
+      if (!generationActive) return;
+      generationActive = false;
+      setError('The job page took too long to read. Reload it and try again.', errorTarget);
+    }, GENERATION_TIMEOUT_MS);
+
+    async function handleGenerationResponse(response) {
+      if (generationRequestTimer) {
+        clearTimeout(generationRequestTimer);
+        generationRequestTimer = null;
+      }
       generationActive = false;
 
       if (chrome.runtime.lastError) {
@@ -2145,7 +2321,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (generateLabel) generateLabel.textContent = 'Generate Resume';
         setGenerateEnabled(true);
       }
-    });
+    }
   }
 
   if (coverLetterBtn) {
@@ -2369,8 +2545,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.17.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.17.0';
+  const ANNOUNCEMENT_VERSION = '10.18.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.18.0';
 
   function dismissWhatsNew() {
     chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_SEEN_VALUE });
@@ -2389,6 +2565,16 @@ document.addEventListener('DOMContentLoaded', () => {
       dismissWhatsNew();
       openSettings();
     });
+  }
+  if (whatsNewModal) {
+    const backdrop = whatsNewModal.querySelector('.onboarding-backdrop');
+    if (backdrop) backdrop.addEventListener('click', dismissWhatsNew);
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (whatsNewModal.style.display !== 'flex') return;
+      event.preventDefault();
+      dismissWhatsNew();
+    }, true);
   }
 
   function parseJobFromTitle(title) {
@@ -2458,20 +2644,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
   generateBtn.addEventListener('click', () => runGeneration('resume'));
 
-  const BUSY_LABELS = ['Reading job page…', 'Matching keywords…', 'Tailoring bullets…', 'Polishing layout…', 'Almost there…'];
-  const BUSY_LETTER_LABELS = ['Reading job page…', 'Filling company and role…', 'Matching your template…', 'Typesetting the letter…'];
+  const BUSY_LABELS = ['Reading job page…', 'Matching keywords…', 'Polishing layout…'];
+  const BUSY_LETTER_LABELS = ['Reading job page…', 'Matching your template…', 'Typesetting the letter…'];
   const SCRAMBLE_CHARS = 'ABCDEFGHKMNPRSTUVWXYZ23456789#/<>*+';
+  const LOOP_WATCHDOG_MS = 8000;
+  const GENERATION_TIMEOUT_MS = 60000;
 
-  function stopScramble() {
+  function clearScrambleTimers() {
     if (scrambleTimer) {
       clearInterval(scrambleTimer);
       scrambleTimer = null;
     }
+    if (resumeLoopWatchdog) {
+      clearTimeout(resumeLoopWatchdog);
+      resumeLoopWatchdog = null;
+    }
+  }
+
+  function clearLetterScrambleTimers() {
+    if (letterScrambleTimer) {
+      clearInterval(letterScrambleTimer);
+      letterScrambleTimer = null;
+    }
+    if (letterLoopWatchdog) {
+      clearTimeout(letterLoopWatchdog);
+      letterLoopWatchdog = null;
+    }
+  }
+
+  function finishResumeLoop() {
+    const done = pendingResumeLoop;
+    pendingResumeLoop = null;
+    if (!done) return;
+    clearScrambleTimers();
+    done();
+  }
+
+  function finishLetterLoop() {
+    const done = pendingLetterLoop;
+    pendingLetterLoop = null;
+    if (!done) return;
+    clearLetterScrambleTimers();
+    done();
+  }
+
+  function stopScramble() {
+    clearScrambleTimers();
+    finishResumeLoop();
   }
 
   function startScramble() {
     if (!generateLabel) return;
-    stopScramble();
+    pendingResumeLoop = null;
+    clearScrambleTimers();
     if (!motionOn()) {
       generateLabel.textContent = 'Generating…';
       return;
@@ -2510,7 +2735,7 @@ document.addEventListener('DOMContentLoaded', () => {
         out += SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
       }
     }
-    generateLabel.textContent = out;
+    if (generateLabel) generateLabel.textContent = out;
   }
 
   function playResumeLoop(done) {
@@ -2518,39 +2743,62 @@ document.addEventListener('DOMContentLoaded', () => {
       done();
       return;
     }
-    stopScramble();
-    if (!motionOn()) {
+    pendingResumeLoop = null;
+    clearScrambleTimers();
+    if (!motionOn() || document.hidden) {
       generateLabel.textContent = 'Generating…';
       done();
       return;
     }
+    let finished = false;
+    let timerId = null;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (timerId) {
+        clearInterval(timerId);
+        if (scrambleTimer === timerId) scrambleTimer = null;
+      }
+      if (resumeLoopWatchdog) {
+        clearTimeout(resumeLoopWatchdog);
+        resumeLoopWatchdog = null;
+      }
+      if (pendingResumeLoop === finish) pendingResumeLoop = null;
+      done();
+    };
+    pendingResumeLoop = finish;
+    resumeLoopWatchdog = setTimeout(finish, LOOP_WATCHDOG_MS);
     let labelIdx = 0;
     let frame = 0;
-    const settleFrames = 9;
-    const holdFrames = 15;
-    scrambleTimer = setInterval(() => {
+    const settleFrames = 8;
+    const holdFrames = 10;
+    timerId = setInterval(() => {
       frame++;
       const target = BUSY_LABELS[labelIdx % BUSY_LABELS.length];
       if (frame > settleFrames + holdFrames) {
         labelIdx++;
         frame = 0;
         if (labelIdx >= BUSY_LABELS.length) {
-          stopScramble();
           generateLabel.textContent = BUSY_LABELS[BUSY_LABELS.length - 1];
-          done();
+          finish();
           return;
         }
         return;
       }
       renderScrambleFrame(target, Math.floor((frame / settleFrames) * target.length));
-    }, 32);
+    }, 30);
+    scrambleTimer = timerId;
   }
 
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) return;
+    finishResumeLoop();
+    finishLetterLoop();
+  });
+
   function stopLetterScramble() {
-    if (letterScrambleTimer) {
-      clearInterval(letterScrambleTimer);
-      letterScrambleTimer = null;
-    }
+    clearLetterScrambleTimers();
+    finishLetterLoop();
   }
 
   function renderLetterFrame(target, settledCount) {
@@ -2568,7 +2816,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function startLetterScramble() {
     if (!coverLetterLabel) return;
-    stopLetterScramble();
+    pendingLetterLoop = null;
+    clearLetterScrambleTimers();
     if (!motionOn()) {
       coverLetterLabel.textContent = 'Building cover letter…';
       return;
@@ -2594,32 +2843,51 @@ document.addEventListener('DOMContentLoaded', () => {
       done();
       return;
     }
-    stopLetterScramble();
-    if (!motionOn()) {
+    pendingLetterLoop = null;
+    clearLetterScrambleTimers();
+    if (!motionOn() || document.hidden) {
       coverLetterLabel.textContent = 'Building cover letter…';
       done();
       return;
     }
+    let finished = false;
+    let timerId = null;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (timerId) {
+        clearInterval(timerId);
+        if (letterScrambleTimer === timerId) letterScrambleTimer = null;
+      }
+      if (letterLoopWatchdog) {
+        clearTimeout(letterLoopWatchdog);
+        letterLoopWatchdog = null;
+      }
+      if (pendingLetterLoop === finish) pendingLetterLoop = null;
+      done();
+    };
+    pendingLetterLoop = finish;
+    letterLoopWatchdog = setTimeout(finish, LOOP_WATCHDOG_MS);
     let labelIdx = 0;
     let frame = 0;
-    const settleFrames = 9;
-    const holdFrames = 15;
-    letterScrambleTimer = setInterval(() => {
+    const settleFrames = 8;
+    const holdFrames = 10;
+    timerId = setInterval(() => {
       frame++;
       const target = BUSY_LETTER_LABELS[labelIdx % BUSY_LETTER_LABELS.length];
       if (frame > settleFrames + holdFrames) {
         labelIdx++;
         frame = 0;
         if (labelIdx >= BUSY_LETTER_LABELS.length) {
-          stopLetterScramble();
           coverLetterLabel.textContent = BUSY_LETTER_LABELS[BUSY_LETTER_LABELS.length - 1];
-          done();
+          finish();
           return;
         }
         return;
       }
       renderLetterFrame(target, Math.floor((frame / settleFrames) * target.length));
-    }, 32);
+    }, 30);
+    letterScrambleTimer = timerId;
   }
 
   function setLetterStatus(state) {
@@ -2632,6 +2900,7 @@ document.addEventListener('DOMContentLoaded', () => {
       delete document.body.dataset.letterStatus;
       stopLetterScramble();
       if (coverLetterLabel) coverLetterLabel.textContent = 'Generate Cover Letter';
+      syncGenerateEnabled();
       return;
     }
     document.body.dataset.letterStatus = uiState;
@@ -2639,12 +2908,14 @@ document.addEventListener('DOMContentLoaded', () => {
       startLetterScramble();
       return;
     }
+    if (uiState === 'failure') pendingLetterLoop = null;
     stopLetterScramble();
     if (coverLetterLabel) {
       coverLetterLabel.textContent =
         uiState === 'success' ? 'Cover letter ready'
           : 'Failed \u2014 try again';
     }
+    syncGenerateEnabled();
     if (uiState === 'failure') return;
     letterStatusTimer = setTimeout(() => {
       setLetterStatus('idle');
@@ -2676,6 +2947,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (uiState === 'generating') {
       startScramble();
     } else {
+      if (uiState === 'failure') pendingResumeLoop = null;
       stopScramble();
       if (generateLabel) {
         generateLabel.textContent =
@@ -2683,6 +2955,7 @@ document.addEventListener('DOMContentLoaded', () => {
             : uiState === 'failure' ? 'Failed \u2014 try again'
               : 'Generate Resume';
       }
+      syncGenerateEnabled();
     }
 
     if (statusTimer) {

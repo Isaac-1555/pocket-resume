@@ -14,6 +14,7 @@ const RUNTIME_FILES = [
   'sidebar.html',
   'sidebar.js',
   'pdf-store.js',
+  'jd-corrections.js',
   'options.html',
   'options.js',
   'tracker.html',

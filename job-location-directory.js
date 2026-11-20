@@ -8,6 +8,7 @@ import {
     normalizeStringList,
     stripSurroundingQuotes,
     suggestEntry,
+    uniqueAliasList,
     uniqueId,
     DEFAULT_FUZZY_THRESHOLD,
     DEFAULT_TOKEN_THRESHOLD
@@ -669,6 +670,9 @@ function addAliasToLocationEntry(records, entry, aliasName, now) {
     if (entry.source === 'official') {
         const linked = records.find((record) => record && record.directoryId === entry.id);
         if (linked) {
+            if ((linked.aliases || []).some((item) => comparisonKey(item) === aliasKey)) {
+                return { records, changed: false };
+            }
             const next = records.map((record) => (
                 record.id === linked.id
                     ? { ...record, aliases: [...(record.aliases || []), alias], updatedAt: now }
@@ -686,6 +690,7 @@ function addAliasToLocationEntry(records, entry, aliasName, now) {
     let changed = false;
     const next = records.map((record) => {
         if (!record || record.id !== targetId) return record;
+        if ((record.aliases || []).some((item) => comparisonKey(item) === aliasKey)) return record;
         changed = true;
         return { ...record, aliases: [...(record.aliases || []), alias], updatedAt: now };
     });
@@ -772,11 +777,21 @@ export function applyLocationCorrection(records = [], decision = {}, options = {
             return { records: list, action: 'skipped', message: 'needs confirmation', entry: decision.entry };
         }
         const entry = decision.entry;
-        const added = addAliasToLocationEntry(list, entry, decision.sanitized.normalizedName, now);
+        const aliases = uniqueAliasList([
+            decision.sanitized.normalizedName,
+            originalIsNew ? originalSanitized.normalizedName : ''
+        ]);
+        let working = list;
+        let changed = false;
+        aliases.forEach((aliasName) => {
+            const added = addAliasToLocationEntry(working, entry, aliasName, now);
+            working = added.records;
+            changed = changed || added.changed;
+        });
         return {
-            records: added.records,
-            action: added.changed ? 'alias-added' : 'none',
-            message: added.changed
+            records: working,
+            action: changed ? 'alias-added' : 'none',
+            message: changed
                 ? `saved "${decision.sanitized.displayName}" as an alias of ${entry.displayName || entry.canonicalName}`
                 : 'already known',
             entry
@@ -805,7 +820,8 @@ export function describeLocationDecision(decision) {
         return { tone: 'good', text: `Matches ${decision.entry.displayName || decision.entry.canonicalName} in ${where}.` };
     }
     if (decision.status === 'suggest') {
-        return { tone: 'warn', text: `Looks like ${decision.entry.displayName || decision.entry.canonicalName}.` };
+        const target = decision.entry.displayName || decision.entry.canonicalName;
+        return { tone: 'warn', text: `Looks like ${target} — saved as an alias when you save.` };
     }
     return { tone: 'muted', text: 'Will be added to your location directory.' };
 }

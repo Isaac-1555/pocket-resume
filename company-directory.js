@@ -535,6 +535,9 @@ function addAliasToEntry(records, entry, aliasName, now) {
     if (entry.source === 'official') {
         const linked = records.find((record) => record && record.directoryId === entry.id);
         if (linked) {
+            if ((linked.aliases || []).some((item) => comparisonKey(item) === aliasKey)) {
+                return { records, changed: false };
+            }
             const next = records.map((record) => (
                 record.id === linked.id
                     ? { ...record, aliases: [...(record.aliases || []), alias], updatedAt: now }
@@ -560,6 +563,7 @@ function addAliasToEntry(records, entry, aliasName, now) {
     let changed = false;
     const next = records.map((record) => {
         if (!record || record.id !== targetId) return record;
+        if ((record.aliases || []).some((item) => comparisonKey(item) === aliasKey)) return record;
         changed = true;
         return { ...record, aliases: [...(record.aliases || []), alias], updatedAt: now };
     });
@@ -612,12 +616,27 @@ export function applyCorrection(records = [], decision = {}, options = {}) {
             return { records: list, action: 'skipped', message: 'needs confirmation', entry: decision.entry };
         }
         const entry = decision.entry;
-        const aliasName = decision.sanitized.normalizedName;
-        const added = addAliasToEntry(list, entry, aliasName, now);
+        const seenAlias = new Set();
+        const aliases = [
+            decision.sanitized.normalizedName,
+            originalIsNew ? originalSanitized.normalizedName : ''
+        ].filter((name) => {
+            const key = comparisonKey(name);
+            if (!key || seenAlias.has(key)) return false;
+            seenAlias.add(key);
+            return true;
+        });
+        let working = list;
+        let changed = false;
+        aliases.forEach((aliasName) => {
+            const added = addAliasToEntry(working, entry, aliasName, now);
+            working = added.records;
+            changed = changed || added.changed;
+        });
         return {
-            records: added.records,
-            action: added.changed ? 'alias-added' : 'none',
-            message: added.changed ? `saved "${aliasName}" as an alias of ${entry.canonicalName}` : 'already known',
+            records: working,
+            action: changed ? 'alias-added' : 'none',
+            message: changed ? `saved "${decision.sanitized.normalizedName}" as an alias of ${entry.canonicalName}` : 'already known',
             entry
         };
     }
@@ -672,7 +691,7 @@ export function describeDecision(decision) {
         return { tone: 'good', text: `Matches ${decision.entry.canonicalName} in ${where}.` };
     }
     if (decision.status === 'suggest') {
-        return { tone: 'warn', text: `Looks like ${decision.entry.canonicalName}.` };
+        return { tone: 'warn', text: `Looks like ${decision.entry.canonicalName} — saved as an alias when you save.` };
     }
     return { tone: 'muted', text: 'Will be added to your company directory.' };
 }

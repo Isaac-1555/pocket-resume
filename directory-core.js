@@ -192,6 +192,19 @@ export function suggestEntry(name, index, options = {}) {
     return null;
 }
 
+export function uniqueAliasList(values) {
+    const seen = new Set();
+    const out = [];
+    (Array.isArray(values) ? values : []).forEach((value) => {
+        const name = String(value || '').trim();
+        const key = comparisonKey(name);
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        out.push(name);
+    });
+    return out;
+}
+
 export function upsertAliasForEntry(records, entry, aliasName, now, makeId) {
     const alias = String(aliasName || '').trim();
     const aliasKey = comparisonKey(alias);
@@ -201,6 +214,9 @@ export function upsertAliasForEntry(records, entry, aliasName, now, makeId) {
     if (entry.source === 'official') {
         const linked = records.find((record) => record && record.directoryId === entry.id);
         if (linked) {
+            if ((linked.aliases || []).some((item) => comparisonKey(item) === aliasKey)) {
+                return { records, changed: false };
+            }
             const next = records.map((record) => (
                 record.id === linked.id
                     ? { ...record, aliases: [...(record.aliases || []), alias], updatedAt: now }
@@ -226,6 +242,7 @@ export function upsertAliasForEntry(records, entry, aliasName, now, makeId) {
     let changed = false;
     const next = records.map((record) => {
         if (!record || record.id !== targetId) return record;
+        if ((record.aliases || []).some((item) => comparisonKey(item) === aliasKey)) return record;
         changed = true;
         return { ...record, aliases: [...(record.aliases || []), alias], updatedAt: now };
     });
