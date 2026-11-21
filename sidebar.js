@@ -23,14 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const downloadOnGenerateToggle = document.getElementById('downloadOnGenerateToggle');
   const dropZone = document.getElementById('dropZone');
   let statusTimer = null;
-  let scrambleTimer = null;
-  let letterScrambleTimer = null;
   let letterStatusTimer = null;
   let motionPreference = true;
-  let pendingResumeLoop = null;
-  let pendingLetterLoop = null;
-  let resumeLoopWatchdog = null;
-  let letterLoopWatchdog = null;
   let generationRequestTimer = null;
   let fillStatusTimer = null;
   let fillRunning = false;
@@ -141,7 +135,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function applyMotionPreference(enabled) {
     motionPreference = enabled !== false;
-    document.documentElement.classList.toggle('no-motion', !motionPreference);
   }
 
   chrome.storage.local.get('animationsEnabled', (data) => applyMotionPreference(data.animationsEnabled !== false));
@@ -2117,6 +2110,167 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  /* ---------------------------------------------------------------------
+     Swarm build — the agent-build simulation runs inside swarm.html, an
+     iframe whose body holds nothing but the rendered sheet. The panel only
+     posts the HTML and waits for the run to end.
+     ------------------------------------------------------------------ */
+
+  const swarmOverlay = document.getElementById('swarmOverlay');
+  const swarmFrame = document.getElementById('swarmFrame');
+  const swarmSkipBtn = document.getElementById('swarmSkipBtn');
+  const swarmTitle = document.getElementById('swarmTitle');
+  const filesSection = document.getElementById('filesSection');
+
+  const SWARM_WATCHDOG_MS = 30000;
+  const SWARM_HOLD_MS = 2000;
+
+  let swarmResolve = null;
+  let swarmReady = false;
+  let swarmReadyResolvers = [];
+
+  function markSwarmReady() {
+    swarmReady = true;
+    const waiting = swarmReadyResolvers;
+    swarmReadyResolvers = [];
+    waiting.forEach((resolve) => resolve(true));
+  }
+
+  function whenSwarmReady() {
+    if (swarmReady) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      swarmReadyResolvers.push(resolve);
+      let attempts = 0;
+      const ping = () => {
+        if (swarmReady) return;
+        const frameWindow = swarmWindow();
+        if (frameWindow) {
+          try {
+            frameWindow.postMessage({ type: 'PR_PING' }, '*');
+          } catch (error) {
+            /* the frame is still navigating */
+          }
+        }
+        attempts += 1;
+        if (attempts >= 30) {
+          resolve(swarmReady);
+          return;
+        }
+        setTimeout(ping, 100);
+      };
+      ping();
+    });
+  }
+
+  function swarmWindow() {
+    try {
+      return swarmFrame && swarmFrame.contentWindow ? swarmFrame.contentWindow : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  if (swarmFrame) {
+    swarmFrame.addEventListener('load', markSwarmReady);
+  }
+
+  window.addEventListener('message', (event) => {
+    const source = swarmWindow();
+    if (!source || event.source !== source) return;
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+    if (data.type === 'PR_READY') {
+      markSwarmReady();
+      return;
+    }
+    if (data.type === 'PR_BUILT' && swarmResolve) {
+      const resolve = swarmResolve;
+      swarmResolve = null;
+      resolve({ skipped: data.skipped === true, built: data.built || 0 });
+    }
+  });
+
+  if (swarmSkipBtn) {
+    swarmSkipBtn.addEventListener('click', () => {
+      const frameWindow = swarmWindow();
+      if (frameWindow && frameWindow.AgentBuild && frameWindow.AgentBuild.stop()) return;
+      if (swarmResolve) {
+        const resolve = swarmResolve;
+        swarmResolve = null;
+        resolve({ skipped: true, built: 0 });
+      }
+    });
+  }
+
+  function closeSwarmOverlay() {
+    if (!swarmOverlay) return;
+    swarmOverlay.hidden = true;
+  }
+
+  function scrollToShelf() {
+    if (!filesSection || typeof filesSection.scrollIntoView !== 'function') return;
+    try {
+      filesSection.scrollIntoView({ block: 'nearest', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    } catch (error) {
+      filesSection.scrollIntoView();
+    }
+  }
+
+  function buildSwarmSheet(kind, payload) {
+    const api = window.PocketResumeHtml;
+    if (!api) return '';
+    try {
+      return kind === 'cover-letter'
+        ? api.buildCoverLetterSheetHtml(payload)
+        : api.buildResumeSheetHtml(payload);
+    } catch (error) {
+      console.error('Swarm sheet error:', error);
+      return '';
+    }
+  }
+
+  async function playSwarmSheet(kind, payload) {
+    if (!swarmOverlay || !swarmFrame || !motionOn() || document.hidden) return { skipped: true };
+    const html = buildSwarmSheet(kind, payload);
+    if (!html) return { skipped: true };
+
+    const ready = await whenSwarmReady();
+    const target = swarmWindow();
+    if (!ready || !target) return { skipped: true };
+
+    if (swarmTitle) {
+      swarmTitle.textContent = kind === 'cover-letter' ? 'Building your cover letter' : 'Building your resume';
+    }
+    swarmOverlay.hidden = false;
+
+    const outcome = await new Promise((resolve) => {
+      const watchdog = setTimeout(() => {
+        if (!swarmResolve) return;
+        swarmResolve = null;
+        resolve({ skipped: true, built: 0 });
+      }, SWARM_WATCHDOG_MS);
+      swarmResolve = (value) => {
+        clearTimeout(watchdog);
+        resolve(value);
+      };
+      target.postMessage(
+        {
+          type: 'PR_BUILD',
+          html,
+          theme: document.documentElement.dataset.theme === 'ink' ? 'ink' : 'paper'
+        },
+        '*'
+      );
+    });
+
+    if (!outcome.skipped) {
+      await new Promise((resolve) => setTimeout(resolve, SWARM_HOLD_MS));
+    }
+    closeSwarmOverlay();
+    scrollToShelf();
+    return outcome;
+  }
+
   async function runGeneration(output = 'resume') {
     if (generationActive) return;
     generationActive = true;
@@ -2261,6 +2415,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setGenerateEnabled(true);
                 return;
               }
+              await playSwarmSheet('resume', resumeData);
               setMatchReport(response.report || null, !!response.coverLetterData, layoutNote(layoutResult));
               setStatus('success');
               if (generateLabel) generateLabel.textContent = 'Generate Resume';
@@ -2293,11 +2448,13 @@ document.addEventListener('DOMContentLoaded', () => {
               saveApplicationToTracker(resumeData, trackerTab, selectedResumeId, selectedStyle);
             }
 
+            let letterSheet = null;
             if (response.coverLetterData) {
               const coverParsed = await coverLetterPayload(review, resumeData, response.coverLetterData);
               if (coverParsed) {
                 generateCoverLetterPDF(coverParsed);
                 setOfflineLetterNote(false);
+                letterSheet = coverParsed;
               }
             } else {
               const data = await chrome.storage.local.get(['resumes', 'universalCoverLetter']);
@@ -2307,6 +2464,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? 'Cover letter could not be built —'
                 : 'No cover letter for this resume —');
             }
+            if (letterSheet) await playSwarmSheet('cover-letter', letterSheet);
             setLetterStatus('success');
             setGenerateEnabled(true);
           } catch (error) {
@@ -2545,8 +2703,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.19.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.19.0';
+  const ANNOUNCEMENT_VERSION = '10.20.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.20.0';
 
   function dismissWhatsNew() {
     chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_SEEN_VALUE });
@@ -2644,250 +2802,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   generateBtn.addEventListener('click', () => runGeneration('resume'));
 
-  const BUSY_LABELS = ['Reading job page…', 'Matching keywords…', 'Polishing layout…'];
-  const BUSY_LETTER_LABELS = ['Reading job page…', 'Matching your template…', 'Typesetting the letter…'];
-  const SCRAMBLE_CHARS = 'ABCDEFGHKMNPRSTUVWXYZ23456789#/<>*+';
-  const LOOP_WATCHDOG_MS = 8000;
   const GENERATION_TIMEOUT_MS = 60000;
 
-  function clearScrambleTimers() {
-    if (scrambleTimer) {
-      clearInterval(scrambleTimer);
-      scrambleTimer = null;
-    }
-    if (resumeLoopWatchdog) {
-      clearTimeout(resumeLoopWatchdog);
-      resumeLoopWatchdog = null;
-    }
-  }
-
-  function clearLetterScrambleTimers() {
-    if (letterScrambleTimer) {
-      clearInterval(letterScrambleTimer);
-      letterScrambleTimer = null;
-    }
-    if (letterLoopWatchdog) {
-      clearTimeout(letterLoopWatchdog);
-      letterLoopWatchdog = null;
-    }
-  }
-
-  function finishResumeLoop() {
-    const done = pendingResumeLoop;
-    pendingResumeLoop = null;
-    if (!done) return;
-    clearScrambleTimers();
-    done();
-  }
-
-  function finishLetterLoop() {
-    const done = pendingLetterLoop;
-    pendingLetterLoop = null;
-    if (!done) return;
-    clearLetterScrambleTimers();
-    done();
-  }
-
-  function stopScramble() {
-    clearScrambleTimers();
-    finishResumeLoop();
-  }
-
-  function startScramble() {
-    if (!generateLabel) return;
-    pendingResumeLoop = null;
-    clearScrambleTimers();
-    if (!motionOn()) {
-      generateLabel.textContent = 'Generating…';
-      return;
-    }
-    let labelIdx = 0;
-    let frame = 0;
-    const settleFrames = 13;
-    const holdFrames = 30;
-    scrambleTimer = setInterval(() => {
-      frame++;
-      const target = BUSY_LABELS[labelIdx % BUSY_LABELS.length];
-      if (frame > settleFrames + holdFrames) {
-        labelIdx++;
-        frame = 0;
-        return;
-      }
-      const settled = Math.floor((frame / settleFrames) * target.length);
-      let out = '';
-      for (let i = 0; i < target.length; i++) {
-        if (i < settled || target[i] === ' ' || target[i] === '\u2026') {
-          out += target[i];
-        } else {
-          out += SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
-        }
-      }
-      generateLabel.textContent = out;
-    }, 34);
-  }
-
-  function renderScrambleFrame(target, settledCount) {
-    let out = '';
-    for (let i = 0; i < target.length; i++) {
-      if (i < settledCount || target[i] === ' ' || target[i] === '\u2026') {
-        out += target[i];
-      } else {
-        out += SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
-      }
-    }
-    if (generateLabel) generateLabel.textContent = out;
-  }
-
   function playResumeLoop(done) {
-    if (!generateLabel) {
-      done();
-      return;
-    }
-    pendingResumeLoop = null;
-    clearScrambleTimers();
-    if (!motionOn() || document.hidden) {
-      generateLabel.textContent = 'Generating…';
-      done();
-      return;
-    }
-    let finished = false;
-    let timerId = null;
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      if (timerId) {
-        clearInterval(timerId);
-        if (scrambleTimer === timerId) scrambleTimer = null;
-      }
-      if (resumeLoopWatchdog) {
-        clearTimeout(resumeLoopWatchdog);
-        resumeLoopWatchdog = null;
-      }
-      if (pendingResumeLoop === finish) pendingResumeLoop = null;
-      done();
-    };
-    pendingResumeLoop = finish;
-    resumeLoopWatchdog = setTimeout(finish, LOOP_WATCHDOG_MS);
-    let labelIdx = 0;
-    let frame = 0;
-    const settleFrames = 8;
-    const holdFrames = 10;
-    timerId = setInterval(() => {
-      frame++;
-      const target = BUSY_LABELS[labelIdx % BUSY_LABELS.length];
-      if (frame > settleFrames + holdFrames) {
-        labelIdx++;
-        frame = 0;
-        if (labelIdx >= BUSY_LABELS.length) {
-          generateLabel.textContent = BUSY_LABELS[BUSY_LABELS.length - 1];
-          finish();
-          return;
-        }
-        return;
-      }
-      renderScrambleFrame(target, Math.floor((frame / settleFrames) * target.length));
-    }, 30);
-    scrambleTimer = timerId;
-  }
-
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) return;
-    finishResumeLoop();
-    finishLetterLoop();
-  });
-
-  function stopLetterScramble() {
-    clearLetterScrambleTimers();
-    finishLetterLoop();
-  }
-
-  function renderLetterFrame(target, settledCount) {
-    if (!coverLetterLabel) return;
-    let out = '';
-    for (let i = 0; i < target.length; i++) {
-      if (i < settledCount || target[i] === ' ' || target[i] === '\u2026') {
-        out += target[i];
-      } else {
-        out += SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
-      }
-    }
-    coverLetterLabel.textContent = out;
-  }
-
-  function startLetterScramble() {
-    if (!coverLetterLabel) return;
-    pendingLetterLoop = null;
-    clearLetterScrambleTimers();
-    if (!motionOn()) {
-      coverLetterLabel.textContent = 'Building cover letter…';
-      return;
-    }
-    let labelIdx = 0;
-    let frame = 0;
-    const settleFrames = 13;
-    const holdFrames = 30;
-    letterScrambleTimer = setInterval(() => {
-      frame++;
-      const target = BUSY_LETTER_LABELS[labelIdx % BUSY_LETTER_LABELS.length];
-      if (frame > settleFrames + holdFrames) {
-        labelIdx++;
-        frame = 0;
-        return;
-      }
-      renderLetterFrame(target, Math.floor((frame / settleFrames) * target.length));
-    }, 34);
+    done();
   }
 
   function playCoverLetterLoop(done) {
-    if (!coverLetterLabel) {
-      done();
-      return;
-    }
-    pendingLetterLoop = null;
-    clearLetterScrambleTimers();
-    if (!motionOn() || document.hidden) {
-      coverLetterLabel.textContent = 'Building cover letter…';
-      done();
-      return;
-    }
-    let finished = false;
-    let timerId = null;
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      if (timerId) {
-        clearInterval(timerId);
-        if (letterScrambleTimer === timerId) letterScrambleTimer = null;
-      }
-      if (letterLoopWatchdog) {
-        clearTimeout(letterLoopWatchdog);
-        letterLoopWatchdog = null;
-      }
-      if (pendingLetterLoop === finish) pendingLetterLoop = null;
-      done();
-    };
-    pendingLetterLoop = finish;
-    letterLoopWatchdog = setTimeout(finish, LOOP_WATCHDOG_MS);
-    let labelIdx = 0;
-    let frame = 0;
-    const settleFrames = 8;
-    const holdFrames = 10;
-    timerId = setInterval(() => {
-      frame++;
-      const target = BUSY_LETTER_LABELS[labelIdx % BUSY_LETTER_LABELS.length];
-      if (frame > settleFrames + holdFrames) {
-        labelIdx++;
-        frame = 0;
-        if (labelIdx >= BUSY_LETTER_LABELS.length) {
-          coverLetterLabel.textContent = BUSY_LETTER_LABELS[BUSY_LETTER_LABELS.length - 1];
-          finish();
-          return;
-        }
-        return;
-      }
-      renderLetterFrame(target, Math.floor((frame / settleFrames) * target.length));
-    }, 30);
-    letterScrambleTimer = timerId;
+    done();
   }
 
   function setLetterStatus(state) {
@@ -2898,18 +2820,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const uiState = state === 'error' ? 'failure' : state;
     if (!uiState || uiState === 'idle') {
       delete document.body.dataset.letterStatus;
-      stopLetterScramble();
       if (coverLetterLabel) coverLetterLabel.textContent = 'Generate Cover Letter';
       syncGenerateEnabled();
       return;
     }
     document.body.dataset.letterStatus = uiState;
-    if (uiState === 'generating') {
-      startLetterScramble();
-      return;
+    if (coverLetterLabel && uiState === 'generating') {
+      coverLetterLabel.textContent = 'Building cover letter…';
     }
-    if (uiState === 'failure') pendingLetterLoop = null;
-    stopLetterScramble();
+    if (uiState === 'generating') return;
     if (coverLetterLabel) {
       coverLetterLabel.textContent =
         uiState === 'success' ? 'Cover letter ready'
@@ -2945,10 +2864,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.dataset.status = uiState;
 
     if (uiState === 'generating') {
-      startScramble();
+      if (generateLabel) generateLabel.textContent = 'Generating…';
     } else {
-      if (uiState === 'failure') pendingResumeLoop = null;
-      stopScramble();
       if (generateLabel) {
         generateLabel.textContent =
           uiState === 'success' ? 'Done \u2014 PDF ready'
@@ -3597,25 +3514,36 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.tabs.create({ url: WEBSITE_URL });
   };
 
-  const websiteLink = document.getElementById('websiteLink');
-  if (websiteLink) {
-    websiteLink.addEventListener('click', openWebsite);
-    websiteLink.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        openWebsite();
-      }
-    });
-  }
-
   const logoLink = document.getElementById('logoLink');
   if (logoLink) {
     logoLink.addEventListener('click', openWebsite);
   }
 
+  /* Theme: paper (default) or ink, shared with Settings and the Tracker. */
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+
+  function applyTheme(value) {
+    const theme = value === 'ink' ? 'ink' : 'paper';
+    document.documentElement.dataset.theme = theme;
+    if (themeToggleBtn) {
+      themeToggleBtn.setAttribute('aria-pressed', theme === 'ink' ? 'true' : 'false');
+      themeToggleBtn.title = theme === 'ink' ? 'Switch to paper' : 'Switch to ink';
+    }
+  }
+
+  chrome.storage.local.get('theme', (stored) => applyTheme(stored.theme));
+  if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('click', () => {
+      const next = document.documentElement.dataset.theme === 'ink' ? 'paper' : 'ink';
+      applyTheme(next);
+      chrome.storage.local.set({ theme: next });
+    });
+  }
+
   let gateRefreshAt = 0;
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
+    if (changes.theme) applyTheme(changes.theme.newValue);
     if (changes.universalCoverLetter) {
       universalCoverLetter = changes.universalCoverLetter.newValue || null;
     }

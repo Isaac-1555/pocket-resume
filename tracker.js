@@ -91,12 +91,30 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   initTourControls();
-  chrome.storage.local.get('animationsEnabled', (stored) => {
-    document.documentElement.classList.toggle('no-motion', stored.animationsEnabled === false);
-  });
+
+  function applyTrackerTheme(value) {
+    const theme = value === 'ink' ? 'ink' : 'paper';
+    document.documentElement.dataset.theme = theme;
+    const toggle = document.getElementById('themeToggleBtn');
+    if (toggle) {
+      toggle.title = theme === 'ink' ? 'Switch to paper' : 'Switch to ink';
+      toggle.setAttribute('aria-pressed', theme === 'ink' ? 'true' : 'false');
+    }
+  }
+
+  chrome.storage.local.get('theme', (stored) => applyTrackerTheme(stored.theme));
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('click', () => {
+      const next = document.documentElement.dataset.theme === 'ink' ? 'paper' : 'ink';
+      applyTrackerTheme(next);
+      chrome.storage.local.set({ theme: next });
+    });
+  }
+
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.animationsEnabled) {
-      document.documentElement.classList.toggle('no-motion', changes.animationsEnabled.newValue === false);
+    if (area === 'local' && changes.theme) {
+      applyTrackerTheme(changes.theme.newValue);
     }
   });
   init();

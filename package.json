@@ -28,6 +28,7 @@
     "test:jdcorrections": "node scripts/test-jdcorrections.mjs",
     "test:pdfstore": "node scripts/test-pdfstore.mjs",
     "test:render": "node scripts/test-render.mjs",
+    "test:resumehtml": "node scripts/test-resume-html.mjs",
     "test:titles": "node scripts/test-title-extract.mjs",
     "build:zip": "node scripts/build-zip.mjs"
   }

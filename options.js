@@ -50,6 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const coverLetterCopyStatus = document.getElementById('coverLetterCopyStatus');
   const coverLetterGateNote = document.getElementById('coverLetterGateNote');
   const animationsToggle = document.getElementById('animationsToggle');
+  const inkThemeToggle = document.getElementById('inkThemeToggle');
   const animationsPill = document.getElementById('animationsPill');
   const jdReviewToggle = document.getElementById('jdReviewToggle');
   const downloadOnGenerateToggle = document.getElementById('downloadOnGenerateToggle');
@@ -68,8 +69,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function applyMotionPreference(enabled) {
-    document.documentElement.classList.toggle('no-motion', enabled === false);
-    if (animationsPill) animationsPill.textContent = enabled === false ? 'Animations off' : 'Animations on';
+    if (animationsPill) animationsPill.textContent = enabled === false ? 'Build off' : 'Build on';
+  }
+
+  function applyThemePreference(theme) {
+    const value = theme === 'ink' ? 'ink' : 'paper';
+    document.documentElement.dataset.theme = value;
+    if (inkThemeToggle) inkThemeToggle.checked = value === 'ink';
+    const headerToggle = document.getElementById('themeToggleBtn');
+    if (headerToggle) {
+      headerToggle.title = value === 'ink' ? 'Switch to paper' : 'Switch to ink';
+      headerToggle.setAttribute('aria-pressed', value === 'ink' ? 'true' : 'false');
+    }
   }
 
   function syncToggleState(toggle) {
@@ -81,6 +92,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   chrome.storage.local.get('animationsEnabled', (stored) => applyMotionPreference(stored.animationsEnabled !== false));
+  chrome.storage.local.get('theme', (stored) => {
+    applyThemePreference(stored.theme);
+    syncToggleState(inkThemeToggle);
+  });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.animationsEnabled) {
       applyMotionPreference(changes.animationsEnabled.newValue !== false);
@@ -88,6 +103,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         animationsToggle.checked = changes.animationsEnabled.newValue !== false;
         syncToggleState(animationsToggle);
       }
+    }
+    if (area === 'local' && changes.theme) {
+      applyThemePreference(changes.theme.newValue);
+      syncToggleState(inkThemeToggle);
     }
   });
 
@@ -780,6 +799,24 @@ My resume:
       syncToggleState(animationsToggle);
       chrome.storage.local.set({ animationsEnabled: animationsToggle.checked });
       applyMotionPreference(animationsToggle.checked);
+    });
+  }
+
+  function setTheme(theme) {
+    const value = theme === 'ink' ? 'ink' : 'paper';
+    applyThemePreference(value);
+    syncToggleState(inkThemeToggle);
+    chrome.storage.local.set({ theme: value });
+  }
+
+  if (inkThemeToggle) {
+    inkThemeToggle.addEventListener('change', () => setTheme(inkThemeToggle.checked ? 'ink' : 'paper'));
+  }
+
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('click', () => {
+      setTheme(document.documentElement.dataset.theme === 'ink' ? 'paper' : 'ink');
     });
   }
 

@@ -103,7 +103,7 @@ Requires `CONVEX_DEPLOYMENT` in `.env.local`. Generated code goes to `convex/_ge
 
 ### Tests / lint
 
-`npm run test:align` (determinism, no-invented-numbers, parser fixtures, normalization), `npm run test:render` (Double Sided one-page fit, no text below the page margin, Academic CV pagination + footer, no duplicated projects), `npm run test:formfill` (form filler matchers and the resume → profile map), `npm run test:formfill-dom` (form filler detection and filling against BambooHR/Ashby/Lever markup in Chromium), `npm run test:pdfstore` (file shelf URL keys and eviction rules), `npm run test:jdcorrections` (remembered job details: exact/path/signature lookup, legacy entries, dedupe), `npm run test:companydir` (company sanitization, matching, learning, persistence, failure fallbacks), `npm run test:directories` (title/location sanitization, abbreviation matching, multi-location selection, conservative rewrites, learning, bundled datasets), `npm run test:titles` (job-title extraction: ATS wrappers, separator handling, candidate arbitration, frame-only pages, resume-subtitle fallback) and `npm run test:feedback` (feedback validation, payload, error mapping) are the automated checks. No linter. Otherwise: load unpacked, generate with a real account, inspect the PDF + the service worker console.
+`npm run test:align` (determinism, no-invented-numbers, parser fixtures, normalization), `npm run test:render` (Double Sided one-page fit, no text below the page margin, Academic CV pagination + footer, no duplicated projects), `npm run test:formfill` (form filler matchers and the resume → profile map), `npm run test:formfill-dom` (form filler detection and filling against BambooHR/Ashby/Lever markup in Chromium), `npm run test:pdfstore` (file shelf URL keys and eviction rules), `npm run test:jdcorrections` (remembered job details: exact/path/signature lookup, legacy entries, dedupe), `npm run test:companydir` (company sanitization, matching, learning, persistence, failure fallbacks), `npm run test:directories` (title/location sanitization, abbreviation matching, multi-location selection, conservative rewrites, learning, bundled datasets), `npm run test:titles` (job-title extraction: ATS wrappers, separator handling, candidate arbitration, frame-only pages, resume-subtitle fallback), `npm run test:resumehtml` (the paper sheet: every populated section, escaping, empty sections, no invented values) and `npm run test:feedback` (feedback validation, payload, error mapping) are the automated checks. No linter. Otherwise: load unpacked, generate with a real account, inspect the PDF + the service worker console.
 
 ### Versioning & changelog
 
@@ -118,7 +118,7 @@ Requires `CONVEX_DEPLOYMENT` in `.env.local`. Generated code goes to `convex/_ge
 
 Chrome Web Store upload = a zip with `manifest.json` at the root and **only runtime files**. Include:
 
-`manifest.json`, `background.js`, `content.js`, `form-filler.js`, `form-profile.js`, `feedback.js`, `sidebar.html`, `sidebar.js`, `pdf-store.js`, `options.html`, `options.js`, `tracker.html`, `tracker.js`, `resume-renderers.js`, `resume-align.js`, `resume-parse.js`, `resume-health.js`, `resume-letter.js`, `skill-lexicon.js`, `company-directory.js`, `company-directory-store.js`, `directory-core.js`, `directory-store.js`, `job-title-directory.js`, `job-title-directory-store.js`, `job-location-directory.js`, `job-location-directory-store.js`, `feature-video.js`, `feature-video.css`, `cloud-sync.js`, `cloud-sync-core.js`, `icon.png`, `libs/` (jsPDF, ldrs loader, animations, skills lexicon, global company/title/location directories), `assets/tour/`.
+`manifest.json`, `background.js`, `content.js`, `form-filler.js`, `form-profile.js`, `feedback.js`, `sidebar.html`, `sidebar.js`, `pdf-store.js`, `options.html`, `options.js`, `tracker.html`, `tracker.js`, `resume-renderers.js`, `resume-html.js`, `swarm.html`, `swarm.js`, `resume-align.js`, `resume-parse.js`, `resume-health.js`, `resume-letter.js`, `skill-lexicon.js`, `company-directory.js`, `company-directory-store.js`, `directory-core.js`, `directory-store.js`, `job-title-directory.js`, `job-title-directory-store.js`, `job-location-directory.js`, `job-location-directory-store.js`, `feature-video.js`, `feature-video.css`, `cloud-sync.js`, `cloud-sync-core.js`, `icon.png`, `libs/` (theme.css, fonts, agent-build, logo-mark, jsPDF, ldrs loader, animations, skills lexicon, global company/title/location directories), `assets/tour/`.
 
 Exclude: `node_modules/`, `dist/`, `.git`, `.github/`, `convex/`, `scripts/`, `src/`, `store-assets/`, `redesign/`, `models/`, `*.md`, `package*.json`, `.env*`. Output to `dist/pocketresume-vX.Y.zip`.
 
@@ -172,6 +172,8 @@ The popup became a **Chrome side panel** (`chrome.sidePanel`). `manifest.json` d
 
 Layout: `.shell` is a flex column — sticky header, `.main-scroll` (the only scrolling region), pinned `.app-footer` with the delete zone. The panel width is user-controlled (roughly 320–600 px), so no fixed pixel width may come back; the `@media (max-width: 370px)` block floats the NEW badges and shrinks the row labels so nothing truncates at the narrowest width.
 
+The header is compact: an 18px `libs/logo-mark.svg` (still links to pocket-resume.xyz), the `PocketResume` wordmark in Fraunces at ~0.82rem, then the status stamp, the theme toggle and the error button. **There is no tagline** — the `.tagline` element and its `#websiteLink` handler were removed in v10.20.0. The header sits on a hairline rule, not a card.
+
 Panel order (top → bottom): style picker → Generate Resume → Generate Cover Letter → JD match line → **Settings / Quick Download** → **Tracker / Fill Form** → Form Filler cards → **Files** (the shelf, under the four buttons) → pinned delete zone. Keep the shelf under the nav rows: it sits directly above its drop target, so a card is dragged a short distance.
 
 **Generated PDFs live in the panel, not in Downloads.**
@@ -192,9 +194,9 @@ Panel order (top → bottom): style picker → Generate Resume → Generate Cove
 
 Tests: `npm run test:pdfstore` (`scripts/test-pdfstore.mjs`) covers the URL key, the eviction rules, and the no-inherited-label rule.
 
-### Side panel status channels (v10.9)
+### Side panel status channels (v10.9, restyled in v10.20)
 
-The side panel runs **three independent** status channels, each a body attribute that drives the glow layer in `sidebar.html`:
+The side panel runs **three independent** status channels, each a body attribute that drives the status treatment in `sidebar.html`:
 
 | attribute | writer | states |
 | --- | --- | --- |
@@ -202,9 +204,16 @@ The side panel runs **three independent** status channels, each a body attribute
 | `body[data-fill-status]` | `setFillStatus()` (form filler) | `filling` / `fill-success` / `fill-failure` |
 | `body[data-letter-status]` | `setLetterStatus()` (cover letter) | `generating` / `success` / `failure` |
 
-**Every channel needs its own CSS rules.** `sidebar.html` maps each attribute to `--glow-c` / `--line-c` / `--wash-o` and to the `glowPulse` / `glowSettle` / `linePulse` animations plus the `.glow-bloom` / `.glow-line` opacity. A new channel that writes only the attribute gets no glow at all — that is how the cover letter path used to lose its green glow. Keep the three channels separate so a resume run and a letter run never fight over the same colors.
+**Every channel needs its own CSS rules.** There are two visuals, and each channel writes its own block for both:
 
-The options page has its own, simpler channel: `showStatus(text, type, autoHideMs, { blocking })` sets `body[data-status]` to `loading` / `success` / `error` and drives `body::before`. `blocking: true` (the default) dims and freezes the page behind the overlay; pass `{ blocking: false }` for long provider calls that should not lock the page.
+1. `.glow-line` — a 2px ink rule pinned to the top edge: ink while working, `--accent-green` on success, `--accent-red` on failure.
+2. `.header-stamp` — the mono status stamp in the header. Each channel sets `--stamp-text` / `--stamp-ink` / `--stamp-wash` and one of its own `body[…] .header-stamp { display: inline-flex }` rules.
+
+A new channel that writes only the attribute gets no rule at all — nothing shows. That is how the cover letter path once lost its colour. Keep the three channels separate so a resume run and a letter run never fight over the same stamp.
+
+The old `.glow-bloom` element is still in the markup and is `display: none`; there is no colour bloom in paper and ink.
+
+The options page has its own, simpler channel: `showStatus(text, type, autoHideMs, { blocking })` sets `body[data-status]` to `loading` / `success` / `error` and drives the inline status card. `blocking: true` (the default) dims and freezes the page behind the overlay; pass `{ blocking: false }` for long provider calls that should not lock the page. It no longer repaints the page accent — `--accent-rgb` is pinned to ink.
 
 ### Onboarding flow (v10.0)
 
@@ -213,9 +222,13 @@ The options page has its own, simpler channel: `showStatus(text, type, autoHideM
 3. The options spotlight tour (`TOUR_STEPS`) walks: account → paste → parse → cover letter → save.
 4. "Setup complete" card still appears once (`onboardingCompleted`) with the feature-tour offer.
 
-### Animations toggle (v10.3)
+### Build simulation toggle (v10.3, narrowed in v10.20)
 
-`animationsEnabled` (Settings → Interface, default true) controls motion everywhere. Page realms toggle `html.no-motion`, which zeroes CSS animations/transitions and hover lifts. `sidebar.js` also gates its JS: `motionOn()` makes `startScramble` static and turns `playResumeLoop` / `playCoverLetterLoop` into immediate `done()` calls, so generation saves instantly with no artificial delay. The Resume health check loader is a webp background image and never routes through the gate, so it keeps animating on purpose (it waits on a remote model).
+`animationsEnabled` (Settings → Interface → *Build simulation*, default true) controls **only** the swarm build animation. `motionOn()` in `sidebar.js` is `animationsEnabled && !prefers-reduced-motion`, and `playSwarmSheet` is its only consumer. Generation itself never waits on it: with the toggle off the PDF is saved immediately and the sheet is never shown.
+
+It does **not** touch the rest of the UI. `html.no-motion` was removed in v10.20 along with the `generateBtn` typewriter scramble — turning the toggle off used to zero every CSS animation across all three pages, which made a "build simulation" switch disable hover motion. The only global motion control left is `@media (prefers-reduced-motion: reduce)`, which every page and agent-build itself respect.
+
+The Resume health check loader is a webp background image and never routes through the gate, so it keeps animating on purpose (it waits on a remote model).
 
 ### Feature tour video (hidden in v10.0)
 
@@ -464,7 +477,8 @@ Important keys:
 - `skillLexiconMeta`: `{ source, version, fetchedAt, count, lastError }` — refresh status (silent; no UI)
 - `pendingExtract`: boolean — legacy flag; the options page now focuses the paste box instead of running extraction
 - `proAccessCache`: `{ signedIn, isFreeSubscriber, isPro, promoActive, withinWindow, canGenerate, cloudSyncAccess, proAccess, trialEndsAt, trialDaysLeft, planPeriod, hasSubscription, proSubscription, resolved, healthy, source, checkedAt }` — the **page-published access snapshot**. Written by `getAccessState()` in every page realm (options / panel / tracker) for *both* signed-in and signed-out resolutions; the service worker never writes it (it has no session to report) and never deletes it. Background `getGenerationAccess()` allows only `signedIn && (withinWindow || isPro)` from this snapshot while it is younger than 60 min, otherwise denies. A Clerk `addListener` in the pages rewrites it the moment a session starts or ends, so a session expiry cannot leave a stale "Pro" behind.
-- `animationsEnabled`: boolean (default true) — Settings → Interface. When false, page realms set `html.no-motion` and the side panel skips the scramble and PDF delay, so generation is instant. The Resume health check keeps its loader.
+- `animationsEnabled`: boolean (default true) — Settings → Interface → *Build simulation*. Gates the swarm build animation only (`motionOn()` in `sidebar.js`). It no longer sets `html.no-motion` and no longer affects any other motion; `prefers-reduced-motion` is the only global switch left.
+- `theme`: `'paper'` (default) or `'ink'` — the Warm Press ground. Read by every page realm, written by the Settings toggle and by each page's header toggle. Local only, never synced, and it never touches the PDF.
 - `jdReviewDisabled`: boolean (default false) — the job-details review dialog is skipped when true. Written by the dialog's *Don't ask again* checkbox and by Settings → Interface → *Review extracted job details*.
 - `jdCorrections`: `{ "<urlKey>": { fields: { title?, company?, location?, recruiterName? }, updatedAt, urlKey, looseKey, signature } }` — the job details the user corrected. Read by exact URL key, then `origin + path`, then the raw title + company signature; capped at 10 postings. See "Job details review".
 - `generatedPdfs`: `{ version, urlKey, url, title, company, items: [{ id, kind, filename, mime, size, dataUrl, createdAt }] }` — the side panel's file shelf. One posting at a time; see "Side panel + file shelf".
@@ -540,6 +554,7 @@ PocketResume/
 ├── scripts/capture-tour.mjs # Generates assets/tour/*.webp + frames.js (npm run build:tour)
 ├── options.html / options.js# Settings: resume form, cover letter, account, toggles
 ├── resume-renderers.js      # Double Sided / Academic CV PDF layouts
+├── resume-html.js           # Aligned resume / cover letter -> the paper sheet the swarm builds (pure)
 ├── resume-parse.js          # Resume text -> structured profile + normalization (pure, no network)
 ├── resume-align.js          # Deterministic JD alignment + verifier + cover-letter template (pure)
 ├── resume-health.js         # Opt-in health check: redaction, prompt, JSON salvage, Pollinations→Ollama chain
@@ -568,6 +583,11 @@ PocketResume/
 │   ├── feedback.ts
 │   └── _generated/          # [generated, gitignored]
 ├── libs/jspdf.umd.min.js    # Vendored jsPDF
+├── libs/theme.css           # Warm Press design system: tokens, fonts, paper sheet, swarm overlay
+├── libs/fonts/              # Fraunces + IBM Plex Sans + IBM Plex Mono, latin subset
+├── libs/agent-build.min.js / .min.css  # Vendored @magnoscg/agent-build 1.0.6 (MIT)
+├── libs/logo-mark.svg       # The paper-and-ink document mark used in every header
+├── swarm.html / swarm.js    # Iframe host: renders the sheet and runs the build simulation
 ├── libs/ldrs-newtons-cradle.js # Vendored ldrs Newton's Cradle web component
 ├── scripts/build-clerk.mjs  # Build script for the Pro (Clerk) bundles
 ├── scripts/build-zip.mjs    # Builds dist/pocketresume-vX.Y.zip from the runtime file list (npm run build:zip)
@@ -609,7 +629,7 @@ PocketResume/
 - **Change settings UI / resume management / form editor**: `options.js` (`renderTabContent`, `resumeDraft`, `serializeProfile`) / `options.html`.
 - **Change side panel UI**: `sidebar.html` / `sidebar.js`.
 - **Change the file shelf (stored PDFs, drag-out, attach, delete zone)**: `pdf-store.js` (`planStore` / `normalizeUrlKey` / `savePdf` / `removeItem` / `clearStore`) + `sidebar.js` (`savePdfDocument`, `renderFiles`, `buildFileCard`, `onFileDragStart`, `attachStoredPdf`, `setupFiles`) + `sidebar.html` (`.files-section` / `.file-card` / `#dropZone`) + `content.js` (the drop bridge, `GET_STORED_PDF`, `ATTACH_FILE`) + `background.js` (`GET_STORED_PDF`, `ATTACH_FILE_TO_PAGE`) + `form-filler.js` (`attachFile`, `watchForPrompt`).
-- **Change the animations toggle**: `options.html` (`#animationsToggle`) + `options.js` (storage + `applyMotionPreference`), then the `html.no-motion` CSS and the `motionOn()` gates in `sidebar.js` / `tracker.js`.
+- **Change the build simulation toggle**: `options.html` (`#animationsToggle` copy) + `options.js` (storage + `applyMotionPreference`), then the `motionOn()` gate in `sidebar.js` (`playSwarmSheet`). It is a swarm-only switch — do not reintroduce a global `html.no-motion` class.
 - **Change the remembered job details**: `jd-corrections.js` (`pickEntry` / `planSave` / `read` / `save`) + `sidebar.js` (`readJdCorrections`, `saveJdCorrections`, `mergeJdCorrections`, `patchLetterPayload`) + `scripts/test-jdcorrections.mjs`.
 - **Change panel error messages / mapping**: `sidebar.js` (`setError` / `mapErrorMessage`). Maps the gate/network/parse cases to short strings; un-matched messages truncate to ~200 chars.
 - **Change the long-resume warning**: `resume-parse.js` (`estimateResumePages`), `options.js` (`#rfFitNotice`, per-resume `fitNoticeDismissed*`), `sidebar.js` (`buildProfessionalPdf`, `confirmLongResume`, `resumeFitWarningHidden`), `sidebar.html` (`#fitWarningModal`). Only the Professional layout can spill to two pages; Double Sided self-fits and Academic CV paginates by design.
@@ -627,13 +647,40 @@ PocketResume/
 
 ### Button color roles
 
-Buttons use semantic accent tokens so paired actions both read as intentional (never "one orange, one disabled-looking"). Tokens live in `:root` of `sidebar.html` / `options.html` / `tracker.html` (`--accent-blue*`, `--accent-green*`, `--accent-red*`, plus the existing `--orange*`).
+The app is paper and ink: warm paper, warm ink, hairline rules, 2–4px corners, no glass and no glow. Tokens live in **`libs/theme.css`** (loaded by every page), not in each page's `:root` — page stylesheets only carry layout. `libs/theme.css` also keeps the legacy variable names (`--glass-*`, `--text*`, `--panel`, `--border`, `--bg`) as aliases, so a page rule that was written against the old palette adopts the new one without being rewritten.
 
-- **Orange** (`--orange*`) = primary/most important action. Classes: `.secondary-action-btn` (options), `.setup-goto` (panel), `.btn-primary` / `#generateBtn` / `.cloud-primary-btn`.
-- **Blue** (`--accent-blue*`) = secondary, parallel-but-valid action. Classes: `.accent-btn` (options), `.setup-goto.accent` (panel), `.btn-accent` (tracker). Used for: Check ATS, See Pro plans, Guide me.
-- **Green** (`--accent-green*`) = confirm/apply. Classes: `.success-btn` (options), `.setup-goto.success` (panel), `.btn-success` (tracker). Used for: Apply Refined Resume, Replace Local with Cloud.
-- **Red** (`--accent-red*`) = destructive. Classes: `.danger-btn` (options), `.btn-danger` (tracker).
-- **Glass/ghost** = dismiss/cancel/back/skip/tertiary. Classes: `.ghost-btn` (options), `.setup-goto.ghost` (panel), `.btn-ghost` / `.btn` (tracker).
+Ink fill is the primary action. The four accents are semantic only, never decorative:
+
+- **Ink** (`--ink` fill, `--paper` text) = primary/most important action. Classes: `.secondary-action-btn` (options), `.setup-goto` / `#generateBtn` (panel), `.btn-primary` (tracker), `.cloud-primary-btn`.
+- **Hairline** (`--rule-strong` border, ink text) = secondary, parallel-but-valid action. Classes: `.accent-btn` (options), `.setup-goto.accent` / `#coverLetterBtn` (panel), `.btn-accent` (tracker), `.cloud-secondary-btn`.
+- **Green** (`--accent-green*`) = confirm/apply. Classes: `.success-btn` (options), `.setup-goto.success` (panel), `.btn-success` (tracker). Used for: Apply Refined Resume, Replace Local with Cloud, "matched" chips.
+- **Red** (`--accent-red*`) = destructive and error. Classes: `.danger-btn`, `.delete-tab-btn` (options), `.btn-danger` (tracker), the panel's `×` / Clear.
+- **Orange** (`--accent-orange*`) = plan, promo and attention. Plan badges, the free-until banner, the What's New badge.
+- **Blue** (`--accent-blue*`) = information. Directory hints in the review dialog, the "Add as new" row.
+- **Ghost** = dismiss/cancel/back/skip/tertiary. Classes: `.ghost-btn` (options), `.setup-goto.ghost` (panel), `.btn-ghost` / `.btn` (tracker).
+
+Never add a filled accent button for something that is not semantic. Ink is the only fill a normal action gets.
+
+### Theme setting
+
+`theme` is `'paper'` (default) or `'ink'`. It is read by every page realm (`applyThemePreference` in `options.js`, `applyTheme` in `sidebar.js`, `applyTrackerTheme` in `tracker.js`), written to `chrome.storage.local`, and mirrored live through `chrome.storage.onChanged`. Each page sets `document.documentElement.dataset.theme`; `libs/theme.css` flips the same oklch hues for `html[data-theme="ink"]` (never near-navy). Paper is always the default and the toggle lives in Settings → Interface *and* in each page header.
+
+The generated PDFs are **not** affected by the theme. A resume is paper in both modes.
+
+### Build simulation (`swarm.html` / `swarm.js`)
+
+Generating a resume or a cover letter renders the result as a paper sheet and hands it to `@magnoscg/agent-build` (MIT, vendored at `libs/agent-build.min.js` / `.min.css`), which rebuilds it block by block with agent cursors, selection boxes, rulers and a HUD.
+
+- **The library rebuilds `document.body`.** It collects layers from the body of the document it runs in, so it must run where the sheet is the only thing on the page. That is why the panel embeds **`swarm.html`** in an iframe (`#swarmFrame` inside `#swarmOverlay`) instead of running it on the panel.
+- **`resume-html.js`** (`window.PocketResumeHtml`) is the only renderer: `buildResumeSheetHtml(profile)` and `buildCoverLetterSheetHtml(letter)` return one escaped `.pr-sheet` article in the Professional PDF's section order (Summary → Skills → Experience → Featured Projects → Education → Certifications). It prints only values from the payload, so the sheet cannot drift from the PDF.
+- **Protocol**: the panel posts `{ type: 'PR_BUILD', html, theme }` to the iframe; the iframe replies `{ type: 'PR_BUILT', skipped, built }` on `agentbuild:end`; it posts `PR_READY` once mounted and answers `PR_PING` with another `PR_READY`.
+- **Readiness is pinged, never assumed.** The iframe finishes loading while `cloud-sync-core.js` is still being parsed, so its one-shot `PR_READY` arrives before `sidebar.js` has a `message` listener and is lost. `whenSwarmReady()` therefore pings `PR_PING` every 100 ms (30 tries) until an answer arrives; `playSwarmSheet` opens the overlay only after that. Do not go back to a bare `load` listener or a one-shot ready message — that is what made the simulation silently skip itself.
+- **Timing** is `pace: 1.05` (≈8 s for a one-page resume). The panel holds the finished sheet for 2 s, then closes the overlay and scrolls the Files shelf into view. Skip calls `AgentBuild.stop()` and closes immediately.
+- **Gates**: `playSwarmSheet` returns immediately when `motionOn()` is false (the existing `animationsEnabled` toggle or `prefers-reduced-motion`), when the panel is hidden, or when the sheet is empty. agent-build also refuses to run under reduced motion — the panel treats that as "skipped".
+- **Order**: the PDF is produced *before* the overlay opens, so the fit-warning modal can never stack on top of the animation, and the file is already on the shelf when the sheet finishes.
+- **Never** call `start()` on the panel document. It would hide the whole panel and rebuild its own UI.
+
+Class contract between `resume-html.js` and `libs/theme.css`: `.pr-sheet`, `.pr-sheet__head`, `.pr-sheet__name`, `.pr-sheet__role`, `.pr-sheet__contact`, `.pr-sheet__section`, `.pr-sheet__label`, `.pr-sheet__body`, `.pr-sheet__entry`, `.pr-sheet__entry-head`, `.pr-sheet__entry-meta`, `.pr-sheet__list`, `.pr-sheet__skills`, `.pr-sheet__letter`. Change one and change the other.
 
 ## Common pitfalls
 

@@ -193,11 +193,11 @@ them anywhere.
 | --- | --- |
 | The toolbar button opens a persistent panel | `background.js:450-455`, `manifest.json:31` |
 | There is no popup | `manifest.json` — no `action.default_popup` |
-| PDFs are stored locally, never uploaded | `pdf-store.js:76-104`; `sidebar.js:206` is the only write path |
+| PDFs are stored locally, never uploaded | `pdf-store.js:76-104`; `sidebar.js:229` is the only write path |
 | The shelf holds one posting at a time | `pdf-store.js:27-42` (`planStore`) |
 | Per-file ceiling of 25 MB | `pdf-store.js:7` |
 | The default quota is 10 MB | Chrome `chrome.storage` docs (`local.QUOTA_BYTES`) |
-| Drag-out needs stored bytes, not a blob URL | `sidebar.js:375-395`, `pdf-store.js:132` |
+| Drag-out needs stored bytes, not a blob URL | `sidebar.js:400-422`, `pdf-store.js:132` |
 | Nothing is stored about visited pages | no write to `chrome.storage.local` outside `pdf-store.js` / `options.js` / `tracker.js` |
 | The directory refresh sends no personal data | `directory-store.js:103` / `company-directory-store.js:273` — bare `GET`s of static files |
 | The user's corrections never leave the device | directory stores write only to `chrome.storage.local` |
