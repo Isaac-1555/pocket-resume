@@ -2,7 +2,6 @@
 
 const STORAGE_KEYS = [
   'applications',
-  'trackerLockDismissed',
   'trackerTourSeen',
   'trackerPlanCache',
 ];
@@ -31,8 +30,7 @@ const COLUMN_COLORS = {
 };
 
 let applications = [];
-let accessInfo = { proAccess: false, isPro: false, promoActive: false, signedIn: false, unconfigured: false, dismissed: false, trialDaysLeft: 0, planPeriod: '' };
-let locked = false;
+let accessInfo = { signedIn: false, isSupporter: false, unconfigured: false, dismissed: false, planPeriod: '' };
 let currentView = 'board';
 let selectedAppId = null;
 
@@ -41,9 +39,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const graphView = document.getElementById('graphView');
   const addBtn = document.getElementById('addBtn');
   const openSettingsBtn = document.getElementById('openSettingsBtn');
-  const upgradeBtn = document.getElementById('upgradeBtn');
-  const dismissLockBtn = document.getElementById('dismissLockBtn');
-  const lockBanner = document.getElementById('lockBanner');
   const modalOverlay = document.getElementById('modalOverlay');
   const modalCloseBtn = document.getElementById('modalCloseBtn');
   const modalBody = document.getElementById('modalBody');
@@ -67,22 +62,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   openSettingsBtn.addEventListener('click', () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('options.html') });
-  });
-
-  upgradeBtn.addEventListener('click', () => {
-    if (!accessInfo.signedIn) {
-      chrome.storage.local.set({ openAuth: 'signUp' }, () => {
-        chrome.tabs.create({ url: chrome.runtime.getURL('options.html') });
-      });
-      return;
-    }
-    chrome.tabs.create({ url: chrome.runtime.getURL('options.html#cloud-pricing') });
-  });
-
-  dismissLockBtn.addEventListener('click', () => {
-    accessInfo.dismissed = true;
-    chrome.storage.local.set({ trackerLockDismissed: true });
-    lockBanner.classList.remove('visible');
   });
 
   modalCloseBtn.addEventListener('click', closeModal);
@@ -139,13 +118,13 @@ function getFromStorage(keys) {
 
 async function checkAccess() {
   if (!window.CloudSync || typeof window.CloudSync.getAccessState !== 'function' || !window.CloudSync.isConfigured || !window.CloudSync.isConfigured()) {
-    return { proAccess: false, isPro: false, promoActive: false, withinWindow: false, signedIn: false, unconfigured: true };
+    return { signedIn: false, isSupporter: false, unconfigured: true };
   }
   try {
     await window.CloudSync.init();
     return await window.CloudSync.getAccessState();
   } catch (err) {
-    console.warn('[Tracker] Plan check failed:', err);
+    console.warn('[Tracker] Access check failed:', err);
     return null;
   }
 }
@@ -157,66 +136,37 @@ function checkAccessWithTimeout() {
   ]);
 }
 
-function applyLockCopy() {
-  const title = document.getElementById('lockTitle');
-  const text = document.getElementById('lockText');
-  const upgradeBtn = document.getElementById('upgradeBtn');
-  if (!accessInfo.signedIn) {
-    if (title) title.textContent = 'Sign in to use the Job Tracker';
-    if (text) text.textContent = 'Create an account to capture every job you apply to. Free to try until Dec 31.';
-    if (upgradeBtn) upgradeBtn.textContent = 'Create account';
-    return;
-  }
-  if (title) title.textContent = 'Start your 7-day free trial';
-  if (text) text.textContent = 'The tracker is read-only now. Your saved applications stay here, and Export JSON still works. Pro is $4/month (about $1/week) or $47/year.';
-  if (upgradeBtn) upgradeBtn.textContent = 'Start free trial';
-}
-
 async function init() {
   const liveAccessCheck = checkAccessWithTimeout();
   const data = await getFromStorage(STORAGE_KEYS);
   applications = Array.isArray(data.applications) ? data.applications : [];
-  accessInfo.dismissed = !!data.trackerLockDismissed;
   const tourSeen = !!data.trackerTourSeen;
 
   const cached = data.trackerPlanCache;
-  if (cached && typeof cached.proAccess === 'boolean' && Date.now() - (cached.checkedAt || 0) <= PLAN_CACHE_MAX_AGE_MS) {
-    accessInfo.proAccess = cached.proAccess;
-    accessInfo.isPro = !!cached.isPro;
-    accessInfo.promoActive = !!cached.promoActive;
+  if (cached && typeof cached.signedIn === 'boolean' && Date.now() - (cached.checkedAt || 0) <= PLAN_CACHE_MAX_AGE_MS) {
     accessInfo.signedIn = !!cached.signedIn;
-    accessInfo.trialDaysLeft = cached.trialDaysLeft || 0;
+    accessInfo.isSupporter = !!cached.isSupporter;
     accessInfo.planPeriod = cached.planPeriod || '';
-    locked = !accessInfo.proAccess;
   }
 
-  applyLockCopy();
   render();
   updatePlanBadge();
 
   try {
     const access = await liveAccessCheck;
     if (access) {
-      accessInfo.proAccess = access.proAccess;
-      accessInfo.isPro = access.isPro;
-      accessInfo.promoActive = access.promoActive;
-      accessInfo.signedIn = access.signedIn;
-      accessInfo.trialDaysLeft = access.trialDaysLeft || 0;
+      accessInfo.signedIn = !!access.signedIn;
+      accessInfo.isSupporter = !!access.isSupporter;
       accessInfo.planPeriod = access.planPeriod || '';
       accessInfo.unconfigured = !!access.unconfigured;
-      locked = !access.proAccess;
       chrome.storage.local.set({
         trackerPlanCache: {
-          proAccess: access.proAccess,
-          isPro: access.isPro,
-          promoActive: access.promoActive,
-          signedIn: access.signedIn,
-          trialDaysLeft: access.trialDaysLeft || 0,
-          planPeriod: access.planPeriod || '',
+          signedIn: accessInfo.signedIn,
+          isSupporter: accessInfo.isSupporter,
+          planPeriod: accessInfo.planPeriod,
           checkedAt: Date.now(),
         },
       });
-      applyLockCopy();
       render();
       updatePlanBadge();
     }
@@ -242,41 +192,25 @@ function updatePlanBadge() {
   if (!badge) return;
   document.getElementById('planLoader')?.remove();
   badge.hidden = false;
-  if (accessInfo.isPro && accessInfo.trialDaysLeft > 0) {
-    badge.textContent = `Trial · ${accessInfo.trialDaysLeft}d`;
-    badge.className = 'plan-badge trial';
-  } else if (accessInfo.isPro) {
-    badge.textContent = accessInfo.planPeriod === 'year' ? 'Pro · Yearly' : 'Pro';
+  if (accessInfo.isSupporter) {
+    badge.textContent = accessInfo.planPeriod === 'year' ? 'Supporter · Yearly' : 'Supporter';
     badge.className = 'plan-badge pro';
-  } else if (accessInfo.proAccess) {
-    badge.textContent = 'Free until Dec 31';
-    badge.className = 'plan-badge trial';
-  } else if (locked) {
-    badge.textContent = accessInfo.signedIn ? 'Locked' : 'Free';
-    badge.className = 'plan-badge locked';
-  } else {
-    badge.textContent = 'Free';
-    badge.className = 'plan-badge trial';
+    return;
   }
+  badge.textContent = 'Free';
+  badge.className = 'plan-badge trial';
 }
 
 function render() {
   const banner = document.getElementById('lockBanner');
-  const addBtn = document.getElementById('addBtn');
-  if (locked && !accessInfo.dismissed) {
-    banner.classList.add('visible');
-  } else {
-    banner.classList.remove('visible');
-  }
-  if (addBtn) addBtn.disabled = locked;
+  if (banner) banner.classList.remove('visible');
   renderBoard();
   if (currentView === 'graph') renderGraph();
 }
 
 function updateBoardColumnHeight() {
   const header = document.querySelector('header.app-header');
-  const banner = document.getElementById('lockBanner');
-  const chromeHeight = (header?.offsetHeight || 0) + (banner?.offsetHeight || 0);
+  const chromeHeight = header?.offsetHeight || 0;
   const max = Math.max(220, window.innerHeight - chromeHeight - 56);
   document.documentElement.style.setProperty('--board-column-max', `${max}px`);
 }
@@ -288,9 +222,7 @@ function renderBoard() {
   if (!applications.length) {
     const empty = document.createElement('div');
     empty.className = 'empty-board-note';
-    empty.innerHTML = locked
-      ? `<h2>Locked</h2><p>Your tracker is read-only. ${accessInfo.signedIn ? 'Start a 7-day free trial to keep editing.' : 'Create an account, free to try until Dec 31.'}</p>`
-      : `<h2>No applications yet</h2>
+    empty.innerHTML = `<h2>No applications yet</h2>
       <p>Generate a resume from a job posting to auto-capture it here, or add one manually.</p>
       <button class="btn btn-primary" id="emptyAddBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Add your first job</span></button>`;
     board.appendChild(empty);
@@ -326,7 +258,7 @@ function renderBoard() {
     if (!cards.length) {
       const emptyState = document.createElement('div');
       emptyState.className = 'empty-state';
-      emptyState.textContent = locked ? 'Empty' : 'Drop a job here';
+      emptyState.textContent = 'Drop a job here';
       cardsContainer.appendChild(emptyState);
     }
 
@@ -337,20 +269,18 @@ function renderBoard() {
 
     col.appendChild(cardsContainer);
 
-    if (!locked) {
-      cardsContainer.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        col.classList.add('drag-over');
-      });
-      cardsContainer.addEventListener('dragleave', () => col.classList.remove('drag-over'));
-      cardsContainer.addEventListener('drop', (e) => {
-        e.preventDefault();
-        col.classList.remove('drag-over');
-        const id = e.dataTransfer.getData('text/application-id');
-        if (!id) return;
-        moveApplication(id, status);
-      });
-    }
+    cardsContainer.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      col.classList.add('drag-over');
+    });
+    cardsContainer.addEventListener('dragleave', () => col.classList.remove('drag-over'));
+    cardsContainer.addEventListener('drop', (e) => {
+      e.preventDefault();
+      col.classList.remove('drag-over');
+      const id = e.dataTransfer.getData('text/application-id');
+      if (!id) return;
+      moveApplication(id, status);
+    });
 
     board.appendChild(col);
   });
@@ -360,7 +290,7 @@ function renderBoard() {
 
 function createCard(app) {
   const card = document.createElement('div');
-  card.className = 'card' + (locked ? ' locked-card' : '');
+  card.className = 'card';
   card.dataset.id = app.id;
 
   const date = app.dateSaved ? new Date(app.dateSaved).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
@@ -372,7 +302,7 @@ function createCard(app) {
   const roundControl = app.status !== 'saved' && !['rejected', 'withdrawn'].includes(app.status)
     ? `<label class="round-control" title="Record completed interview round">
         <span>Round</span>
-        <select class="card-round-select" aria-label="Interview round" ${locked ? 'disabled' : ''}>
+        <select class="card-round-select" aria-label="Interview round">
           <option value="0">—</option>
           ${[1, 2, 3, 4].map((round) => `<option value="${round}" ${interviewRound === round ? 'selected' : ''}>${round}</option>`).join('')}
         </select>
@@ -403,15 +333,13 @@ function createCard(app) {
 
   card.addEventListener('click', () => openModal(app));
 
-  if (!locked) {
-    card.draggable = true;
-    card.addEventListener('dragstart', (e) => {
-      card.classList.add('dragging');
-      e.dataTransfer.setData('text/application-id', app.id);
-      e.dataTransfer.effectAllowed = 'move';
-    });
-    card.addEventListener('dragend', () => card.classList.remove('dragging'));
-  }
+  card.draggable = true;
+  card.addEventListener('dragstart', (e) => {
+    card.classList.add('dragging');
+    e.dataTransfer.setData('text/application-id', app.id);
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  card.addEventListener('dragend', () => card.classList.remove('dragging'));
 
   return card;
 }
@@ -434,7 +362,7 @@ function getInterviewRound(app) {
 }
 
 function setInterviewRound(app, round) {
-  if (locked || !app) return;
+  if (!app) return;
   const now = Date.now();
   if (!round) {
     app.interviews = [];
@@ -484,77 +412,75 @@ function openModal(app) {
 
   const isNew = !app;
   title.textContent = app ? app.company || app.role || 'Application' : 'Add job';
-  const isReadonly = locked;
 
   body.innerHTML = `
     <div class="field">
       <label for="m_company">Company</label>
-      <input id="m_company" type="text" value="${escapeAttr(app?.company || '')}" ${isReadonly ? 'readonly' : ''} placeholder="Acme Inc.">
+      <input id="m_company" type="text" value="${escapeAttr(app?.company || '')}"  placeholder="Acme Inc.">
     </div>
     <div class="field">
       <label for="m_role">Role</label>
-      <input id="m_role" type="text" value="${escapeAttr(app?.role || '')}" ${isReadonly ? 'readonly' : ''} placeholder="Senior Software Engineer">
+      <input id="m_role" type="text" value="${escapeAttr(app?.role || '')}"  placeholder="Senior Software Engineer">
     </div>
     <div class="field">
       <label for="m_url">Job URL</label>
-      <input id="m_url" type="text" value="${escapeAttr(app?.url || '')}" ${isReadonly ? 'readonly' : ''} placeholder="https://…">
+      <input id="m_url" type="text" value="${escapeAttr(app?.url || '')}"  placeholder="https://…">
     </div>
     <div class="field">
       <label for="m_recruiter">Recruiter / hiring manager</label>
-      <input id="m_recruiter" type="text" value="${escapeAttr(app?.recruiterName || '')}" ${isReadonly ? 'readonly' : ''} placeholder="Name, if known">
+      <input id="m_recruiter" type="text" value="${escapeAttr(app?.recruiterName || '')}"  placeholder="Name, if known">
     </div>
     <div class="field">
       <label for="m_recEmail">Recruiter email</label>
-      <input id="m_recEmail" type="text" value="${escapeAttr(app?.recruiterEmail || '')}" ${isReadonly ? 'readonly' : ''} placeholder="name@company.com">
+      <input id="m_recEmail" type="text" value="${escapeAttr(app?.recruiterEmail || '')}"  placeholder="name@company.com">
     </div>
     <div class="field">
       <label for="m_status">Status</label>
-      <select id="m_status" ${isReadonly ? 'disabled' : ''}>
+      <select id="m_status" >
         ${COLUMNS.map((s) => `<option value="${s}" ${app?.status === s ? 'selected' : ''}>${COLUMN_LABELS[s]}</option>`).join('')}
       </select>
     </div>
     <div class="field">
       <label for="m_appliedDate">Applied date</label>
-      <input id="m_appliedDate" type="date" value="${app?.appliedDate ? toDateInput(app.appliedDate) : ''}" ${isReadonly ? 'readonly' : ''}>
+      <input id="m_appliedDate" type="date" value="${app?.appliedDate ? toDateInput(app.appliedDate) : ''}" >
     </div>
     <div class="field">
       <label for="m_interviewDate">Interview date</label>
-      <input id="m_interviewDate" type="date" value="${app?.interviewDate ? toDateInput(app.interviewDate) : ''}" ${isReadonly ? 'readonly' : ''}>
+      <input id="m_interviewDate" type="date" value="${app?.interviewDate ? toDateInput(app.interviewDate) : ''}" >
     </div>
     <div class="field">
       <label>Interview rounds</label>
       <p class="field-hint">Completed rounds drive the funnel. Use Board's Round control for a quick update.</p>
       <div id="m_interviews"></div>
-      <button type="button" class="btn btn-ghost add-round-btn" id="m_addRound" ${isReadonly ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Add round</span></button>
+      <button type="button" class="btn btn-ghost add-round-btn" id="m_addRound" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Add round</span></button>
     </div>
     <div class="field flags">
       <label>Flags</label>
-      <label class="flag"><input type="checkbox" id="m_noReply" ${app?.noReply ? 'checked' : ''} ${isReadonly ? 'disabled' : ''}> No reply / ghosted</label>
-      <label class="flag"><input type="checkbox" id="m_internalHire" ${app?.internalHire ? 'checked' : ''} ${isReadonly ? 'disabled' : ''}> Internal hire</label>
-      <label class="flag"><input type="checkbox" id="m_scam" ${app?.scam ? 'checked' : ''} ${isReadonly ? 'disabled' : ''}> Scam / fake posting</label>
+      <label class="flag"><input type="checkbox" id="m_noReply" ${app?.noReply ? 'checked' : ''} > No reply / ghosted</label>
+      <label class="flag"><input type="checkbox" id="m_internalHire" ${app?.internalHire ? 'checked' : ''} > Internal hire</label>
+      <label class="flag"><input type="checkbox" id="m_scam" ${app?.scam ? 'checked' : ''} > Scam / fake posting</label>
     </div>
     <div class="field row3">
       <div class="mini-field">
         <label for="m_rejectedAt">Rejected date</label>
-        <input id="m_rejectedAt" type="date" value="${app?.rejectedAt ? toDateInput(app.rejectedAt) : ''}" ${isReadonly ? 'readonly' : ''}>
+        <input id="m_rejectedAt" type="date" value="${app?.rejectedAt ? toDateInput(app.rejectedAt) : ''}" >
       </div>
       <div class="mini-field">
         <label for="m_offeredAt">Offer date</label>
-        <input id="m_offeredAt" type="date" value="${app?.offeredAt ? toDateInput(app.offeredAt) : ''}" ${isReadonly ? 'readonly' : ''}>
+        <input id="m_offeredAt" type="date" value="${app?.offeredAt ? toDateInput(app.offeredAt) : ''}" >
       </div>
       <div class="mini-field">
         <label for="m_withdrawnAt">Withdrawn date</label>
-        <input id="m_withdrawnAt" type="date" value="${app?.withdrawnAt ? toDateInput(app.withdrawnAt) : ''}" ${isReadonly ? 'readonly' : ''}>
+        <input id="m_withdrawnAt" type="date" value="${app?.withdrawnAt ? toDateInput(app.withdrawnAt) : ''}" >
       </div>
     </div>
     <div class="field">
       <label for="m_notes">Notes</label>
-      <textarea id="m_notes" ${isReadonly ? 'readonly' : ''} placeholder="Anything worth remembering…">${escapeTextarea(app?.notes || '')}</textarea>
+      <textarea id="m_notes"  placeholder="Anything worth remembering…">${escapeTextarea(app?.notes || '')}</textarea>
     </div>
-    ${isReadonly ? `<p class="readonly-note">Read-only — ${accessInfo.signedIn ? 'start a 7-day free trial to edit applications.' : 'create an account, free to try until Dec 31.'}</p>` : ''}
   `;
 
-  populateInterviewEditor(body, app, isReadonly);
+  populateInterviewEditor(body, app);
 
   const actions = document.createElement('div');
   actions.className = 'modal-actions';
@@ -565,7 +491,6 @@ function openModal(app) {
     const delBtn = document.createElement('button');
     delBtn.className = 'btn btn-danger';
     delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg><span>Delete</span>';
-    delBtn.disabled = isReadonly;
     delBtn.addEventListener('click', () => {
       if (!confirm('Delete this application?')) return;
       applications = applications.filter((a) => a.id !== app.id);
@@ -585,8 +510,6 @@ function openModal(app) {
   const saveBtn = document.createElement('button');
   saveBtn.className = 'btn btn-primary';
   saveBtn.innerHTML = (isNew ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Add job</span>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/></svg><span>Save</span>');
-  saveBtn.disabled = isReadonly;
-  saveBtn.disabled = isReadonly;
   saveBtn.addEventListener('click', () => saveModal(isNew));
   right.appendChild(saveBtn);
 
@@ -614,7 +537,7 @@ function fromDateInput(value) {
   return isNaN(d.getTime()) ? null : d.getTime();
 }
 
-function populateInterviewEditor(body, app, isReadonly) {
+function populateInterviewEditor(body, app) {
     const host = body.querySelector('#m_interviews');
     if (!host) return;
     const addBtn = body.querySelector('#m_addRound');
@@ -641,10 +564,10 @@ function populateInterviewEditor(body, app, isReadonly) {
         row.className = 'round-row';
         row.innerHTML = `
             <span class="round-num"></span>
-            <input type="date" class="round-date" value="${iv && iv.date ? toDateInput(iv.date) : ''}" ${isReadonly ? 'readonly' : ''} aria-label="Interview round date">
-            <button type="button" class="round-rm" ${isReadonly ? 'disabled' : ''} aria-label="Remove round"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+            <input type="date" class="round-date" value="${iv && iv.date ? toDateInput(iv.date) : ''}"  aria-label="Interview round date">
+            <button type="button" class="round-rm"  aria-label="Remove round"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
         `;
-        if (!isReadonly) {
+        if (row.querySelector('.round-rm')) {
             row.querySelector('.round-rm').addEventListener('click', () => {
                 row.remove();
                 renumber();
@@ -661,7 +584,7 @@ function populateInterviewEditor(body, app, isReadonly) {
         seed.forEach((iv) => addRow(iv));
     }
 
-    if (addBtn && !isReadonly) {
+    if (addBtn) {
         addBtn.addEventListener('click', () => addRow(null));
     }
 }
@@ -1443,14 +1366,8 @@ function buildTourSteps() {
             id: 'plan',
             target: () => document.getElementById('planBadge'),
             placement: 'bottom',
-            title: 'Your plan',
-            body: accessInfo.proAccess
-                ? (accessInfo.isPro
-                    ? `Pro is active${accessInfo.trialDaysLeft > 0 ? ` — ${accessInfo.trialDaysLeft} trial day${accessInfo.trialDaysLeft === 1 ? '' : 's'} left` : ''}. Job Tracker, Form Filler, and Cloud Sync are unlocked.`
-                    : 'Your free period is active. Job Tracker, Form Filler, and Cloud Sync are unlocked until Dec 31.')
-                : (accessInfo.signedIn
-                    ? 'The Job Tracker needs Pro. Start a 7-day free trial — $4/month (about $1/week) or $47/year.'
-                    : 'Create an account to unlock the Job Tracker, Form Filler, and Cloud Sync. Free to try until Dec 31.'),
+            title: 'Free, always',
+            body: 'The Job Tracker is free with no account. Sync it with your other devices by signing in — and if PocketResume saves you time, you can support it for $4/month. Nothing is locked either way.',
         },
         {
             id: 'add',
@@ -1496,18 +1413,6 @@ function buildTourSteps() {
         },
     ];
 
-    const banner = document.getElementById('lockBanner');
-    if (banner && banner.classList.contains('visible')) {
-        steps.splice(2, 0, {
-            id: 'lock',
-            target: () => banner,
-            placement: 'bottom',
-            title: accessInfo.signedIn ? 'Pro trial ended' : 'Start your free trial',
-            body: accessInfo.signedIn
-                ? 'Your tracker is now read-only. Start a 7-day free trial — $4/month (about $1/week) or $47/year — to keep adding applications and dragging cards.'
-                : 'Create an account to unlock the Job Tracker, Form Filler, and Cloud Sync. Free to try until Dec 31.',
-        });
-    }
     return steps;
 }
 

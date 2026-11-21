@@ -2,7 +2,7 @@
 
 **Last updated:** November 2026
 
-Pocket Resume is a Chrome extension designed to help users create, store, and view resumes and cover letters directly within their browser, using an on-device resume engine. Optional features you start — the Resume health check, Generate letter, and the feedback box — send data only after you click their buttons; nothing is sent unless you do.
+Pocket Resume is a Chrome extension designed to help users create, store, and view resumes and cover letters directly within their browser, using an on-device resume engine. Every feature works without an account, and signing in is optional — it is only used to sync resumes across devices. Optional features you start — the Resume health check, Generate letter, and the feedback box — send data only after you click their buttons; nothing is sent unless you do.
 
 Your privacy is important. This policy explains what data Pocket Resume collects, how it is used, and how it is transmitted.
 
@@ -36,10 +36,11 @@ Before sending, name, email, phone, location, and link URLs are replaced with re
 
 ### Accounts and Cloud Sync (optional)
 
-Signing in is optional for editing and required for generation. If you create an account:
+Signing in is optional. PocketResume works in full without an account; an account is only needed to sync your resumes across devices, and sync is free.
 
-- Authentication and plan checks run through [Clerk](https://clerk.com).
+- Authentication runs through [Clerk](https://clerk.com). Signing in is the only step that creates an account.
 - Resumes you choose to sync are stored in the developer's [Convex](https://convex.dev) deployment, keyed to your account, so they can be restored on another device.
+- An optional **Supporter** plan ($4/month or $47/year) is processed by Clerk's billing. Card details go to Clerk's payment provider, are never seen or stored by the extension, and the plan grants no additional data access — it only adds a Supporter badge in the interface.
 - No job-posting text, page content, or browsing history is sent to Clerk or Convex.
 - Signing out stops sync; deleting a resume records a local tombstone that is also removed from the cloud.
 
@@ -96,7 +97,7 @@ Pocket Resume requests only the permissions necessary for core functionality:
 * **Scripting**: To extract text content from the job posting page when the content script is not already present, and to fill application form fields on the page you ask it to fill. When a posting is embedded in a frame on a company career site, the content script reads that frame's title and description too — locally, and only for the tab you are generating for
 * **Alarms**: To schedule the daily skill-vocabulary, company, job-title and location directory checks; no browsing data is read
 * **Downloads**: To save generated resume and cover-letter PDFs to your computer when you turn on *Download too*
-* **Host Permissions**: To reach Clerk (sign-in), Convex (optional resume sync, and the feedback box), Pollinations (opt-in Resume health check and Generate letter), the public O*NET vocabulary and title lists (`onetcenter.org`), and the extension's own website (`pocket-resume.xyz`) for the daily company, job-title and location directory updates
+* **Host Permissions**: To reach Clerk (optional sign-in and the optional Supporter plan), Convex (optional resume sync, and the feedback box), Pollinations (opt-in Resume health check and Generate letter), the public O*NET vocabulary and title lists (`onetcenter.org`), and the extension's own website (`pocket-resume.xyz`) for the daily company, job-title and location directory updates
 * **Optional Host Permissions**: Requested only when you turn on the local Ollama fallback — `http://localhost:11434`. Chrome asks for your explicit consent before granting it; you can revoke it at any time in Chrome's extension settings.
 
 These permissions are used exclusively to enable the resume, cover letter, and form-filling features and are not used to collect data for other purposes.

@@ -1,14 +1,18 @@
 # PocketResume
 
-> Chrome extension that turns one saved resume into a tailored PDF for every job posting. No API key, no upload, no rate limit — the resume engine runs on your device.
+> Chrome extension that turns one saved resume into a tailored PDF for every job posting. **Free forever, no account needed** — no API key, no upload, no paywall. The resume engine runs on your device, and signing in is only for optional cloud sync.
 
 [![Website](https://img.shields.io/badge/Website-pocket--resume.xyz-blue.svg)](https://pocket-resume.xyz)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](manifest.json)
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-lightgrey.svg)](https://developer.chrome.com/docs/extensions/)
 
+Launch copy — one-liners, store listing, posts and the claims this release can safely make — lives in [MARKETING.md](MARKETING.md).
+
 ## Features
 
+- **Free forever, no account** — generate resumes, write cover letters, fill application forms and run the Job Tracker without signing up. No trial, no deadline, no feature behind a plan. Cloud sync is the one thing that needs a free account
+- **Supporter, not a subscription** — if PocketResume saves you time you can chip in $4/month or $47/year. It adds a Supporter badge and changes nothing else: every feature stays free
 - **Paper and ink** — warm off-white paper, ink type, hairline rules and Fraunces titles, matching the landing page. An **Ink theme** in Settings → Interface flips the same hues to a dark ground for night work. The generated PDFs are untouched in both
 - **The build simulation** — after a generation the result is rendered as a paper sheet and a swarm of agent cursors rebuilds it block by block, with selection boxes, rulers and a progress HUD. About eight seconds, skippable, and it never runs under reduced motion. Turn it off in Settings → Interface
 - **On-device resume engine** — deterministic job-description alignment: JD title/company/location filled in, skills ranked by relevance, strongest bullets selected, banned openers fixed. Wording is never rewritten, and a verifier reverts any number that is not in your profile
@@ -16,7 +20,7 @@
 - **Paste once, edit a form** — the local parser turns resume text into a structured, editable profile. No API key, no cloud round-trip
 - **3 Resume Layouts** — Professional, Double Sided (dense two-column, always one page), Academic CV (multi-page)
 - **A cover letter per resume** — each saved resume keeps its own letter with `{{company}}`, `{{role}}`, and `{{recipient}}` filled from the posting. Write it yourself, click **Generate letter** for a short general draft, or copy the prompt into any assistant
-- **Job Tracker** — every generation drops a card with the job URL, company, and role. Pipeline board + analytics, no extra calls
+- **Job Tracker** — every generation drops a card with the job URL, company, and role. Pipeline board + analytics, no extra calls, free without an account
 - **Form Filler** — fills the empty fields on an application form from answers you save once. Fully local: no AI, no upload. Questions with no saved answer stay empty and are highlighted for you. Never submits, never overwrites a field you filled
 - **Quick Download** — re-download your saved resume as a professional PDF without reading the page
 - **Directories that learn** — correct the employer, job title or location once in the review dialog and the next posting is recognized on its own. Bundled official lists resolve variants (`Google LLC` → `Google`, `Sr. Software Engineer` → `Senior Software Engineer`, `SF` → `San Francisco, CA`); everything is matched locally, and your corrections stay on your device
@@ -24,7 +28,14 @@
 - **Feedback box** — send a bug report or an idea from Settings, with your email so the answer can come back to you. No account needed
 - **PDF Export** — clean, print-ready PDFs via jsPDF for every layout
 - **Multi-Profile** — save up to 3 master profiles, switch between them, and duplicate one into a free slot when you want a variant without touching the master
-- **Privacy First** — resumes stay in `chrome.storage.local`; generation and form filling are local. The only network calls are the opt-in Resume health/letter providers and the daily refresh of the public company/title/location lists
+- **Privacy First** — resumes stay in `chrome.storage.local`; generation and form filling are local, and nothing leaves the browser unless you sign in. The only network calls are the opt-in Resume health/letter providers, the optional sync, and the daily refresh of the public company/title/location lists
+
+### What's New in v11.0.0
+
+- **Free forever, no account needed.** Generate resumes, cover letters, fill forms and use the Job Tracker without signing in. There is no trial, no deadline and no paywall — the app is the whole app from the first launch.
+- **Sign in only for cloud sync.** A free account stores your resumes in the cloud and restores them on another device. Signing out stops sync and deletes nothing.
+- **The paid plan is now a tip jar.** It is called **Supporter** ($4/month or $47/year) and it unlocks nothing — it puts a Supporter badge in the panel and the account card. Every feature stays free.
+- **No more "Free until Dec 31".** The countdown, the access reminders and the trial copy are gone, along with the early-trial extension.
 
 ### What's New in v10.20.0
 
@@ -140,12 +151,12 @@ npm install
 
 ## Setup
 
-1. Click the extension icon → gear icon (Settings)
-2. Create a free account (required to generate; free until Dec 31, 2026)
-3. Paste your resume text into **Paste an existing resume** → **Parse resume** (once the resume has content, the paste box is replaced by a **Paste / import an existing resume** link)
-4. Fix anything the parser missed in the form → **Looks right — confirm** → **Save Settings**
-5. Optional: add a cover letter under **Cover letter** — it saves with the resume you are editing
-6. Optional: set up the **Form filler** answers (name, contact, work eligibility, salary, and the questions forms keep asking) so **Fill Form** can fill application forms later
+1. Click the extension icon → gear icon (Settings). **No account needed** — everything works signed out
+2. Paste your resume text into **Paste an existing resume** → **Parse resume** (once the resume has content, the paste box is replaced by a **Paste / import an existing resume** link)
+3. Fix anything the parser missed in the form → **Looks right — confirm** → **Save Settings**
+4. Optional: add a cover letter under **Cover letter** — it saves with the resume you are editing
+5. Optional: set up the **Form filler** answers (name, contact, work eligibility, salary, and the questions forms keep asking) so **Fill Form** can fill application forms later
+6. Optional: sign in if you want your resumes saved to the cloud and restored on another device. Sync is free
 
 ## Usage
 
@@ -165,7 +176,7 @@ If generation fails, the panel stays red — click the **?** button (top right) 
 
 **Fill Form** (next to the Job Tracker button) fills the empty fields on an application form from answers you save once in Settings → **Form filler**: name, contact details, location, work eligibility, salary expectation, start date, links, and your own answers for the questions forms keep asking. *Auto-fill from my resume* pulls the name, email, phone, city, links and years of experience straight out of the resume you already built.
 
-It runs entirely in your browser — no AI, no upload, no provider call. A question with no saved answer is **left empty and highlighted** with a dashed amber outline, and the panel tells you how many fields still need you. It never overwrites a field you already filled, never touches consent boxes, terms or captchas, and **never submits the form**. It is a Pro feature, like the Job Tracker.
+It runs entirely in your browser — no AI, no upload, no provider call. A question with no saved answer is **left empty and highlighted** with a dashed amber outline, and the panel tells you how many fields still need you. It never overwrites a field you already filled, never touches consent boxes, terms or captchas, and **never submits the form**. It is free, like everything else here.
 
 Refine Resume and Check ATS are still disabled with a **Soon** badge while they are rebuilt without AI.
 
@@ -181,14 +192,17 @@ If the feedback service cannot be reached, the box hands the message to your own
 
 Resume generation works out of the box and is fully local. One optional integration requires your own credentials.
 
-### Plans (Clerk + Convex)
+### Optional cloud sync + Supporter plan (Clerk + Convex)
 
-A **free account** is required to generate and includes resume cloud sync. Everything is free until **Dec 31, 2026**; after that a **Pro** plan (`pocketresume_pro`, $4/month or $47/year with a 7-day trial) keeps generation, the Job Tracker, and cloud sync unlocked. Resume editing and JSON export stay available without a plan. Sign-in, plan checks, and the embedded pricing table run through [Clerk](https://clerk.com); synced resumes are stored in your own [Convex](https://convex.dev) deployment (`convex/resumes.ts`):
+PocketResume is free and complete without a backend. Sign in only if you want resumes synced across devices — **sync is free for any account**, and signing out stops it without deleting anything. The optional **Supporter** plan (`pocketresume_pro`, $4/month or $47/year) is a tip jar: it adds a badge in the panel, the account card and the Job Tracker, and unlocks no features.
+
+Sign-in, the plan lookup and the embedded pricing table run through [Clerk](https://clerk.com); synced resumes are stored in your own [Convex](https://convex.dev) deployment (`convex/resumes.ts`):
 
 1. Fill in `CLERK_PUBLISHABLE_KEY`, `CLERK_FRONTEND_API_URL`, and `CONVEX_URL` in `.env.local`
 2. Run `npm run build:clerk` to bundle `src/cloud-sync.js` → `cloud-sync.js` with your env vars injected
 3. Sign in from Settings → Account & Cloud Sync; resumes sync both ways automatically while signed in
 4. For backend work: `npx convex dev` from the repo root
+5. In Clerk, name the plan **Supporter** and disable the free trial on it — nothing is gated, so a trial would only hand out the badge for free
 
 The feedback box needs two more server-side values (they live on the Convex deployment, never in the extension bundle):
 
@@ -211,7 +225,7 @@ Without `RESEND_API_KEY` the message is still stored in the `feedback` table, bu
 - **Resume engine:** deterministic in-extension parser + JD aligner (`resume-parse.js`, `resume-align.js`, `skill-lexicon.js`)
 - **Company directory:** deterministic local matcher + learner (`company-directory.js`, `company-directory-store.js`, `libs/company-directory-global.js`)
 - **Job title / location directories:** deterministic local matchers + learners (`job-title-directory.js`, `job-location-directory.js`, `directory-core.js`) with bundled O*NET and GeoNames lists. Job titles are cleaned and arbitrated from every candidate on the page (`extractJobTitle`) before they reach the resume.
-- **Cloud (optional):** [Clerk](https://clerk.com) auth + pricing (Pro), [Convex](https://convex.dev) resume sync and the feedback endpoint
+- **Cloud (optional):** [Clerk](https://clerk.com) auth + the Supporter tip jar, [Convex](https://convex.dev) resume sync and the feedback endpoint
 - **Feedback mail:** [Resend](https://resend.com) (server-side only, optional)
 - **Build:** esbuild (only for `cloud-sync.js` bundle); no bundler for app code
 
@@ -224,7 +238,8 @@ npm ci
 # Rebuild cloud-sync.js / cloud-sync-core.js after editing src/cloud-sync.js
 npm run build:clerk
 
-# Deterministic engine + PDF layout checks (no network)
+# Free-access guard + deterministic engine + PDF layout checks (no network)
+npm run test:access
 npm run test:align
 npm run test:render
 npm run test:resumehtml
@@ -265,7 +280,7 @@ Report vulnerabilities privately via [GitHub Security Advisories](../../security
 ## Acknowledgments
 
 - [jsPDF](https://github.com/parallax/jsPDF) — PDF generation
-- [Clerk](https://clerk.com) — Pro auth + pricing (optional)
+- [Clerk](https://clerk.com) — sign-in and the optional Supporter plan
 - [Convex](https://convex.dev) — resume sync and the feedback endpoint
 - [Resend](https://resend.com) — delivery of feedback email (optional)
 - [Pollinations](https://pollinations.ai) and [Ollama](https://ollama.com) — opt-in AI for the Resume health check and Generate letter

@@ -505,7 +505,6 @@ enableSidePanel();
 
 const ACCESS_CACHE_KEY = 'proAccessCache';
 const ACCESS_CACHE_MAX_AGE_MS = 60 * 60 * 1000;
-const ACCESS_WINDOW_END = new Date('2026-12-31T23:59:59.999').getTime();
 
 // The worker never holds a Clerk session. Page realms publish the resolved
 // snapshot to `proAccessCache`; the worker only reads it.
@@ -523,28 +522,15 @@ async function readCachedAccess() {
     return null;
 }
 
-function withinAccessWindow(now = Date.now()) {
-    return now <= ACCESS_WINDOW_END;
-}
-
+// Generation, the Form Filler and the Job Tracker are free and account-free.
+// The snapshot is read only to report the session and the Supporter badge.
 async function getGenerationAccess() {
-    const withinWindow = withinAccessWindow();
-    if (globalThis.CloudSync && typeof globalThis.CloudSync.isConfigured === 'function' && !globalThis.CloudSync.isConfigured()) {
-        return { allowed: true, signedIn: true, withinWindow, isPro: false, unconfigured: true };
-    }
     const cached = await readCachedAccess();
-    if (!cached) {
-        return { allowed: false, signedIn: false, withinWindow, reason: 'signin_required' };
-    }
-    const signedIn = !!cached.signedIn;
-    const isPro = !!cached.isPro || !!cached.proAccess;
-    if (!signedIn) {
-        return { allowed: false, signedIn: false, withinWindow, isPro: false, reason: 'signin_required' };
-    }
-    if (withinWindow || isPro) {
-        return { allowed: true, signedIn: true, withinWindow, isPro, cached: true };
-    }
-    return { allowed: false, signedIn: true, withinWindow, isPro: false, reason: 'plan_required' };
+    return {
+        allowed: true,
+        signedIn: !!(cached && cached.signedIn),
+        isSupporter: !!(cached && (cached.isSupporter || cached.isPro))
+    };
 }
 
 function buildJobMeta(jd, resume) {
@@ -898,11 +884,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         (async () => {
             try {
                 const payload = message.payload || {};
-                const access = await getGenerationAccess();
-                if (!access.allowed) {
-                    sendResponse({ status: access.reason || 'signin_required', ...access });
-                    return;
-                }
 
                 const settings = await chrome.storage.local.get(['resumes', 'userProfile', 'universalCoverLetter']);
                 const entries = Array.isArray(settings.resumes) ? settings.resumes : [];
@@ -1024,11 +1005,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'BUILD_COVER_LETTER') {
         (async () => {
             try {
-                const access = await getGenerationAccess();
-                if (!access.allowed) {
-                    sendResponse({ status: access.reason || 'signin_required', ...access });
-                    return;
-                }
                 const payload = message.payload || {};
                 const data = await chrome.storage.local.get(['universalCoverLetter', 'resumes']);
                 const entries = Array.isArray(data.resumes) ? data.resumes : [];
@@ -1192,11 +1168,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'FILL_APPLICATION_FORM') {
         (async () => {
             try {
-                const access = await getGenerationAccess();
-                if (!access.allowed) {
-                    sendResponse({ status: access.reason || 'signin_required', ...access });
-                    return;
-                }
                 const payload = message.payload || {};
                 const tabId = payload.tabId;
                 if (!tabId) throw new Error('Open the application form tab first.');
@@ -1206,14 +1177,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 if (!profile || !String(profile.firstName || '').trim() || !String(profile.lastName || '').trim()) {
                     sendResponse({
                         status: 'profile_incomplete',
-                        message: 'Answer the setup questions in Settings first.',
-                        ...access
+                        message: 'Answer the setup questions in Settings first.'
                     });
                     return;
                 }
 
                 const result = await fillApplicationForm(tabId, profile);
-                sendResponse({ ...result, ...access });
+                sendResponse(result);
             } catch (error) {
                 console.error('[FormFill] Failed:', error);
                 sendResponse({ status: 'error', message: error.message });

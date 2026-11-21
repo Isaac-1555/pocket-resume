@@ -19,6 +19,7 @@
     "build:titles": "node scripts/build-title-directory.mjs",
     "build:tour": "node scripts/capture-tour.mjs",
     "clean": "rm -f cloud-sync.js cloud-sync-core.js && rm -rf convex/_generated",
+    "test:access": "node scripts/test-access.mjs",
     "test:align": "node scripts/test-align.mjs",
     "test:companydir": "node scripts/test-company-directory.mjs",
     "test:directories": "node scripts/test-directories.mjs",

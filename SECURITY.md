@@ -35,7 +35,7 @@ In scope:
 - Content script injection / XSS via crafted pages
 - Prompt injection against the opt-in AI features (Resume health check, Generate letter)
 - Leakage of resume or profile data through the opt-in AI provider calls
-- Pro auth / plan-check bypass (Clerk / Convex)
+- Auth or cloud-sync bypass (Clerk / Convex): reading or writing another account's resumes
 - Permissions or host_permissions abuse in `manifest.json`
 - Unsafe PDF generation (code execution via crafted JSON)
 

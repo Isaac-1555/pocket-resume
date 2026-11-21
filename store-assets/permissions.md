@@ -39,8 +39,8 @@ drag would be cancelled mid-gesture).
 
 | What | Where |
 | --- | --- |
-| `"sidePanel"` permission + `"side_panel": { "default_path": "sidebar.html" }` | `manifest.json:14`, `manifest.json:31` |
-| `chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })` | `background.js:450-455`, called on install and on startup (`background.js:486-499`) |
+| `"sidePanel"` permission + `"side_panel": { "default_path": "sidebar.html" }` | `manifest.json:14`, `manifest.json:32` |
+| `chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })` | `background.js:451-456`, called on install and on startup (`background.js:487-499`) |
 | The panel UI itself | `sidebar.html` / `sidebar.js` (extension pages, extension origin) |
 
 **Why the minimum Chrome version is 114.** The `chrome.sidePanel` API ships in Chrome 114,
@@ -164,8 +164,8 @@ page text comes from the content script under `activeTab`.
 | Title list URL | `job-title-directory-store.js:22` (`TITLE_DIRECTORY_SOURCE_URL`) |
 | Location list URL | `job-location-directory-store.js:22` (`LOCATION_DIRECTORY_SOURCE_URL`) |
 | The fetch | `directory-store.js:103` (shared `refreshGlobal`), `company-directory-store.js:273` |
-| Daily alarms + startup/install trigger | `background.js:476-485` |
-| Silent refresh messages | `background.js:1069` (`ENSURE_COMPANY_DIRECTORY`), `background.js:1078` (`ENSURE_TITLE_DIRECTORY`), `background.js:1087` (`ENSURE_LOCATION_DIRECTORY`) |
+| Daily alarms + startup/install trigger | `background.js:476-493` |
+| Silent refresh messages | `background.js:1115` (`ENSURE_COMPANY_DIRECTORY`), `background.js:1124` (`ENSURE_TITLE_DIRECTORY`), `background.js:1133` (`ENSURE_LOCATION_DIRECTORY`) |
 | The bundled offline copies | `libs/company-directory-global.js`, `libs/title-directory-global.js`, `libs/location-directory-global.js` |
 
 **What the requests contain.** Plain `GET`s with no body, no query string and no custom
@@ -191,9 +191,9 @@ them anywhere.
 
 | Claim | Where to verify |
 | --- | --- |
-| The toolbar button opens a persistent panel | `background.js:450-455`, `manifest.json:31` |
+| The toolbar button opens a persistent panel | `background.js:451-456`, `manifest.json:32` |
 | There is no popup | `manifest.json` — no `action.default_popup` |
-| PDFs are stored locally, never uploaded | `pdf-store.js:76-104`; `sidebar.js:229` is the only write path |
+| PDFs are stored locally, never uploaded | `pdf-store.js:76-104`; `sidebar.js:221` is the only write path |
 | The shelf holds one posting at a time | `pdf-store.js:27-42` (`planStore`) |
 | Per-file ceiling of 25 MB | `pdf-store.js:7` |
 | The default quota is 10 MB | Chrome `chrome.storage` docs (`local.QUOTA_BYTES`) |

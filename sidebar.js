@@ -3,11 +3,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const generateBtn = document.getElementById('generateBtn');
   const fillFormBtn = document.getElementById('fillFormBtn');
   const fillFormLabel = document.getElementById('fillFormLabel');
-  const fillProCard = document.getElementById('fillProCard');
-  const fillProTitle = document.getElementById('fillProTitle');
-  const fillProText = document.getElementById('fillProText');
-  const fillProPlansBtn = document.getElementById('fillProPlansBtn');
-  const fillProAuthBtn = document.getElementById('fillProAuthBtn');
   const fillProfileCard = document.getElementById('fillProfileCard');
   const fillProfileSetupBtn = document.getElementById('fillProfileSetupBtn');
   const fillResultCard = document.getElementById('fillResultCard');
@@ -28,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let generationRequestTimer = null;
   let fillStatusTimer = null;
   let fillRunning = false;
-  let fillPromoActive = false;
   let lastError = '';
   let lastErrorRaw = '';
   let downloadOnGenerate = false;
@@ -68,9 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const featureVideoBtn = document.getElementById('featureVideoBtn');
   const setupResumeBtn = document.getElementById('setupResumeBtn');
   const accountBtn = document.getElementById('accountBtn');
-  const signinCard = document.getElementById('signinCard');
   const reviewCard = document.getElementById('reviewCard');
-  const planLockCard = document.getElementById('planLockCard');
   const accessReminder = document.getElementById('accessReminder');
   const accessReminderText = document.getElementById('accessReminderText');
   const offlineNotice = document.getElementById('offlineNotice');
@@ -123,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastJobMeta = null;
   let lastJdCorrection = null;
   let generationActive = false;
-  let gate = { state: 'signin' };
+  let gate = { state: 'loading' };
 
   function prefersReducedMotion() {
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -934,10 +926,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderSetupCard() {
     if (!setupCard) return;
     hideGateCards();
-    setSetupStepDone('setupStepAccount', !!gate.signedIn);
     setSetupStepDone('setupStepResume', false);
     setSetupStepDone('setupStepCover', hasCoverLetter());
-    setSetupStepDone('setupStepSave', !!gate.signedIn);
+    setSetupStepDone('setupStepSave', false);
     setupCard.style.display = 'block';
   }
 
@@ -1024,70 +1015,64 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => resolve(requestBackgroundAccess(true)), 300);
             return;
           }
-          resolve({ allowed: false, promoActive: false, signedIn: false, error: true });
+          resolve({ signedIn: false, isSupporter: false, error: true });
           return;
         }
-        resolve(response || { allowed: false, promoActive: false, signedIn: false, error: true });
+        resolve(response || { signedIn: false, isSupporter: false, error: true });
       });
     });
   }
 
-  // The side panel holds a real Clerk session, so its own copy of the plan is
-  // authoritative. The service worker only has the page-published snapshot, used
-  // when the page client cannot resolve.
-  async function checkProAccess() {
+  // The side panel holds a real Clerk session, so its own copy is authoritative.
+  // The service worker only has the page-published snapshot, used when the page
+  // client cannot resolve.
+  async function currentAccess() {
     const local = await localAccessState();
     if (local && local.healthy) {
       return {
-        allowed: !!local.proAccess,
-        promoActive: !!local.promoActive,
         signedIn: !!local.signedIn,
-        isPro: !!local.isPro,
-        withinWindow: !!local.withinWindow,
-        trialEndsAt: local.trialEndsAt || 0,
-        trialDaysLeft: local.trialDaysLeft || 0,
+        isSupporter: !!local.isSupporter,
         planPeriod: local.planPeriod || '',
         source: 'page',
       };
     }
     const background = await requestBackgroundAccess(false);
-    return { ...background, source: background.source || 'sw' };
+    return {
+      signedIn: !!background.signedIn,
+      isSupporter: !!background.isSupporter,
+      planPeriod: background.planPeriod || '',
+      error: !!background.error,
+      source: background.source || 'sw',
+    };
   }
 
   async function updateAccountButton() {
     if (!accountBtn) return;
-    const access = await checkProAccess();
+    const access = await currentAccess();
     console.log('[Sidebar] access', {
       source: access.source,
       signedIn: !!access.signedIn,
-      isPro: !!access.isPro,
-      allowed: !!access.allowed,
+      isSupporter: !!access.isSupporter,
       error: !!access.error,
     });
     const ACCOUNT_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>';
     const setAccountLabel = (label) => { accountBtn.innerHTML = ACCOUNT_ICON + '<span>' + label + '</span>'; };
-    if (access.allowed) {
-      accountBtn.style.display = 'inline-flex';
-      accountBtn.classList.add('pro');
-      if (access.isPro && access.trialDaysLeft > 0) {
-        setAccountLabel(`Trial · ${access.trialDaysLeft}d`);
-      } else if (access.isPro) {
-        setAccountLabel(access.planPeriod === 'year' ? 'Pro · Yearly' : 'Pro');
-      } else {
-        setAccountLabel('Free until Dec 31');
-      }
-      accountBtn.dataset.target = access.isPro ? 'options' : 'pricing';
-      return;
-    }
     accountBtn.style.display = 'inline-flex';
-    accountBtn.classList.remove('pro');
-    if (access.signedIn) {
-      setAccountLabel('Start free trial');
-      accountBtn.dataset.target = 'pricing';
-    } else {
+    if (!access.signedIn) {
+      accountBtn.classList.remove('pro');
       setAccountLabel('Sign in');
       accountBtn.dataset.target = 'auth';
+      return;
     }
+    if (access.isSupporter) {
+      accountBtn.classList.add('pro');
+      setAccountLabel(access.planPeriod === 'year' ? 'Supporter · Yearly' : 'Supporter');
+      accountBtn.dataset.target = 'options';
+      return;
+    }
+    accountBtn.classList.remove('pro');
+    setAccountLabel('Account');
+    accountBtn.dataset.target = 'options';
   }
 
   if (accountBtn) {
@@ -1964,18 +1949,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function hideGateCards() {
-    [signinCard, reviewCard, planLockCard, setupCard, setupCompact].forEach((card) => {
+    [reviewCard, setupCard, setupCompact].forEach((card) => {
       if (card) card.style.display = 'none';
     });
   }
 
-  function activeResumeFromStore(data) {
-    const list = Array.isArray(data.resumes) ? data.resumes : [];
-    return { list, resume: list.find((item) => item.id === data.selectedResumeId) || list[0] || null };
-  }
-
   async function refreshGate() {
-    const access = await checkProAccess();
+    const access = await currentAccess();
     const data = await chrome.storage.local.get(['resumes', 'userProfile', 'selectedResumeId', 'onboarding']);
     let list = Array.isArray(data.resumes) ? data.resumes : [];
     if (!list.length && data.userProfile) {
@@ -1987,12 +1967,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const reviewNeeded = !!(resume && resume.parseReview && !resume.parseConfirmedAt);
 
     let state = 'ready';
-    if (!signedIn) state = 'signin';
-    else if (!hasResume) state = 'setup';
+    if (!hasResume) state = 'setup';
     else if (reviewNeeded) state = 'review';
-    else if (!access.allowed) state = 'plan';
 
-    gate = { state, resume, list, signedIn, allowed: !!access.allowed, access };
+    gate = { state, resume, list, signedIn, access };
     applyGateUi();
     return gate;
   }
@@ -2000,16 +1978,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function applyGateUi() {
     hideGateCards();
     hideFillCards();
-    if (gate.state === 'signin') {
-      if (signinCard) signinCard.style.display = 'block';
-      setGenerateEnabled(false);
-      return;
-    }
-    if (gate.state === 'plan') {
-      if (planLockCard) planLockCard.style.display = 'block';
-      setGenerateEnabled(false);
-      return;
-    }
     if (gate.state === 'review') {
       if (reviewCard) reviewCard.style.display = 'block';
       setGenerateEnabled(false);
@@ -2043,23 +2011,18 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('options.html#cloud-pricing') });
   }
 
-  function maybeShowAccessReminder(access) {
+  function maybeShowSupporterNudge(access) {
     if (!accessReminder) return;
-    if (!access || !access.withinWindow) {
+    if (access && access.isSupporter) {
       accessReminder.style.display = 'none';
       return;
     }
-    const now = new Date();
-    const reminderStart = new Date(now.getFullYear(), 11, 24);
-    if (now < reminderStart) {
-      accessReminder.style.display = 'none';
-      return;
-    }
-    const today = now.toISOString().slice(0, 10);
-    const daysLeft = Math.max(0, Math.ceil((new Date(now.getFullYear(), 11, 31, 23, 59, 59) - now) / 86400000));
-    chrome.storage.local.get('accessReminderLastShown', (data) => {
-      if (data.accessReminderLastShown === today) return;
-      if (accessReminderText) accessReminderText.textContent = `Free until Dec 31 — ${daysLeft} day${daysLeft === 1 ? '' : 's'} left.`;
+    chrome.storage.local.get(['supporterNudgeSeen', 'generatedPdfs'], (data) => {
+      if (data.supporterNudgeSeen) return;
+      const generated = !!(data.generatedPdfs && Array.isArray(data.generatedPdfs.items) && data.generatedPdfs.items.length);
+      if (!generated) return;
+      chrome.storage.local.set({ supporterNudgeSeen: true });
+      if (accessReminderText) accessReminderText.textContent = 'PocketResume is free forever. If it saved you time, you can support it — $4/month, nothing locked.';
       accessReminder.style.display = 'flex';
     });
   }
@@ -2069,46 +2032,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const plans = document.getElementById('reminderPlansBtn');
     if (dismiss) {
       dismiss.addEventListener('click', () => {
-        chrome.storage.local.set({ accessReminderLastShown: new Date().toISOString().slice(0, 10) });
+        chrome.storage.local.set({ supporterNudgeSeen: true });
         accessReminder.style.display = 'none';
       });
     }
     if (plans) plans.addEventListener('click', openPricing);
   }
 
-  const sidebarSignInBtn = document.getElementById('sidebarSignInBtn');
-  const sidebarSignUpBtn = document.getElementById('sidebarSignUpBtn');
   const reviewOpenSettingsBtn = document.getElementById('reviewOpenSettingsBtn');
-  const planUnlockBtn = document.getElementById('planUnlockBtn');
-  const planExportBtn = document.getElementById('planExportBtn');
-  const setupAccountBtn = document.getElementById('setupAccountBtn');
 
-  if (sidebarSignInBtn) {
-    sidebarSignInBtn.addEventListener('click', () => openAccountAuth('signIn'));
-  }
-  if (sidebarSignUpBtn) {
-    sidebarSignUpBtn.addEventListener('click', () => openAccountAuth('signUp'));
-  }
-  if (setupAccountBtn) setupAccountBtn.addEventListener('click', () => { if (sidebarSignUpBtn) sidebarSignUpBtn.click(); });
   if (reviewOpenSettingsBtn) reviewOpenSettingsBtn.addEventListener('click', () => openSettings());
-  if (planUnlockBtn) planUnlockBtn.addEventListener('click', openPricing);
-  if (planExportBtn) {
-    planExportBtn.addEventListener('click', () => {
-      chrome.storage.local.get(['resumes', 'selectedResumeId'], (data) => {
-        const { resume } = activeResumeFromStore(data);
-        if (!resume || !resume.jsonContent) {
-          setError('No saved resume to export yet.');
-          return;
-        }
-        const filename = `pocketresume-${(resume.label || 'resume').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json`;
-        const blob = new Blob([resume.jsonContent], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        chrome.downloads.download({ url, filename, saveAs: false }, () => {
-          setTimeout(() => URL.revokeObjectURL(url), 60000);
-        });
-      });
-    });
-  }
 
   /* ---------------------------------------------------------------------
      Swarm build — the agent-build simulation runs inside swarm.html, an
@@ -2494,33 +2427,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function hideFillCards() {
-    if (fillProCard) fillProCard.style.display = 'none';
     if (fillProfileCard) fillProfileCard.style.display = 'none';
     if (fillResultCard) fillResultCard.style.display = 'none';
-  }
-
-  function showFillProCard(access) {
-    hideFillCards();
-    if (!fillProCard) return;
-    const promo = !!(access && (access.promoActive || access.withinWindow));
-    const signedIn = !!(access && access.signedIn);
-    fillPromoActive = promo && !signedIn;
-    if (fillProTitle) {
-      fillProTitle.textContent = signedIn ? 'Form Filler needs a Pro plan' : 'Create an account to use Form Filler';
-    }
-    if (fillProText) {
-      fillProText.textContent = signedIn
-        ? 'A Pro plan is $4/month (about $1/week) or $47/year. It keeps Form Filler, the resume engine, cover letters, and the Job Tracker unlocked.'
-        : promo
-          ? 'Your resume engine runs in this browser, but an account keeps Form Filler, the Job Tracker, and cloud sync unlocked. Free to try until Dec 31.'
-          : 'Sign in to use Form Filler. Your resume and tracker data stay on this device until you do.';
-    }
-    if (fillProAuthBtn) {
-      fillProAuthBtn.style.display = signedIn ? 'none' : '';
-      const label = fillProAuthBtn.querySelector('span');
-      if (label) label.textContent = promo ? 'Create a free account' : 'Sign in';
-    }
-    fillProCard.style.display = '';
   }
 
   function showFillProfileCard() {
@@ -2562,12 +2470,6 @@ document.addEventListener('DOMContentLoaded', () => {
     fillRunning = true;
     hideFillCards();
     try {
-      const access = await checkProAccess();
-      if (!access || !access.allowed) {
-        fillRunning = false;
-        showFillProCard(access || {});
-        return;
-      }
       const stored = await chrome.storage.local.get('applicationProfile');
       const profile = stored.applicationProfile;
       if (!profile || !String(profile.firstName || '').trim() || !String(profile.lastName || '').trim()) {
@@ -2596,12 +2498,6 @@ document.addEventListener('DOMContentLoaded', () => {
           setError('Form Filler did not answer.', 'fill');
           return;
         }
-        if (response.status === 'signin_required' || response.status === 'plan_required') {
-          setFillStatus(null);
-          if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
-          showFillProCard(response);
-          return;
-        }
         if (response.status === 'profile_incomplete') {
           setFillStatus(null);
           if (fillFormLabel) fillFormLabel.textContent = 'Fill Form';
@@ -2627,16 +2523,6 @@ document.addEventListener('DOMContentLoaded', () => {
     fillFormBtn.addEventListener('click', (event) => {
       event.preventDefault();
       runFillForm();
-    });
-  }
-
-  if (fillProPlansBtn) {
-    fillProPlansBtn.addEventListener('click', () => openPricing());
-  }
-
-  if (fillProAuthBtn) {
-    fillProAuthBtn.addEventListener('click', () => {
-      openAccountAuth(fillPromoActive ? 'signUp' : 'signIn');
     });
   }
 
@@ -2703,8 +2589,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.20.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.20.0';
+  const ANNOUNCEMENT_VERSION = '11.0.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '11.0.0';
 
   function dismissWhatsNew() {
     chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_SEEN_VALUE });
@@ -2892,10 +2778,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const lower = msg.toLowerCase();
 
     if (/sign in|signed out|session/i.test(lower)) {
-      return 'Sign in to keep generating. Open the account card to continue.';
-    }
-    if (/pro plan|free period|subscription|upgrade|trial/i.test(lower)) {
-      return 'Your free period ended. Start a Pro plan to keep generating.';
+      return 'Sign in to sync your resumes across devices. Generation works without an account.';
     }
     if (/confirm your|parsed resume/i.test(lower)) {
       return 'Confirm your parsed resume in Settings first.';
@@ -3565,7 +3448,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   refreshGate().then((state) => {
-    maybeShowAccessReminder(state.access);
+    maybeShowSupporterNudge(state.access);
     updateAccountButton();
   });
 

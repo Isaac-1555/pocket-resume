@@ -18,27 +18,15 @@
   const CLOUD_CONFIG = {
     clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY || '',
     convexUrl: process.env.CONVEX_URL || '',
-    freePlan: 'free_user',
     requiredPlan: 'pocketresume_pro',
     // The live plan key; older builds may still carry these aliases.
     requiredPlans: ['pocketresume_pro', 'pocketresume_weekly', 'pocketresume_yearly'],
     legacyPlans: ['cloud_sync', 'pro', 'premium'],
   };
 
-  const ACCESS_WINDOW = {
-    enabled: true,
-    start: new Date('2026-11-02T00:00:00').getTime(),
-    end: new Date('2026-12-31T23:59:59.999').getTime(),
-  };
-
-  function isAccessWindowActive(now = Date.now()) {
-    return ACCESS_WINDOW.enabled && now >= ACCESS_WINDOW.start && now <= ACCESS_WINDOW.end;
-  }
-
-  function isPromoTrialActive(now = Date.now()) {
-    return isAccessWindowActive(now);
-  }
-
+  // Every feature is free, signed in or not. An account is only needed for
+  // cloud sync, and a paid plan only adds the Supporter badge — no feature is
+  // gated on a plan or a session.
   let convexClient = null;
   let clerkClient = null;
   let convexUrl = null;
@@ -128,7 +116,7 @@
     try {
       clerkClient.addListener(({ user }) => {
         if (!user) {
-          persistAccessCache({ signedIn: false, isFreeSubscriber: false, isPro: false, promoActive: isAccessWindowActive(), withinWindow: isAccessWindowActive(), canGenerate: false, cloudSyncAccess: false, proAccess: false, trialEndsAt: 0, trialDaysLeft: 0, planPeriod: '', resolved: true, healthy: clerkHealthy });
+          persistAccessCache({ signedIn: false, isSupporter: false, isPro: false, canGenerate: true, cloudSyncAccess: false, proAccess: true, planPeriod: '', resolved: true, healthy: clerkHealthy });
         } else {
           getAccessState().catch(() => {});
         }
@@ -152,10 +140,10 @@
     }
   }
 
-  // Trial length and billing period are plan-level settings in Clerk. Clerk
-  // assigns the hidden free plan as a real subscription item, so only a Pro
-  // plan item may count as Pro or be eligible for a trial extension.
-  const PRO_PLAN_KEYS = new Set([...CLOUD_CONFIG.requiredPlans, ...CLOUD_CONFIG.legacyPlans]);
+  // A Supporter is a real, active paid subscription item. A trialing or
+  // upcoming item is not one: nothing is gated, so a trial only exists if the
+  // Clerk plan still carries one, and it must never hand out the badge.
+  const SUPPORTER_PLAN_KEYS = new Set([...CLOUD_CONFIG.requiredPlans, ...CLOUD_CONFIG.legacyPlans]);
 
   function planSlugOf(plan) {
     if (!plan) return '';
@@ -170,35 +158,17 @@
       : Array.isArray(raw.subscriptionItems)
         ? raw.subscriptionItems
         : [];
-    const isActive = (entry) => ['active', 'upcoming', 'trialing'].includes(String((entry && entry.status) || '').toLowerCase());
-    const proItem = items.find((entry) => isActive(entry) && PRO_PLAN_KEYS.has(planSlugOf(entry.plan))) || null;
-    const item = proItem || items.find(isActive) || items[0] || null;
+    const isActive = (entry) => String((entry && entry.status) || '').toLowerCase() === 'active';
+    const supporterItem = items.find((entry) => isActive(entry) && SUPPORTER_PLAN_KEYS.has(planSlugOf(entry.plan))) || null;
+    const item = supporterItem || items.find(isActive) || items[0] || null;
     const plan = (item && item.plan) || raw.plan || null;
     const planKey = planSlugOf(plan);
     const period = String((item && item.planPeriod) || (plan && plan.period) || '').toLowerCase();
-    const isProPlan = !!proItem;
-    const trialEnabled = isProPlan && !!(plan && (plan.freeTrialEnabled || plan.free_trial_enabled));
-    const trialDays = Number((plan && (plan.freeTrialDays || plan.free_trial_days)) || 0);
-    const createdRaw = raw.createdAt || raw.created_at || '';
-    const created = createdRaw ? new Date(createdRaw).getTime() : 0;
-    // Clerk's client subscription item does not always expose trialEndsAt, so
-    // fall back to plan trial length measured from the subscription start —
-    // never to the renewal date, which would mislabel a paying subscriber.
-    const trialFromStart = trialEnabled && trialDays > 0 && Number.isFinite(created) && created > 0
-      ? created + trialDays * 86400000
-      : 0;
-    const trialRaw = (item && (item.trialEndsAt || item.trial_end_at))
-      || raw.trialEndsAt
-      || trialFromStart
-      || '';
-    const trialAt = trialRaw ? (typeof trialRaw === 'number' ? trialRaw : new Date(trialRaw).getTime()) : 0;
-    const status = String((item && item.status) || raw.status || '').toLowerCase();
     return {
       planKey,
       planPeriod: period === 'week' ? 'week' : period === 'annual' || period === 'year' ? 'year' : '',
-      trialEndsAt: isProPlan && Number.isFinite(trialAt) && trialAt > Date.now() ? trialAt : 0,
-      active: ['active', 'upcoming', 'trialing'].includes(status),
-      isProPlan,
+      active: isActive(item),
+      isSupporterPlan: !!supporterItem,
     };
   }
 
@@ -218,94 +188,42 @@
     return subscriptionState;
   }
 
-  function trialDaysLeft(trialEndsAt) {
-    if (!trialEndsAt) return 0;
-    return Math.max(0, Math.ceil((trialEndsAt - Date.now()) / 86400000));
-  }
-
-  // Subscribe before the window closes -> trial runs to Jan 7, 2027, then the
-  // first charge. The extension never holds the Clerk secret: it asks the
-  // Convex action, which owns the Backend API call.
-  const EARLY_TRIAL_EXTEND_TO = new Date('2027-01-07T23:59:59.999').getTime();
-  let earlyTrialCheckedAt = 0;
-  let earlyTrialGaveUp = false;
-
-  async function maybeExtendEarlyTrial(state) {
-    if (IS_SERVICE_WORKER || earlyTrialGaveUp) return;
-    if (!state || !state.isPro || !state.proSubscription) return;
-    if (state.trialEndsAt && state.trialEndsAt >= EARLY_TRIAL_EXTEND_TO) return;
-    if (!isAccessWindowActive()) return;
-    if (Date.now() - earlyTrialCheckedAt < 10 * 60 * 1000) return;
-    earlyTrialCheckedAt = Date.now();
-    try {
-      const client = await initConvex();
-      if (!client || typeof client.action !== 'function') return;
-      const result = await client.action('billing:extendEarlyTrial', { extendTo: EARLY_TRIAL_EXTEND_TO });
-      if (result && result.extended === false) {
-        if (result.reason === 'trials_disabled' || result.reason === 'not_pro_plan') earlyTrialGaveUp = true;
-        return;
-      }
-      subscriptionCheckedAt = 0;
-      subscriptionState = null;
-      console.log('[CloudSync] Early-subscriber trial extended to Jan 7, 2027');
-    } catch (err) {
-      const message = String((err && err.message) || err || '');
-      if (/plan_free_trials_disabled|trials_disabled|not_pro_plan/.test(message)) {
-        earlyTrialGaveUp = true;
-        return;
-      }
-      console.warn('[CloudSync] Could not extend the early-subscriber trial:', err);
-    }
-  }
-
   async function getAccessState() {
     await ensureClerkUser();
-    const withinWindow = isAccessWindowActive();
-    const promoActive = withinWindow;
     const healthy = clerkHealthy && !!clerkClient && !!clerkClient.client;
     if (!clerkClient || !clerkClient.user) {
       const signedOut = {
         signedIn: false,
-        isFreeSubscriber: false,
+        isSupporter: false,
         isPro: false,
-        promoActive,
-        withinWindow,
-        canGenerate: false,
+        canGenerate: true,
         cloudSyncAccess: false,
-        proAccess: false,
-        trialEndsAt: 0,
-        trialDaysLeft: 0,
+        proAccess: true,
         planPeriod: '',
         resolved: healthy,
         healthy,
       };
-      console.log('[CloudSync] access', { source: ACCESS_SOURCE, user: null, plan: '', isPro: false, healthy, resolved: signedOut.resolved });
+      console.log('[CloudSync] access', { source: ACCESS_SOURCE, user: null, supporter: false, healthy, resolved: signedOut.resolved });
       persistAccessCache(signedOut);
       return signedOut;
     }
     await refreshUserIfStale();
-    const proPlans = [
+    const supporterPlans = [
       ...CLOUD_CONFIG.requiredPlans,
       ...CLOUD_CONFIG.legacyPlans,
     ];
     const subscription = await readSubscriptionState();
-    const isPro = userMatchesPlan(proPlans) || !!(subscription && subscription.isProPlan);
-    const isFreeSubscriber = isPro || userMatchesPlan([CLOUD_CONFIG.freePlan]);
-    const trialEndsAt = subscription && subscription.isProPlan ? subscription.trialEndsAt : 0;
+    const isSupporter = userMatchesPlan(supporterPlans) || !!(subscription && subscription.isSupporterPlan);
     const state = {
       signedIn: true,
-      isFreeSubscriber,
-      isPro,
-      promoActive,
-      withinWindow,
-      canGenerate: withinWindow || isPro,
-      cloudSyncAccess: withinWindow || isPro,
-      proAccess: withinWindow || isPro,
-      trialEndsAt,
-      trialDaysLeft: trialDaysLeft(trialEndsAt),
-      planPeriod: subscription && subscription.isProPlan ? subscription.planPeriod : '',
+      isSupporter,
+      isPro: isSupporter,
+      canGenerate: true,
+      cloudSyncAccess: true,
+      proAccess: true,
+      planPeriod: subscription && subscription.isSupporterPlan ? subscription.planPeriod : '',
       hasSubscription: !!(subscription && subscription.active),
-      proSubscription: !!(subscription && subscription.isProPlan),
+      proSubscription: !!(subscription && subscription.isSupporterPlan),
       resolved: healthy,
       healthy,
     };
@@ -313,22 +231,20 @@
       source: ACCESS_SOURCE,
       user: clerkClient.user.id,
       plan: subscription ? subscription.planKey : ((clerkClient.user.publicMetadata || {}).plan || ''),
-      isPro,
-      trialDaysLeft: state.trialDaysLeft,
+      isSupporter,
       healthy,
       resolved: state.resolved,
     });
     persistAccessCache(state);
-    maybeExtendEarlyTrial(state).catch(() => {});
     return state;
   }
 
   async function hasCloudSyncAccess() {
-    return (await getAccessState()).cloudSyncAccess;
+    return !!(await getAccessState()).signedIn;
   }
 
   async function hasProAccess() {
-    return (await getAccessState()).proAccess;
+    return true;
   }
 
   function isConfigured() {
@@ -627,7 +543,7 @@
 
   async function signOut() {
     if (!IS_SERVICE_WORKER) {
-      persistAccessCache({ signedIn: false, isFreeSubscriber: false, isPro: false, promoActive: isAccessWindowActive(), withinWindow: isAccessWindowActive(), canGenerate: false, cloudSyncAccess: false, proAccess: false, trialEndsAt: 0, trialDaysLeft: 0, planPeriod: '', resolved: true, healthy: clerkHealthy });
+      persistAccessCache({ signedIn: false, isSupporter: false, isPro: false, canGenerate: true, cloudSyncAccess: false, proAccess: true, planPeriod: '', resolved: true, healthy: clerkHealthy });
     }
     if (!clerkClient) return;
     await clerkClient.signOut({ redirectUrl: OPTIONS_URL });
@@ -665,7 +581,7 @@
       return;
     }
     if (!(await hasCloudSyncAccess())) {
-      throw new Error('Subscribe to sync your resumes across devices.');
+      throw new Error('Sign in to sync your resumes across devices.');
     }
 
     try {
@@ -693,7 +609,7 @@
       return;
     }
     if (!(await hasCloudSyncAccess())) {
-      throw new Error('Subscribe to sync your resumes across devices.');
+      throw new Error('Sign in to sync your resumes across devices.');
     }
 
     syncInProgress = true;
@@ -721,7 +637,7 @@
       return [];
     }
     if (!(await hasCloudSyncAccess())) {
-      throw new Error('Subscribe to sync your resumes across devices.');
+      throw new Error('Sign in to sync your resumes across devices.');
     }
 
     try {
@@ -737,7 +653,7 @@
   async function deleteCloudResume(resumeId) {
     if (!convexClient) return;
     if (!(await hasCloudSyncAccess())) {
-      throw new Error('Subscribe to sync your resumes across devices.');
+      throw new Error('Sign in to sync your resumes across devices.');
     }
 
     try {
@@ -962,9 +878,6 @@
     hasCloudSyncAccess,
     hasProAccess,
     getAccessState,
-    isPromoTrialActive,
-    isAccessWindowActive,
-    ACCESS_WINDOW,
     signIn,
     signUp,
     signOut,
