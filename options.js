@@ -177,6 +177,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
   }
 
+  const MAX_RESUMES = 3;
+
+  function copyLabelFor(base, taken) {
+    const root = String(base || '').trim().replace(/\s*\(copy(?: \d+)?\)\s*$/i, '').trim() || 'Resume';
+    for (let n = 1; n <= 9; n++) {
+      const suffix = n === 1 ? ' (copy)' : ` (copy ${n})`;
+      const candidate = `${root.slice(0, Math.max(1, 40 - suffix.length))}${suffix}`;
+      if (!taken.has(candidate.toLowerCase())) return candidate;
+    }
+    return `${root.slice(0, 33)} (copy)`;
+  }
+
+  function duplicateResumeEntry(source) {
+    const taken = new Set(resumes.map((resume) => String(resume.label || '').trim().toLowerCase()));
+    const copy = createResumeEntry(copyLabelFor(source.label, taken), source.content, source.icon || '');
+    copy.jsonContent = source.jsonContent || '';
+    copy.legacyContent = source.legacyContent || '';
+    copy.parseReview = source.parseReview
+      ? { warnings: [...(source.parseReview.warnings || [])], parsedAt: Number(source.parseReview.parsedAt) || 0 }
+      : null;
+    copy.parseConfirmedAt = Number(source.parseConfirmedAt) || 0;
+    copy.coverLetter = source.coverLetter ? { ...source.coverLetter } : null;
+    copy._draft = normalizeResumeProfile(JSON.parse(JSON.stringify(resumeDraft(source))));
+    copy.updatedAt = Date.now();
+    return copy;
+  }
+
   function normalizeResumeEntry(resume, index) {
     const content = typeof resume?.content === 'string' ? resume.content : '';
     const explicitUpdatedAt = Number(resume?.updatedAt);
@@ -245,6 +272,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   function resumeIconSvg(iconId) {
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${RESUME_ICONS[iconId] || RESUME_ICONS.doc}</svg>`;
   }
+
+  const COPY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
   function getActiveResume() {
     return resumes[activeTabIndex] || null;
@@ -1592,12 +1621,12 @@ My resume:
       tabBar.appendChild(btn);
     });
 
-    if (resumes.length < 3) {
+    if (resumes.length < MAX_RESUMES) {
       const addBtn = document.createElement('button');
       addBtn.type = 'button';
       addBtn.className = 'add-tab-btn';
       addBtn.textContent = '+';
-      addBtn.title = 'Add a new resume (max 3)';
+      addBtn.title = `Add a new resume (max ${MAX_RESUMES})`;
       addBtn.addEventListener('click', async () => {
         flushCoverLetterSave();
         saveCurrentTabToState();
@@ -1750,6 +1779,7 @@ My resume:
         </div>
         <input type="text" id="resumeLabelInput" class="resume-label-input"
                placeholder="Label (e.g. Project Manager)" value="${escapeAttr(resume.label)}" maxlength="40">
+        <button type="button" class="duplicate-tab-btn" id="duplicateTabBtn"${resumes.length >= MAX_RESUMES ? ' disabled title="Three resumes is the limit — delete one first"' : ' title="Copy this resume into a new slot"'}>${COPY_ICON}<span>Duplicate</span></button>
         ${resumes.length > 1 ? '<button type="button" class="delete-tab-btn" id="deleteTabBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg><span>Delete</span></button>' : ''}
       </div>
     `;
@@ -1888,6 +1918,30 @@ My resume:
         renderTabBar();
         renderTabContent();
         runAutoSync();
+      });
+    }
+
+    const duplicateBtn = document.getElementById('duplicateTabBtn');
+    if (duplicateBtn) {
+      duplicateBtn.addEventListener('click', async () => {
+        if (resumes.length >= MAX_RESUMES) {
+          showStatus('Three resumes is the limit. Delete one first.', 'info', 4000);
+          return;
+        }
+        const source = getActiveResume();
+        if (!source) return;
+        flushCoverLetterSave();
+        saveCurrentTabToState();
+        const copy = duplicateResumeEntry(source);
+        resumes.push(copy);
+        activeTabIndex = resumes.length - 1;
+        pasteRevealed = false;
+        await setLocalStorage({ resumes: getPersistedResumes() });
+        renderTabBar();
+        renderTabContent({ preserveScroll: false });
+        loadCoverLetterEditor();
+        runAutoSync();
+        showStatus(`Copied "${source.label || 'this resume'}" into a new slot.`, 'success', 3500);
       });
     }
 
