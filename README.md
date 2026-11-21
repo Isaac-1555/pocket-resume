@@ -9,6 +9,8 @@
 
 ## Features
 
+- **Paper and ink** — warm off-white paper, ink type, hairline rules and Fraunces titles, matching the landing page. An **Ink theme** in Settings → Interface flips the same hues to a dark ground for night work. The generated PDFs are untouched in both
+- **The build simulation** — after a generation the result is rendered as a paper sheet and a swarm of agent cursors rebuilds it block by block, with selection boxes, rulers and a progress HUD. About eight seconds, skippable, and it never runs under reduced motion. Turn it off in Settings → Interface
 - **On-device resume engine** — deterministic job-description alignment: JD title/company/location filled in, skills ranked by relevance, strongest bullets selected, banned openers fixed. Wording is never rewritten, and a verifier reverts any number that is not in your profile
 - **Job details review** — before a PDF is saved, a dialog shows the title, company, location and recipient read from the posting, with the keywords it matched. Edit anything wrong; the fix lands in the PDF, the resume header and the Job Tracker card, and is remembered for that posting — so the cover letter does not need the same typing
 - **Paste once, edit a form** — the local parser turns resume text into a structured, editable profile. No API key, no cloud round-trip
@@ -23,6 +25,14 @@
 - **PDF Export** — clean, print-ready PDFs via jsPDF for every layout
 - **Multi-Profile** — save up to 3 master profiles, switch between them, and duplicate one into a free slot when you want a variant without touching the master
 - **Privacy First** — resumes stay in `chrome.storage.local`; generation and form filling are local. The only network calls are the opt-in Resume health/letter providers and the daily refresh of the public company/title/location lists
+
+### What's New in v10.20.0
+
+- **The app is paper and ink.** The dark glass theme is gone — the side panel, Settings and the Job Tracker share the landing page's warm paper, ink type, hairline rules and 2–4px corners. Fraunces, IBM Plex Sans and IBM Plex Mono ship with the extension, so it reads the same offline.
+- **The swarm builds your resume.** Generate a resume or a cover letter and a swarm of agent cursors rebuilds it block by block as a paper sheet — selection boxes, rulers, a percentage HUD. About eight seconds, a Skip button, and Settings → Interface turns it off.
+- **Ink theme.** Settings → Interface → *Ink theme*, or the toggle in any header, flips the paper to a dark ground. Paper stays the default, and your PDFs are identical either way.
+- **Ink is the main action.** Primary buttons are ink fill; green confirms, red destroys, orange is the plan, blue is information. The noise is gone: no scramble text, no colour glow — status prints as a small stamp in the header.
+- **The header is a mark and a wordmark.** The tagline is gone; the document mark still opens pocket-resume.xyz.
 
 ### What's New in v10.19.0
 
@@ -141,7 +151,7 @@ npm install
 
 1. Navigate to any job posting (LinkedIn, Indeed, company pages)
 2. Click PocketResume icon → the side panel opens → choose resume style
-3. Click **Generate Resume** — the job details dialog opens, the PDF is kept in the panel's **Files** section and a Job Tracker card is created
+3. Click **Generate Resume** — the job details dialog opens, the PDF is kept in the panel's **Files** section and a Job Tracker card is created. The finished resume is then built in front of you as a paper sheet by the swarm (Skip ends it early)
 4. Click **Generate Cover Letter** for the matching letter (uses the selected resume's saved letter)
 5. Optional: click **Fill Form** on an application page — it fills the empty fields from the answers you saved in Settings
 
@@ -195,6 +205,8 @@ Without `RESEND_API_KEY` the message is still stored in the `feedback` table, bu
 ## Tech Stack
 
 - **Runtime:** Vanilla HTML/CSS/JS, Manifest V3
+- **Design system:** `libs/theme.css` — Warm Press tokens (paper/ink `oklch`, hairline rules, 2–4px radii), the bundled Fraunces + IBM Plex fonts (`libs/fonts/`), the paper sheet, and the build overlay. Paper and ink share one palette; `html[data-theme="ink"]` flips it
+- **Build simulation:** [@magnoscg/agent-build](libs/agent-build.min.js) (vendored, MIT) running inside `swarm.html`, an iframe whose body holds nothing but the rendered sheet (`resume-html.js`)
 - **PDF:** [jsPDF](libs/jspdf.umd.min.js) (vendored)
 - **Resume engine:** deterministic in-extension parser + JD aligner (`resume-parse.js`, `resume-align.js`, `skill-lexicon.js`)
 - **Company directory:** deterministic local matcher + learner (`company-directory.js`, `company-directory-store.js`, `libs/company-directory-global.js`)
@@ -215,10 +227,14 @@ npm run build:clerk
 # Deterministic engine + PDF layout checks (no network)
 npm run test:align
 npm run test:render
+npm run test:resumehtml
 npm run test:formfill
 npm run test:pdfstore
-npm run test:feedback
+npm run test:jdcorrections
+npm run test:companydir
+npm run test:directories
 npm run test:titles
+npm run test:feedback
 
 # Build the Chrome Web Store zip from the runtime file list
 npm run build:zip

@@ -1,5 +1,28 @@
 # Changelog
 
+## [10.20.0] — 2026-11-21
+### Added
+- **The app is now paper and ink.** The dark glass theme is gone. Every surface — the side panel, Settings and the Job Tracker — is warm paper with ink type, hairline rules and 2–4px corners, matching the landing page. Fraunces, IBM Plex Sans and IBM Plex Mono ship with the extension (latin subset, ~130 KB) so it reads the same offline.
+- **Ink theme.** Settings → Interface → *Ink theme (dark paper)*, or the toggle in any page header, flips the same hues to a dark ground. Paper stays the default.
+- **The build simulation.** Generating a resume or a cover letter now renders the result as a paper sheet and lets a swarm of agent cursors build it block by block, with selection boxes, rulers and a percentage HUD. It runs for about eight seconds, has a Skip button, and never runs when the system asks for reduced motion.
+- **`resume-html.js`** renders the aligned resume and the cover letter as escaped HTML for that animation. It prints only what the profile holds, so the sheet cannot drift from the PDF.
+- **`swarm.html` / `swarm.js`** host the vendored `@magnoscg/agent-build` simulation (MIT) in an iframe, so the agents rebuild the sheet and nothing else.
+- **`npm run test:resumehtml`.** Covers the sheet renderer: every populated section, escaping, empty sections, and no invented values.
+
+### Changed
+- **The panel header is compact.** A 20px mark and the wordmark, nothing else. The tagline is gone; the mark still opens pocket-resume.xyz.
+- **Buttons follow one colour language.** Ink fill for the primary action, hairline for secondary, green for confirm, red for destructive, orange for plan and attention, blue for information. The four accents are semantic now, never decorative.
+- **Status is a stamp, not a glow.** The three status channels still run independently, but they print an ink stamp in the header (`Generating`, `Ready`, `Failed`, `Filling`, `Letter`) and a 2px rule along the top edge instead of a colour bloom.
+- **The typewriter scramble is gone.** Generate buttons now print a plain `Generating…` while they work. In paper and ink it read as noise next to the build simulation.
+- **The animations toggle only controls the build simulation.** It is Settings → Interface → *Build simulation* now, and it no longer sets `html.no-motion`, so turning it off stops the swarm and nothing else. `prefers-reduced-motion` remains the only global motion switch.
+- **The PDF layouts are unchanged.** Professional, Double Sided and Academic CV still render exactly as before.
+
+### Fixed
+- **The build simulation skipped itself.** The iframe finished loading before the panel had attached its message listener, so the one-shot ready message was dropped and the overlay closed without animating. The panel now pings the iframe until it answers, and only opens the overlay once it has.
+- **The shelf's action icons vanished.** Attach, Download, Open and Delete are icon-only buttons; the paper-and-ink stylesheet gave them text-button padding and no `svg` size, so the glyphs had no box to draw in. They are 24px icon buttons again (22px at the narrowest panel), with the PDF badge sized to match.
+
+Tests: `npm run test:resumehtml`, plus the existing engine, layout, form-filler, shelf, directory and feedback suites.
+
 ## [10.19.0] — 2026-11-20
 ### Added
 - **Duplicate a resume into a new slot.** The resume editor has a *Duplicate* button next to *Delete*. It copies the resume you are editing — content, icon, label and cover letter — into a free slot, opens that copy so you can make slight changes to it, and leaves the panel generating from the master until you pick the copy yourself. The copy is a separate resume with its own id, so cloud sync keeps the two apart. Three resumes is still the limit; the button turns off when the slots are full.

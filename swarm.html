@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+  <meta charset="UTF-8">
+  <title>Building</title>
+  <link rel="stylesheet" href="libs/theme.css">
+  <link rel="stylesheet" href="libs/agent-build.min.css">
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--paper-3);
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 12px 64px 44px 12px;
+      font-family: var(--font-body);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    .pr-sheet {
+      width: 100%;
+      max-width: 620px;
+      box-shadow: 0 1px 0 var(--rule), 0 10px 24px -18px rgba(20, 18, 15, 0.5);
+    }
+
+    .pr-sheet-empty {
+      margin: 40px auto;
+      max-width: 320px;
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-align: center;
+      color: var(--ink-3);
+    }
+  </style>
+</head>
+<body>
+  <p class="pr-sheet-empty">Waiting for the sheet</p>
+  <script src="libs/agent-build.min.js"></script>
+  <script src="swarm.js"></script>
+</body>
+</html>

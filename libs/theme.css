@@ -1,0 +1,659 @@
+/* ============================================================================
+   PocketResume — Warm Press
+   Paper and ink. Hairlines, 2–4px radii, no glass, no glow, no gradients.
+   Loaded by sidebar.html, options.html, tracker.html and swarm.html.
+
+   The legacy variable names (--glass-*, --text-*, --panel, --border, --bg)
+   are kept as aliases so page-level rules adopt the new palette without being
+   rewritten. Canonical tokens are --paper*, --ink*, --rule*, --accent-*.
+   ========================================================================= */
+
+@font-face {
+    font-family: "Fraunces";
+    font-style: normal;
+    font-weight: 400 600;
+    font-display: swap;
+    font-optical-sizing: auto;
+    src: url("fonts/fraunces-var-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+        U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+        U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: normal;
+    font-weight: 400 600;
+    font-display: swap;
+    src: url("fonts/plex-sans-var-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+        U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+        U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "IBM Plex Mono";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("fonts/plex-mono-500-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+        U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+        U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "IBM Plex Mono";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("fonts/plex-mono-600-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+        U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+        U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+    /* Canonical scale — warm paper, warm ink */
+    --paper: oklch(96.5% 0.014 85);
+    --paper-2: oklch(93.5% 0.016 85);
+    --paper-3: oklch(90% 0.015 84);
+    --paper-4: oklch(86.5% 0.014 83);
+
+    --ink: oklch(20% 0.012 70);
+    --ink-2: oklch(36% 0.01 70);
+    --ink-3: oklch(52% 0.01 72);
+    --ink-4: oklch(64% 0.009 76);
+
+    --rule: oklch(80% 0.012 80);
+    --rule-2: oklch(87% 0.013 82);
+    --rule-strong: oklch(64% 0.011 74);
+
+    --surface: var(--paper);
+    --surface-raised: var(--paper-2);
+    --surface-sunk: var(--paper-3);
+
+    /* Accents — semantic only, never decorative */
+    --accent-orange: oklch(58% 0.13 62);
+    --accent-orange-ink: oklch(42% 0.11 55);
+    --accent-orange-wash: oklch(94% 0.03 78);
+    --accent-blue: oklch(48% 0.1 245);
+    --accent-blue-wash: oklch(93% 0.024 245);
+    --accent-green: oklch(46% 0.1 152);
+    --accent-green-wash: oklch(94% 0.028 152);
+    --accent-red: oklch(49% 0.16 27);
+    --accent-red-wash: oklch(94% 0.03 27);
+
+    /* Type */
+    --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+    --font-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
+        Helvetica, Arial, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
+        monospace;
+    --font: var(--font-body);
+
+    /* Geometry */
+    --radius-sm: 2px;
+    --radius-md: 3px;
+    --radius-lg: 4px;
+    --radius-full: 2px;
+    --radius-card: 3px;
+    --radius-ctl: 3px;
+    --radius: 3px;
+
+    /* Spacing */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --row-h: 43px;
+
+    /* Motion */
+    --ease: 160ms cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur: 160ms;
+
+    /* Legacy aliases — page rules inherit the new palette through these */
+    --bg: var(--paper);
+    --glass-fill: var(--paper-2);
+    --glass-fill-strong: var(--paper-3);
+    --glass-border: var(--rule);
+    --glass-highlight: transparent;
+    --glass-bg: var(--paper-2);
+    --glass-hover: var(--paper-3);
+    --glass-blur: none;
+    --glass-shadow: none;
+    --glass-inner-shadow: none;
+
+    --text: var(--ink);
+    --text-dim: var(--ink-2);
+    --text-muted: var(--ink-2);
+    --text-faint: var(--ink-3);
+
+    --panel: var(--paper-2);
+    --panel-2: var(--paper-3);
+    --border: var(--rule);
+    --border-strong: var(--rule-strong);
+
+    --orange: var(--accent-orange);
+    --orange-strong: var(--accent-orange-ink);
+    --orange-fill: var(--accent-orange-wash);
+    --orange-fill-strong: var(--accent-orange-wash);
+    --orange-border: var(--accent-orange);
+
+    --accent-blue-fill: var(--accent-blue-wash);
+    --accent-blue-fill-strong: var(--accent-blue-wash);
+    --accent-blue-border: var(--accent-blue);
+    --accent-green-fill: var(--accent-green-wash);
+    --accent-green-border: var(--accent-green);
+    --accent-red-fill: var(--accent-red-wash);
+    --accent-red-border: var(--accent-red);
+
+    --blue: var(--accent-blue);
+    --green: var(--accent-green);
+    --red: var(--accent-red);
+    --yellow: var(--accent-orange);
+    --purple: var(--ink-2);
+
+    --accent: var(--ink);
+    --accent-2: var(--accent-blue);
+    --accent-rgb: 20, 20, 22;
+    --primary: var(--ink);
+
+    /* Status channel colours — ink values, one per channel */
+    --glow-idle: 20, 20, 22;
+    --glow-generating: 20, 20, 22;
+    --glow-success: 46, 116, 76;
+    --glow-failure: 150, 60, 45;
+    --glow-filling: 150, 104, 40;
+    --glow-loading: 20, 20, 22;
+    --glow-error: 150, 60, 45;
+    --glow-c: 20, 20, 22;
+    --glow-o: 0;
+
+    color-scheme: light;
+}
+
+html[data-theme="ink"] {
+    --paper: oklch(17% 0.01 70);
+    --paper-2: oklch(21% 0.012 70);
+    --paper-3: oklch(24.5% 0.012 70);
+    --paper-4: oklch(28% 0.012 70);
+
+    --ink: oklch(93% 0.012 85);
+    --ink-2: oklch(78% 0.012 85);
+    --ink-3: oklch(64% 0.011 82);
+    --ink-4: oklch(52% 0.01 76);
+
+    --rule: oklch(32% 0.012 70);
+    --rule-2: oklch(26% 0.012 70);
+    --rule-strong: oklch(46% 0.012 72);
+
+    --accent-orange: oklch(76% 0.12 72);
+    --accent-orange-ink: oklch(84% 0.1 74);
+    --accent-orange-wash: oklch(26% 0.03 70);
+    --accent-blue: oklch(72% 0.09 245);
+    --accent-blue-wash: oklch(25% 0.028 245);
+    --accent-green: oklch(74% 0.1 152);
+    --accent-green-wash: oklch(25% 0.03 152);
+    --accent-red: oklch(70% 0.14 27);
+    --accent-red-wash: oklch(25% 0.035 27);
+
+    --glow-success: 130, 190, 150;
+    --glow-failure: 220, 130, 115;
+    --glow-filling: 220, 180, 110;
+
+    color-scheme: dark;
+}
+
+/* ------------------------------------------------------------------ base */
+
+* {
+    box-sizing: border-box;
+}
+
+::selection {
+    background: var(--ink);
+    color: var(--paper);
+}
+
+:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+hr,
+.pr-rule {
+    border: 0;
+    border-top: 1px solid var(--rule);
+    margin: 0;
+}
+
+/* Slim ink scrollbars */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--rule-strong) transparent;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--rule);
+    border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--rule-strong);
+}
+
+/* ------------------------------------------------------- shared primitives */
+
+.pr-mono {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+}
+
+.pr-display {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-style: normal;
+    letter-spacing: -0.02em;
+    line-height: 1.08;
+}
+
+/* Small square mark button used in page headers (theme toggle, utilities) */
+.pr-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink-3);
+    cursor: pointer;
+    transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+.pr-icon-btn:hover {
+    color: var(--ink);
+    border-color: var(--rule);
+}
+
+.pr-icon-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Status stamp — the replacement for the old glow. One per channel. */
+.pr-stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 7px 2px 6px;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    font-family: var(--font-mono);
+    font-size: 0.56rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    line-height: 1.5;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    white-space: nowrap;
+    transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease),
+        background-color var(--dur) var(--ease);
+}
+
+.pr-stamp::before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.55;
+}
+
+.pr-stamp[data-tone="busy"] {
+    color: var(--ink);
+    border-color: var(--ink-3);
+}
+
+.pr-stamp[data-tone="busy"]::before {
+    opacity: 1;
+    animation: prStampPulse 1s steps(2, end) infinite;
+}
+
+.pr-stamp[data-tone="ok"] {
+    color: var(--accent-green);
+    border-color: var(--accent-green);
+    background: var(--accent-green-wash);
+}
+
+.pr-stamp[data-tone="bad"] {
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+    background: var(--accent-red-wash);
+}
+
+.pr-stamp[data-tone="warn"] {
+    color: var(--accent-orange-ink);
+    border-color: var(--accent-orange);
+    background: var(--accent-orange-wash);
+}
+
+.pr-stamp[data-tone="info"] {
+    color: var(--accent-blue);
+    border-color: var(--accent-blue);
+    background: var(--accent-blue-wash);
+}
+
+@keyframes prStampPulse {
+    0%,
+    49% {
+        opacity: 1;
+    }
+    50%,
+    100% {
+        opacity: 0.15;
+    }
+}
+
+/* Blinking ink caret for typewritten status lines */
+.pr-caret {
+    display: inline-block;
+    width: 0.5em;
+    height: 1em;
+    margin-left: 2px;
+    background: currentColor;
+    vertical-align: -0.12em;
+    animation: prCaretBlink 1.06s steps(1, end) infinite;
+}
+
+@keyframes prCaretBlink {
+    0%,
+    49% {
+        opacity: 1;
+    }
+    50%,
+    100% {
+        opacity: 0;
+    }
+}
+
+/* Generic overlay used by the swarm build and page modals that opt in */
+.pr-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    background: var(--paper);
+}
+
+.pr-overlay[hidden] {
+    display: none !important;
+}
+
+/* ------------------------------------------------------------------ sheet
+   The paper document the swarm builds. Shared by resume-html.js output and
+   swarm.html so the HTML the agents build is the HTML the user sees.
+   ------------------------------------------------------------------------- */
+
+.pr-sheet {
+    --sheet-pad: 22px;
+    position: relative;
+    margin: 0 auto;
+    padding: var(--sheet-pad);
+    background: #fdfaf4;
+    color: #14120f;
+    font-family: var(--font-body);
+    font-size: 10.5px;
+    line-height: 1.45;
+    text-align: left;
+}
+
+.pr-sheet * {
+    box-sizing: border-box;
+}
+
+.pr-sheet__head {
+    padding-bottom: 8px;
+    border-bottom: 1.5px solid #14120f;
+}
+
+.pr-sheet__name {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    color: #14120f;
+}
+
+.pr-sheet__role {
+    margin: 1px 0 0;
+    font-size: 11px;
+    font-weight: 500;
+    color: #3a352f;
+}
+
+.pr-sheet__contact {
+    margin: 5px 0 0;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    line-height: 1.7;
+    color: #4a443c;
+}
+
+.pr-sheet__section {
+    margin-top: 11px;
+}
+
+.pr-sheet__label {
+    margin: 0 0 4px;
+    padding-bottom: 2px;
+    border-bottom: 1px solid #b9b0a1;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #14120f;
+}
+
+.pr-sheet__body {
+    margin: 0;
+    font-size: 10px;
+    line-height: 1.5;
+    color: #26221c;
+}
+
+.pr-sheet__entry {
+    margin-top: 6px;
+}
+
+.pr-sheet__entry:first-of-type {
+    margin-top: 0;
+}
+
+.pr-sheet__entry-head {
+    margin: 0;
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: #14120f;
+}
+
+.pr-sheet__entry-meta {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    line-height: 1.6;
+    color: #5a5248;
+}
+
+.pr-sheet__list {
+    margin: 3px 0 0;
+    padding-left: 12px;
+    list-style: none;
+}
+
+.pr-sheet__list li {
+    position: relative;
+    margin: 0 0 2px;
+    font-size: 10px;
+    line-height: 1.45;
+    color: #26221c;
+}
+
+.pr-sheet__list li::before {
+    content: "";
+    position: absolute;
+    left: -9px;
+    top: 0.62em;
+    width: 3px;
+    height: 1px;
+    background: #14120f;
+}
+
+.pr-sheet__skills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pr-sheet__skills li {
+    padding: 1px 5px;
+    border: 1px solid #cfc6b7;
+    border-radius: 2px;
+    font-size: 8.5px;
+    line-height: 1.6;
+    color: #26221c;
+}
+
+.pr-sheet__letter {
+    font-size: 10.5px;
+    line-height: 1.6;
+}
+
+.pr-sheet__letter p {
+    margin: 0 0 8px;
+}
+
+/* =========================================================== swarm overlay */
+
+.pr-swarm {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    background: var(--paper);
+    animation: prSwarmIn 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pr-swarm[hidden] {
+    display: none !important;
+}
+
+@keyframes prSwarmIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.pr-swarm__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+}
+
+.pr-swarm__title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink);
+}
+
+.pr-swarm__skip {
+    flex: 0 0 auto;
+    padding: 4px 9px;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink-2);
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+.pr-swarm__skip:hover {
+    color: var(--ink);
+    border-color: var(--ink-3);
+}
+
+.pr-swarm__frame {
+    flex: 1 1 auto;
+    width: 100%;
+    border: 0;
+    background: var(--paper);
+}
+
+/* -------------------------------------------------------- reduced / off */
+
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
