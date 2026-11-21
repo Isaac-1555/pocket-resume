@@ -2545,8 +2545,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '10.18.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '10.18.0';
+  const ANNOUNCEMENT_VERSION = '10.19.0';
+  const ANNOUNCEMENT_SEEN_VALUE = '10.19.0';
 
   function dismissWhatsNew() {
     chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_SEEN_VALUE });

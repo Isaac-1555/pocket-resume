@@ -1331,6 +1331,7 @@
 
     .resume-label-input {
       flex: 1;
+      min-width: 0;
       padding: 8px 10px;
       border: 1px solid var(--glass-border);
       border-radius: var(--radius-sm);
@@ -1423,6 +1424,36 @@
       color: var(--orange);
       background: var(--orange-fill);
       border-color: var(--orange-border);
+    }
+
+    .duplicate-tab-btn {
+      padding: 7px 12px;
+      border: 1px solid var(--accent-blue-border);
+      border-radius: var(--radius-sm);
+      background: var(--accent-blue-fill);
+      color: var(--accent-blue);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s var(--ease-out);
+      box-shadow: none;
+      font-family: inherit;
+      margin: 0;
+    }
+
+    .duplicate-tab-btn:hover:not(:disabled) {
+      background: var(--accent-blue-fill-strong);
+      border-color: var(--accent-blue);
+      transform: none;
+      box-shadow: none;
+    }
+
+    .duplicate-tab-btn:disabled {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--glass-border);
+      color: var(--text-faint);
+      cursor: not-allowed;
+      box-shadow: none;
     }
 
     .delete-tab-btn {

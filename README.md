@@ -21,8 +21,28 @@
 - **Smart location choice** — when a posting lists several locations and one matches your resume's location, that one is used; otherwise the posting's primary location wins
 - **Feedback box** — send a bug report or an idea from Settings, with your email so the answer can come back to you. No account needed
 - **PDF Export** — clean, print-ready PDFs via jsPDF for every layout
-- **Multi-Profile** — save up to 3 master profiles and switch between them
+- **Multi-Profile** — save up to 3 master profiles, switch between them, and duplicate one into a free slot when you want a variant without touching the master
 - **Privacy First** — resumes stay in `chrome.storage.local`; generation and form filling are local. The only network calls are the opt-in Resume health/letter providers and the daily refresh of the public company/title/location lists
+
+### What's New in v10.19.0
+
+- **Duplicate a resume.** Settings → the resume editor has a *Duplicate* button next to *Delete*. It copies the resume you are editing — content, icon, label and cover letter — into a free slot and opens the copy, so a variant is one click away instead of a second paste.
+- **The master stays the master.** The copy is a separate resume with its own id; editing it never touches the original, and the side panel keeps generating from your master until you pick the copy yourself.
+- **Still three slots.** The button turns off when all three are taken, and says so on hover.
+
+### What's New in v10.18.0
+
+- **Your corrections stick.** Fix the company, job title or location in the review dialog once and the next generation for that posting starts from your values — matched by URL, by path and by the raw title + company, so a changed query string or a move to `/apply` still finds them.
+- **Corrections teach the directories.** A typed value becomes the name, the raw page text becomes its alias, and nothing is saved twice. The manual management lists are gone from Settings.
+- **The cover letter gets the fix too.** Generating the letter right after the resume no longer re-reads the page's uncorrected title and company.
+- **The update card scrolls.** Long announcements fit inside the panel with the buttons always reachable; Esc or the backdrop closes it.
+
+### What's New in v10.17.0
+
+- **Attach puts the resume on the page.** Every file card has an Attach button that finds the upload field (including a form inside a frame) and hands over the PDF as a real file.
+- **Dropping a card works on every Chrome.** The page takes the drop over, reads the stored bytes and puts them on the file picker itself.
+- **A page that asks for consent is pointed out.** Application forms that hold every upload behind a privacy dialog get scrolled to and outlined, and the toast says to answer it.
+- **The Form Filler reloads instead of giving up.** A tab that never answered is reloaded once and retried, so a tab opened before the extension loaded no longer ends in *"Could not reach the page."*
 
 ### What's New in v10.16.0
 

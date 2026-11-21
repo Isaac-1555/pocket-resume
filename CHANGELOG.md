@@ -1,5 +1,9 @@
 # Changelog
 
+## [10.19.0] — 2026-11-20
+### Added
+- **Duplicate a resume into a new slot.** The resume editor has a *Duplicate* button next to *Delete*. It copies the resume you are editing — content, icon, label and cover letter — into a free slot, opens that copy so you can make slight changes to it, and leaves the panel generating from the master until you pick the copy yourself. The copy is a separate resume with its own id, so cloud sync keeps the two apart. Three resumes is still the limit; the button turns off when the slots are full.
+
 ## [10.18.0] — 2026-11-19
 ### Added
 - **Corrections teach the directories on their own.** The company, job title and location you fix in the review dialog are saved automatically: a typed value becomes the name, the raw text from the page becomes its alias, and the next posting from that employer resolves itself. Nothing is saved twice.
