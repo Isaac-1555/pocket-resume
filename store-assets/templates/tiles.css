@@ -1,107 +1,123 @@
-:root {
-    --ink: #0A0D12;
-    --ink-raised: #11151D;
-    --paper: #F4F1E8;
-    --slate: #8890A0;
-    --amber: #FF8A3D;
-    --cyan: #4FD7E0;
-    --violet: #9B7BFF;
-}
+/* Promo tiles — Warm Press paper and ink. Colours from libs/theme.css. */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+}
 
 .tile {
     position: relative;
     overflow: hidden;
-    font-family: 'Inter', sans-serif;
-    color: var(--paper);
-    -webkit-font-smoothing: antialiased;
-    background:
-        radial-gradient(900px 600px at 85% -10%, rgba(255, 138, 61, 0.10), transparent 60%),
-        radial-gradient(700px 500px at -8% 110%, rgba(79, 215, 224, 0.07), transparent 55%),
-        linear-gradient(160deg, #0D1118 0%, #0A0D12 55%, #07090D 100%);
+    background: var(--paper);
 }
 
-.glow {
+.tile::before {
+    content: "";
     position: absolute;
-    border-radius: 50%;
-    filter: blur(110px);
+    inset: 0;
+    background:
+        radial-gradient(520px 380px at 92% 2%, var(--paper-2), transparent 62%),
+        radial-gradient(420px 320px at 0% 104%, var(--paper-2), transparent 58%);
     pointer-events: none;
 }
-
-.glow.amber { background: rgba(255, 138, 61, 0.30); }
-.glow.cyan { background: rgba(79, 215, 224, 0.26); }
-.glow.violet { background: rgba(155, 123, 255, 0.26); }
 
 .lockup {
     position: absolute;
     display: flex;
     align-items: center;
-    gap: 11px;
+    gap: 10px;
     z-index: 10;
 }
 
-.lockup img { border-radius: 7px; }
+.lockup img { border-radius: 2px; }
 
 .lockup .name {
-    font-family: 'Fraunces', serif;
+    font-family: var(--font-display);
     font-weight: 600;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.005em;
+    color: var(--ink);
+}
+
+.badge {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent-orange-ink);
+    background: var(--accent-orange-wash);
+    border: 1px solid var(--accent-orange);
+    border-radius: 2px;
+    z-index: 10;
+}
+
+.badge .dot {
+    width: 5px;
+    height: 5px;
+    background: var(--accent-orange);
+    border-radius: 50%;
 }
 
 .eyebrow {
-    font-family: 'JetBrains Mono', monospace;
-    letter-spacing: 0.3em;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    letter-spacing: 0.28em;
     text-transform: uppercase;
+    color: var(--accent-orange-ink);
 }
-
-.eyebrow.amber { color: var(--amber); }
 
 .display {
-    font-family: 'Fraunces', serif;
+    font-family: var(--font-display);
     font-weight: 600;
-    line-height: 1.06;
-    letter-spacing: -0.015em;
-    color: var(--paper);
+    line-height: 1.04;
+    letter-spacing: -0.018em;
+    color: var(--ink);
 }
 
-.display .accent-a { color: var(--amber); }
-.display .accent-c { color: var(--cyan); }
+.display .italic { font-style: italic; }
 
 .sub {
-    color: var(--slate);
+    color: var(--ink-2);
     line-height: 1.55;
 }
 
-.chips { display: flex; gap: 9px; }
+.chips { display: flex; gap: 7px; flex-wrap: wrap; }
 
 .chip {
-    font-family: 'JetBrains Mono', monospace;
-    color: rgba(244, 241, 232, 0.85);
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    border-radius: 999px;
+    font-family: var(--font-mono);
+    color: var(--ink-2);
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    white-space: nowrap;
 }
 
 .footer {
     position: absolute;
-    font-family: 'JetBrains Mono', monospace;
-    letter-spacing: 0.22em;
+    font-family: var(--font-mono);
+    letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: rgba(136, 144, 160, 0.75);
+    color: var(--ink-3);
     z-index: 10;
 }
 
 .frame {
     position: absolute;
-    border-radius: 16px;
     overflow: hidden;
-    background: var(--ink-raised);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--paper-2);
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
     box-shadow:
-        0 40px 90px rgba(0, 0, 0, 0.60),
-        0 14px 34px rgba(0, 0, 0, 0.45);
-    z-index: 3;
+        0 18px 36px rgba(43, 38, 30, 0.16),
+        0 4px 10px rgba(43, 38, 30, 0.10);
+    z-index: 4;
 }
 
 .frame img.shot {
@@ -109,16 +125,19 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: top center;
 }
 
 .page {
     position: absolute;
     overflow: hidden;
-    border-radius: 8px;
+    border-radius: 2px;
     background: #ffffff;
+    border: 1px solid var(--rule-2);
     box-shadow:
-        0 30px 70px rgba(0, 0, 0, 0.55),
-        0 10px 24px rgba(0, 0, 0, 0.40);
+        0 16px 32px rgba(43, 38, 30, 0.18),
+        0 4px 10px rgba(43, 38, 30, 0.10);
+    z-index: 3;
 }
 
 .page img {

@@ -1,21 +1,15 @@
-:root {
-    --ink: #0A0D12;
-    --ink-raised: #11151D;
-    --paper: #F4F1E8;
-    --slate: #8890A0;
-    --amber: #FF8A3D;
-    --cyan: #4FD7E0;
-    --violet: #9B7BFF;
-}
+/* Store marketing frames — Warm Press: paper, ink, hairline rules.
+   Colours come from libs/theme.css (linked first in every template), so the
+   frames cannot drift from the app. Fonts are the bundled Fraunces / IBM Plex. */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body { width: 1280px; height: 800px; overflow: hidden; }
 
 body {
-    font-family: 'Inter', sans-serif;
-    background: var(--ink);
-    color: var(--paper);
+    font-family: var(--font-body);
+    background: var(--paper);
+    color: var(--ink);
     -webkit-font-smoothing: antialiased;
 }
 
@@ -24,114 +18,156 @@ body {
     width: 1280px;
     height: 800px;
     overflow: hidden;
-    background:
-        radial-gradient(1100px 700px at 82% -10%, rgba(255, 138, 61, 0.10), transparent 60%),
-        radial-gradient(900px 700px at -8% 110%, rgba(79, 215, 224, 0.07), transparent 55%),
-        linear-gradient(160deg, #0D1118 0%, #0A0D12 55%, #07090D 100%);
+    background: var(--paper);
 }
 
-.glow {
+/* One soft warm pool so the paper is not dead flat — no glow, no gradient text. */
+.canvas::before {
+    content: "";
     position: absolute;
-    border-radius: 50%;
-    filter: blur(130px);
+    inset: 0;
+    background:
+        radial-gradient(760px 520px at 88% 4%, var(--paper-2), transparent 62%),
+        radial-gradient(680px 480px at 4% 102%, var(--paper-2), transparent 58%);
+    opacity: 0.85;
     pointer-events: none;
 }
 
-.glow.amber { background: rgba(255, 138, 61, 0.30); }
-.glow.cyan { background: rgba(79, 215, 224, 0.26); }
-.glow.violet { background: rgba(155, 123, 255, 0.26); }
+/* Hairline rules top and bottom, like the app's chrome */
+.canvas::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: var(--rule);
+    pointer-events: none;
+    z-index: 20;
+}
 
 .lockup {
     position: absolute;
-    top: 36px;
+    top: 40px;
     left: 48px;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 11px;
     z-index: 10;
 }
 
-.lockup img { width: 34px; height: 34px; border-radius: 8px; }
+.lockup img { width: 32px; height: 32px; }
 
 .lockup .name {
-    font-family: 'Fraunces', serif;
+    font-family: var(--font-display);
     font-size: 20px;
     font-weight: 600;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.005em;
+    color: var(--ink);
+}
+
+.badge {
+    position: absolute;
+    top: 42px;
+    right: 48px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent-orange-ink);
+    background: var(--accent-orange-wash);
+    border: 1px solid var(--accent-orange);
+    border-radius: 2px;
+    padding: 7px 11px;
+    z-index: 10;
+}
+
+.badge .dot {
+    width: 6px;
+    height: 6px;
+    background: var(--accent-orange);
+    border-radius: 50%;
 }
 
 .footer {
     position: absolute;
-    bottom: 30px;
+    bottom: 34px;
     left: 48px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    letter-spacing: 0.22em;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
-    color: rgba(136, 144, 160, 0.75);
+    color: var(--ink-3);
     z-index: 10;
 }
 
-.eyebrow {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
-    font-weight: 500;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    margin-bottom: 22px;
-}
+.footer.right { left: auto; right: 48px; }
 
-.eyebrow.amber { color: var(--amber); }
-.eyebrow.cyan { color: var(--cyan); }
-.eyebrow.violet { color: var(--violet); }
+.eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--accent-orange-ink);
+    margin-bottom: 20px;
+}
 
 .display {
-    font-family: 'Fraunces', serif;
+    font-family: var(--font-display);
     font-weight: 600;
     font-size: 62px;
-    line-height: 1.06;
-    letter-spacing: -0.015em;
-    color: var(--paper);
+    line-height: 1.05;
+    letter-spacing: -0.018em;
+    color: var(--ink);
 }
 
-.display .accent-a { color: var(--amber); }
-.display .accent-c { color: var(--cyan); }
-.display .accent-v { color: var(--violet); }
+.display.accent { color: var(--accent-orange-ink); }
+
+.display .italic { font-style: italic; }
 
 .sub {
     font-size: 19px;
     line-height: 1.55;
-    color: var(--slate);
+    color: var(--ink-2);
     margin-top: 22px;
-    max-width: 460px;
+    max-width: 470px;
 }
 
 .chips {
     display: flex;
-    gap: 10px;
+    flex-wrap: wrap;
+    gap: 8px;
     margin-top: 30px;
+    max-width: 560px;
 }
 
 .chip {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11.5px;
-    letter-spacing: 0.08em;
-    color: rgba(244, 241, 232, 0.85);
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    border-radius: 999px;
-    padding: 8px 14px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--ink-2);
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 7px 12px;
+    white-space: nowrap;
 }
 
 .frame {
     position: absolute;
-    border-radius: 18px;
     overflow: hidden;
-    background: var(--ink-raised);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--paper-2);
+    border: 1px solid var(--rule-strong);
+    border-radius: 4px;
     box-shadow:
-        0 50px 110px rgba(0, 0, 0, 0.60),
-        0 18px 40px rgba(0, 0, 0, 0.45);
+        0 24px 48px rgba(43, 38, 30, 0.16),
+        0 6px 14px rgba(43, 38, 30, 0.10);
+    z-index: 4;
 }
 
 .frame img.shot {
@@ -139,16 +175,19 @@ body {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: top center;
 }
 
 .page {
     position: absolute;
     overflow: hidden;
-    border-radius: 10px;
+    border-radius: 2px;
     background: #ffffff;
+    border: 1px solid var(--rule-2);
     box-shadow:
-        0 40px 90px rgba(0, 0, 0, 0.55),
-        0 12px 30px rgba(0, 0, 0, 0.40);
+        0 22px 44px rgba(43, 38, 30, 0.18),
+        0 5px 12px rgba(43, 38, 30, 0.10);
+    z-index: 3;
 }
 
 .page img {
@@ -157,4 +196,20 @@ body {
     height: 100%;
     object-fit: cover;
     object-position: top;
+}
+
+.page-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    text-align: center;
+}
+
+/* Badge placed inside the copy column (avoids colliding with a screenshot frame) */
+.badge.inline {
+    position: static;
+    margin-bottom: 20px;
+    display: inline-flex;
 }
