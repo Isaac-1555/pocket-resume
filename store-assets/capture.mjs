@@ -25,23 +25,23 @@ const MATCH_REPORT = {
     jdWarnings: [],
 };
 
-const PRO_ACCESS = {
-    signedIn: true,
-    isPro: true,
-    promoActive: true,
-    withinWindow: true,
-    proAccess: true,
+const FREE_ACCESS = {
+    signedIn: false,
+    isSupporter: false,
+    isPro: false,
     canGenerate: true,
-    cloudSyncAccess: true,
+    cloudSyncAccess: false,
+    proAccess: true,
+    planPeriod: '',
     resolved: true,
     healthy: true,
-    trialDaysLeft: 0,
-    planPeriod: 'month',
     checkedAt: Date.now(),
 };
 
+const TRACKER_PLAN_CACHE = { signedIn: false, isSupporter: false, planPeriod: '', checkedAt: Date.now() };
+
 function initScript(seed) {
-    const serialized = JSON.stringify({ seed, resumeJson, coverLetterJson, report: MATCH_REPORT, proAccess: PRO_ACCESS, pageTitle: PAGE_TITLE, pageUrl: PAGE_URL });
+    const serialized = JSON.stringify({ seed, resumeJson, coverLetterJson, report: MATCH_REPORT, access: FREE_ACCESS, pageTitle: PAGE_TITLE, pageUrl: PAGE_URL });
     return `(() => {
         const cfg = ${serialized};
         const store = { ...cfg.seed };
@@ -82,15 +82,17 @@ function initScript(seed) {
             },
             runtime: {
                 lastError: undefined,
+                onMessage: { addListener() {} },
+                onInstalled: { addListener() {} },
                 getURL: (p) => new URL(p, window.location.href).href,
-                getManifest: () => ({ version: '10.7.0', name: 'PocketResume' }),
+                getManifest: () => ({ version: '11.0.0', name: 'PocketResume' }),
                 openOptionsPage() {},
                 sendMessage(msg, cb) {
                     setTimeout(() => {
                         if (msg && msg.type === 'GENERATE') {
                             cb({ status: 'success', data: window.__RESUME_JSON__, coverLetterData: window.__COVER_LETTER_JSON__, report: window.__MATCH_REPORT__ });
                         } else if (msg && msg.type === 'CHECK_PRO_ACCESS') {
-                            cb(cfg.proAccess);
+                            cb({ status: 'success', allowed: true, signedIn: false, isSupporter: false });
                         } else {
                             cb({ status: 'success' });
                         }
@@ -101,21 +103,24 @@ function initScript(seed) {
                 query: async () => [{ id: 1, title: window.__PAGE_TITLE__, url: window.__PAGE_URL__ }],
                 create() {},
                 sendMessage(msg, cb) { cb && cb({ text: '' }); },
+                onActivated: { addListener() {} },
+                onUpdated: { addListener() {} },
             },
             scripting: { executeScript: async () => [] },
             permissions: { request: async () => true, contains: async () => true },
             i18n: { getMessage: () => '' },
         };
         // Page realms normally load the Clerk bundle; the capture harness answers
-        // with a signed-in Pro session so the gate renders the ready state.
+        // with a signed-out account (the free model), so the panel renders the
+        // same ready state a first-time user sees.
         Object.defineProperty(window, 'CloudSync', {
             configurable: true,
             get: () => ({
                 isConfigured: () => true,
                 init: async () => {},
-                isSignedIn: async () => true,
-                getAccessState: async () => ({ ...cfg.proAccess }),
-                getUserProfile: async () => ({ name: 'Maya Chen', email: 'maya.chen@hey.com' }),
+                isSignedIn: async () => false,
+                getAccessState: async () => ({ ...cfg.access }),
+                getUserProfile: async () => null,
                 startAutoSync: () => {},
                 syncResumes: async () => ({ changed: false }),
                 signIn: async () => {},
@@ -156,11 +161,6 @@ async function patchJsPdfSave(page) {
         window.jspdf.jsPDF = Wrapped;
         if (window.ResumeRenderers) window.ResumeRenderers.jsPDF = Wrapped;
     });
-}
-
-async function hideFillForm(page) {
-    await page.addStyleTag({ content: '#fillFormBtn { display: none !important; }' });
-    await page.waitForTimeout(150);
 }
 
 async function drainPdfs(page) {
@@ -219,16 +219,17 @@ async function main() {
             resumes: RESUME_SEED,
             selectedResumeId: 'r1',
             resumeType: 'professional',
-            animationsEnabled: true,
+            animationsEnabled: false,
+            jdReviewDisabled: true,
             onboardingCompleted: true,
-            lastSeenAnnouncement: '10.7.0',
+            lastSeenAnnouncement: '11.0.0',
             growthRatingPrompt: { converted: true },
             growthSharePrompt: { converted: true },
             quickDownloadNewBadgeDismissed: true,
             trackerNewBadgeDismissed: true,
             fillFormNewBadgeDismissed: true,
-            proAccessCache: PRO_ACCESS,
-            trackerPlanCache: PRO_ACCESS,
+            proAccessCache: FREE_ACCESS,
+            trackerPlanCache: TRACKER_PLAN_CACHE,
         }));
         const page = await context.newPage();
         page.on('pageerror', (e) => console.error('[pageerror]', e.message));
@@ -236,13 +237,15 @@ async function main() {
         await page.goto(fileUrl('sidebar.html'));
         await page.waitForSelector('#generateBtn');
         await page.waitForTimeout(900);
-        await hideFillForm(page);
         await patchJsPdfSave(page);
 
         await page.locator('body').screenshot({ path: path.join(CAPTURES, 'popup-idle.png') });
         console.log('captured popup-idle');
 
         await runGenerate(page);
+        // The shelf prints "Replaced the files from the previous posting." for 4 s
+        // after a swap; let it fall back to the normal hint before the shot.
+        await page.waitForTimeout(4300);
         await page.locator('body').screenshot({ path: path.join(CAPTURES, 'popup-success.png') });
         let outputs = await drainPdfs(page);
         for (const o of outputs) {
@@ -294,9 +297,8 @@ async function main() {
         await context.addInitScript(initScript({
             applications: trackerApplications,
             trackerTourSeen: true,
-            trackerLockDismissed: true,
-            trackerPlanCache: PRO_ACCESS,
-            proAccessCache: PRO_ACCESS,
+            trackerPlanCache: TRACKER_PLAN_CACHE,
+            proAccessCache: FREE_ACCESS,
         }));
         const page = await context.newPage();
         await page.goto(fileUrl('tracker.html'));
@@ -307,7 +309,13 @@ async function main() {
         await page.click('[data-view="graph"]');
         await page.waitForTimeout(1800);
         await page.screenshot({ path: path.join(CAPTURES, 'tracker-graph.png') });
-        console.log('captured tracker-graph');
+        // Marketing crop: the funnel band only (panel title, filters, Sankey), no
+        // tall empty canvas and no legends below it.
+        await page.screenshot({
+            path: path.join(CAPTURES, 'tracker-funnel.png'),
+            clip: { x: 0, y: 96, width: 1280, height: 380 },
+        });
+        console.log('captured tracker-graph + tracker-funnel');
         await context.close();
     }
 
@@ -329,8 +337,8 @@ async function main() {
             selectedResumeId: 'r1',
             resumeType: 'professional',
             onboardingCompleted: true,
-            lastSeenAnnouncement: '10.7.0',
-            proAccessCache: PRO_ACCESS,
+            lastSeenAnnouncement: '11.0.0',
+            proAccessCache: FREE_ACCESS,
         }));
         const page = await context.newPage();
         page.on('pageerror', (e) => console.error('[options pageerror]', e.message));

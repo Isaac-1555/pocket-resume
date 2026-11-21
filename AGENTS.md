@@ -127,6 +127,16 @@ Exclude: `node_modules/`, `dist/`, `.git`, `.github/`, `convex/`, `scripts/`, `s
 
 `store-assets/permissions.md` holds the Chrome Web Store permission justifications for `sidePanel` and `unlimitedStorage`: a short paste-ready block per permission plus the code evidence (file:line) a reviewer can check. **Update it when the manifest permissions, the shelf or the storage limits change** — the line references are the point of it. The privacy policy's *Permissions* section carries the same wording in user-facing form.
 
+### Store listing assets
+
+`store-assets/` holds everything the store listing needs. Regenerate it with **`npm run build:store-assets`** (`capture.mjs` → `render.mjs` → `render-tiles.mjs`):
+
+- `capture.mjs` loads the **real** `sidebar.html` / `options.html` / `tracker.html` from `file://` behind a stubbed `chrome.*` + `CloudSync`, seeds `sample-data.mjs`, generates the actual PDFs, and writes `captures/*.png` at 2–3× DPR. The stub answers as a **signed-out free user** (`FREE_ACCESS`), so the shots show what a first launch looks like; keep it that way — a capture that requires a plan would advertise a gate the app no longer has.
+- `render.mjs` composites the 5 `templates/*.html` into `screenshots/*.png` at 1280×800; `render-tiles.mjs` renders the 440×280 and 1400×560 promo tiles.
+- The templates are **paper and ink** and link `libs/theme.css` directly, so the marketing frames and the app share one palette. Do not reintroduce the old dark-glass frames: the screenshots must look like the product.
+- Seeded UI state that keeps the shots clean: `jdReviewDisabled: true` (otherwise the job-details dialog holds the run for 30 s), `growthRatingPrompt` / `growthSharePrompt` converted (otherwise a prompt covers the panel), `lastSeenAnnouncement` at the current version, `animationsEnabled: false`.
+- `listing.md` is the paste-ready store copy: short description, detailed description, What's new, asset table, and the claims to avoid.
+
 ## High-level architecture
 
 ### Resume form + local parser (v10.0)
@@ -618,7 +628,8 @@ PocketResume/
 - **Change the parser or JSON schema**: `resume-parse.js` (`parseResumeText`, `normalizeResumeProfile`) + fixtures in `scripts/test-align.mjs`. Update the style config table above if the layout mapping changes.
 - **Change what we extract from a page**: `content.js` (`extractPageText` — prefers the largest `main`/`article` block, then the body; `extractStructuredData` — schema.org `JobPosting`), plus `buildJobText` in `background.js`, which appends the JSON-LD description when the visible page does not contain it.
 - **Change form detection / filling / safety rules**: `form-filler.js` (`detect` / `fill` / `flag` / `unflag` / `toast` / `attachFile`) + `content.js` (the `FORM_DETECT` / `FORM_FILL` / `FORM_TOAST` / `ATTACH_FILE` handlers) + `background.js` (`FILL_APPLICATION_FORM` handler + `collectFormFrames` + `reloadTabAndWait`). Keep the Form Filler on the declarative content script — `npm run test:formfill` fails if it goes back to `executeScript`.
-- **Change the launch copy / positioning**: `MARKETING.md` (one-liners, store listing, posts, the claims not to make) + the What's New modal in `sidebar.html`.
+- **Change the launch copy / positioning**: `MARKETING.md` (one-liners, posts, the claims not to make), `store-assets/listing.md` (the store fields) and the What's New modal in `sidebar.html`.
+- **Change the store screenshots or promo tiles**: `store-assets/templates/*.html` + `shared.css` / `tiles.css` (paper and ink, palette from `libs/theme.css`), then `npm run build:store-assets`.
 - **Change the free model, sign-in or the Supporter plan**: `src/cloud-sync.js` (`getAccessState`/`hasCloudSyncAccess`/`hasProAccess`), `background.js` (`getGenerationAccess`), `sidebar.js` (`refreshGate` + `currentAccess` + `maybeShowSupporterNudge`), `options.js` (account card), `tracker.js` (`checkAccess`), and `scripts/test-access.mjs` (the guard).
 - **Change generation / JD alignment**: `resume-align.js` (`parseJobPosting`, `alignResumeJson`, verifier), `background.js` (`GENERATE`, `BUILD_COVER_LETTER`), `sidebar.js` (`runGeneration`, `refreshGate`) / `sidebar.html` (`#reviewCard`, `#setupCard`).
 - **Change the skill vocabulary or update source**: `skill-lexicon.js` (parsers, `CURATED_ALIASES`, `AMBIGUOUS_SKILL_KEYS`, source URLs) + `scripts/build-lexicon.mjs` (bundled baseline) + `background.js` (`updateSkillLexicon`, daily alarm, `ENSURE_SKILL_LEXICON`). Keep the O*NET attribution in `NOTICE`.

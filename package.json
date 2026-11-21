@@ -18,6 +18,7 @@
     "build:locations": "node scripts/build-location-directory.mjs",
     "build:titles": "node scripts/build-title-directory.mjs",
     "build:tour": "node scripts/capture-tour.mjs",
+    "build:store-assets": "node store-assets/capture.mjs && node store-assets/render.mjs && node store-assets/render-tiles.mjs",
     "clean": "rm -f cloud-sync.js cloud-sync-core.js && rm -rf convex/_generated",
     "test:access": "node scripts/test-access.mjs",
     "test:align": "node scripts/test-align.mjs",
