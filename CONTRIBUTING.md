@@ -18,7 +18,7 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By particip
 
 - Node.js 18+ and npm
 - Chrome / Chromium / Edge / Brave
-- (Optional) Clerk + Convex accounts if you want to work on Pro auth/pricing or resume sync
+- (Optional) Clerk + Convex accounts if you want to work on sign-in, the Supporter plan or resume sync
 
 ### Install
 
@@ -66,7 +66,7 @@ PocketResume/
 ├── libs/company-directory-global.js # Bundled official company directory (read-only)
 ├── libs/title-directory-global.js # Bundled O*NET job title directory (read-only)
 ├── libs/location-directory-global.js # Bundled GeoNames location directory (read-only)
-├── src/cloud-sync.js        # Pro auth/plan/pricing source (bundled → cloud-sync.js)
+├── src/cloud-sync.js        # Auth, access state, Supporter plan, sync (bundled → cloud-sync.js)
 ├── cloud-sync.js            # [generated] esbuild bundle of src/cloud-sync.js
 ├── convex/                  # Convex backend (resumes schema)
 ├── libs/jspdf.umd.min.js    # Vendored jsPDF build
@@ -135,9 +135,9 @@ Generation is deterministic and runs on-device. If you change the parser, the JD
 - Run `npm run test:companydir` and `npm run test:directories`. They cover sanitization, matching, learning, persistence, multi-location selection and the failure fallbacks (missing directory, malformed payload, corrupted storage).
 - Adding a company/title/location to `libs/*-global.js` needs a unique `id`, a `canonicalName` and `source: 'official'`; aliases are deduped on load. Regenerate the bundled lists with `build:titles` / `build:locations` rather than editing the generated files by hand.
 
-## Pro / Analytics Backend Changes
+## Sign-in, Supporter plan and Cloud Sync
 
-Pro sign-in, plan gating, and the pricing table use Clerk; synced resumes are stored in Convex. Credentials are **not** checked into the repo.
+Everything in the extension works signed out. Sign-in (Clerk) is only for optional resume sync, and the **Supporter** plan is an optional tip that unlocks no features — see the free model rules in `AGENTS.md` before touching any of it. Synced resumes are stored in Convex. Credentials are **not** checked into the repo.
 
 1. Copy `.env.example` to `.env.local` and fill in your own values
 2. Run `npm run build:clerk` to bundle `src/cloud-sync.js` → `cloud-sync.js` with your env vars injected

@@ -152,10 +152,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         pricingMountState = 'idle';
         pricingMountPromise = null;
         if (cloudPricingFallback) {
-          cloudPricingFallback.textContent = `Could not load the Pro pricing table. Details: ${error.message} If it keeps failing, check the Settings page console (F12), then confirm Billing is enabled in Clerk with at least one public user plan.`;
+          cloudPricingFallback.textContent = `Could not load the supporter plans. Details: ${error.message} If it keeps failing, check the Settings page console (F12), then confirm Billing is enabled in Clerk with at least one public user plan.`;
           cloudPricingFallback.style.display = 'block';
         }
-        showStatus('Could not load pricing. Check the message in the Pro panel.', 'error', 7000);
+        showStatus('Could not load the support plans. Check the message in the panel.', 'error', 7000);
       }
     })();
     return pricingMountPromise;
@@ -897,31 +897,23 @@ My resume:
     cloudAvatarInitials.textContent = source.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || '?';
   }
 
-  function renderAccountOffer(promo) {
+  function renderAccountOffer() {
     if (accountOfferBadge) {
-      accountOfferBadge.textContent = promo ? 'Free to try' : 'Pro';
+      accountOfferBadge.textContent = 'Free forever';
       accountOfferBadge.style.display = 'inline-block';
     }
     if (accountOfferTitle) {
-      accountOfferTitle.textContent = promo ? 'Free to try until Dec 31' : 'Keep generating after Dec 31';
+      accountOfferTitle.textContent = 'No account needed';
     }
     if (accountOfferSub) {
-      accountOfferSub.textContent = promo
-        ? 'Create an account — no card required. Then $4/month (about $1/week) or $47/year, cancel anytime.'
-        : 'Create an account and start a 7-day free trial. Monthly $4 (about $1/week), yearly $47, cancel anytime.';
+      accountOfferSub.textContent = 'Everything works signed out. Sign in only if you want your resumes saved to the cloud and back on another device — free, no card.';
     }
     if (accountFeatureList) {
-      const items = promo
-        ? [
-            ['Resume engine', 'tailored PDFs, no API key'],
-            ['Cover letters', 'one per resume'],
-            ['Job Tracker', 'pipeline board + analytics'],
-          ]
-        : [
-            ['Resume engine', 'tailored PDFs, no API key'],
-            ['Cover letters', 'one per resume'],
-            ['Cloud sync', 'resumes on every device'],
-          ];
+      const items = [
+        ['Resume engine', 'tailored PDFs, no account'],
+        ['Cover letters', 'one per resume'],
+        ['Job Tracker', 'pipeline board + analytics'],
+      ];
       accountFeatureList.innerHTML = items
         .map(([label, desc]) => `<li><span class="pfl-check" aria-hidden="true">&#10003;</span><span class="pfl-text"><strong>${label}</strong> — ${desc}</span></li>`)
         .join('');
@@ -940,7 +932,7 @@ My resume:
     try {
       await window.CloudSync.init();
       const signedIn = await window.CloudSync.isSignedIn();
-      const access = window.CloudSync.getAccessState ? await window.CloudSync.getAccessState() : { promoActive: false };
+      const access = window.CloudSync.getAccessState ? await window.CloudSync.getAccessState() : { isSupporter: false };
 
       if (signedIn) {
         const profile = window.CloudSync.getUserProfile ? await window.CloudSync.getUserProfile() : null;
@@ -948,36 +940,30 @@ My resume:
         if (accountSignedIn) accountSignedIn.style.display = 'flex';
         if (cloudAccountName) cloudAccountName.textContent = profile?.name || profile?.email || 'Signed in';
         setCloudAvatar(profile);
-        const canSync = !!access.cloudSyncAccess;
-        if (access.isPro && access.trialDaysLeft > 0) {
-          cloudAuthStatus.textContent = `Trial · ${access.trialDaysLeft} day${access.trialDaysLeft === 1 ? '' : 's'} left`;
-          cloudAuthStatus.className = 'cloud-status-pill synced';
-        } else if (access.isPro) {
-          cloudAuthStatus.textContent = access.planPeriod === 'year' ? 'Pro · Yearly' : 'Pro';
-          cloudAuthStatus.className = 'cloud-status-pill synced';
-        } else if (access.withinWindow || access.proAccess) {
-          cloudAuthStatus.textContent = 'Free until Dec 31';
+        const canSync = !!access.signedIn;
+        if (access.isSupporter) {
+          cloudAuthStatus.textContent = access.planPeriod === 'year' ? 'Supporter · Yearly' : 'Supporter';
           cloudAuthStatus.className = 'cloud-status-pill synced';
         } else {
-          cloudAuthStatus.textContent = 'No plan';
-          cloudAuthStatus.className = 'cloud-status-pill error';
+          cloudAuthStatus.textContent = 'Synced';
+          cloudAuthStatus.className = 'cloud-status-pill synced';
         }
-        if (cloudManagePlanBtn) cloudManagePlanBtn.textContent = access.isPro ? 'Manage plan' : 'Start free trial';
+        if (cloudManagePlanBtn) cloudManagePlanBtn.textContent = access.isSupporter ? 'Manage support' : 'Support PocketResume';
         if (cloudSyncNote) {
           cloudSyncNote.textContent = canSync
-            ? 'Resumes sync automatically to the cloud.'
-            : 'Sync is paused. Your cloud resumes are kept — subscribe to sync again.';
+            ? 'Resumes sync automatically to the cloud. Everything works signed out too.'
+            : 'Not syncing right now. Your resumes stay on this device.';
         }
         if (canSync) runAutoSync();
       } else {
         if (accountSignedIn) accountSignedIn.style.display = 'none';
         if (accountSignedOut) accountSignedOut.style.display = 'flex';
-        renderAccountOffer(!!access.promoActive);
+        renderAccountOffer();
       }
     } catch (error) {
       if (accountSignedIn) accountSignedIn.style.display = 'none';
       if (accountSignedOut) accountSignedOut.style.display = 'flex';
-      renderAccountOffer(false);
+      renderAccountOffer();
     }
   }
 
@@ -1122,11 +1108,11 @@ My resume:
   }
 
   if (cloudCreateAccountBtn) {
-    cloudCreateAccountBtn.addEventListener('click', () => startAuth('signUp'));
+    cloudCreateAccountBtn.addEventListener('click', () => startAuth('signIn'));
   }
 
   if (cloudSignInLink) {
-    cloudSignInLink.addEventListener('click', () => startAuth('signIn'));
+    cloudSignInLink.addEventListener('click', () => startAuth('signUp'));
   }
 
   if (cloudSeePlansBtn) {
@@ -2230,8 +2216,8 @@ My resume:
   const TOUR_STEPS = [
     {
       target: '#accountCard',
-      title: 'One account, every device',
-      body: 'Create an account to sync resumes and keep the Job Tracker on every device. Free to try until Dec 31, then $4/month (about $1/week) or $47/year.'
+      title: 'Optional sync',
+      body: 'No account is needed to use PocketResume. Sign in only if you want your resumes saved to the cloud and restored on another device — it is free and unlocks nothing else.'
     },
     {
       target: '#rfPasteInput',

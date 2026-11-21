@@ -1,5 +1,22 @@
 # Changelog
 
+## [11.0.0] — 2026-11-21
+### Changed
+- **PocketResume is free forever, with no account needed.** Generation, cover letters, the Form Filler and the Job Tracker all work signed out. There is no trial, no access window and no paywall: the service worker's generation gate, the side panel's sign-in and plan cards, and the tracker's lock banner are gone. The only thing that still needs a session is cloud sync.
+- **Cloud sync is free for any account.** Signing in stores your resumes in the cloud and restores them on another device; signing out stops sync and deletes nothing. `hasCloudSyncAccess()` is now just "signed in".
+- **The paid plan is a tip jar, renamed Supporter.** $4/month or $47/year, and it unlocks nothing — it adds a Supporter badge in the panel header, the Settings account card and the Job Tracker badge. The Clerk plan slug stays `pocketresume_pro`, so existing subscribers keep their status and no server config has to change.
+- **The 7-day trial and the early-subscriber extension are gone.** Nothing is gated, so a trial had nothing to unlock. `convex/billing.ts` (`billing:extendEarlyTrial`) and its `CLERK_SECRET_KEY` dependency were removed; only an `active` paid subscription counts as a Supporter, so a lingering `trialing` item cannot hand out the badge.
+- **The account card is an offer to sync, not a paywall.** Settings → Account now says *No account needed*, with **Sign in to sync** and **Support PocketResume** as the two calls to action. The panel's account button reads Sign in / Account / Supporter.
+- **The "Free until Dec 31" countdown is gone.** The timer, the daily access reminder and the plan copy were replaced by a single dismissible supporter nudge that appears after your first generated resume.
+
+### Added
+- **`npm run test:access`.** Pins the free model: the worker gate always allows, no `signin_required` / `plan_required` status is left, sync needs a session only, no access window or trial extension remains, the tracker has no lock state, and the docs say signing in is optional.
+
+### Removed
+- The `ACCESS_WINDOW` promo window, `isPromoTrialActive()`, `maybeExtendEarlyTrial()`, the `#signinCard` / `#planLockCard` / `#fillProCard` cards, the tracker's lock banner and read-only mode, and the "Create your account" onboarding step.
+
+Tests: `npm run test:access`, plus the existing engine, layout, form-filler, shelf, directory and feedback suites.
+
 ## [10.20.0] — 2026-11-21
 ### Added
 - **The app is now paper and ink.** The dark glass theme is gone. Every surface — the side panel, Settings and the Job Tracker — is warm paper with ink type, hairline rules and 2–4px corners, matching the landing page. Fraunces, IBM Plex Sans and IBM Plex Mono ship with the extension (latin subset, ~130 KB) so it reads the same offline.

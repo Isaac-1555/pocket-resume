@@ -113,7 +113,7 @@ This is the only place all three glow colors and both scroll-linked animation an
 - Privacy section speaks in flat statements, not reassurance-speak: "Your resume never leaves your browser. Cloud sync is off unless you turn it on."
 - Feature card titles name what the person gets (**3 resume layouts**, **Cover letters, optional**, **Runs on your device**), not internal mechanisms.
 - Name no AI provider on the page. Generation is on-device; the only optional AI features are the Resume health check and Generate letter, and they are not part of the landing pitch.
-- Pricing posture: "Add to Chrome — it's free" stays; one flat footnote near the final CTA says everything is free with an account until Dec 31, 2026, then Pro. No pricing tables on the landing page.
+- Pricing posture: "Add to Chrome — it's free" stays the only price message, and it is now literally true: everything is free forever with no account. One flat footnote near the final CTA says signing in is only for cloud sync, and that an optional $4/month Supporter tier exists for people who want to chip in. No pricing tables on the landing page. The commercialization story is the product's honesty: no account wall, no trial countdown, no paywalled feature.
 - The Job Tracker gets its own section (mini kanban mockup, cyan glow) plus a feature-grid card — it auto-captures every generated application and is the newest surface in the product.
 
 ## 6. Build notes for next pass

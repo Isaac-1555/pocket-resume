@@ -236,48 +236,6 @@
       font-weight: 600;
     }
 
-    /* Lock banner */
-    .lock-banner {
-      display: none;
-      gap: 12px;
-      align-items: center;
-      justify-content: space-between;
-      margin: 18px 22px 0;
-      padding: 14px 18px;
-      border: 1px solid rgba(210, 153, 34, 0.45);
-      border-radius: var(--radius);
-      background: rgba(210, 153, 34, 0.08);
-    }
-
-    .lock-banner.visible { display: flex; }
-
-    .lock-banner .lock-title { font-size: 14px; font-weight: 600; color: var(--yellow); margin: 0 0 3px; }
-    .lock-banner .lock-text { font-size: 12.5px; color: var(--text-muted); margin: 0; }
-
-    .lock-banner .lock-copy { min-width: 0; }
-
-    .lock-banner .lock-list {
-      list-style: none;
-      margin: 9px 0 0;
-      padding: 0;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .lock-banner .lock-list li {
-      padding: 4px 9px;
-      border-radius: 999px;
-      background: var(--paper-2);
-      border: 1px solid var(--glass-border);
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-muted);
-      white-space: nowrap;
-    }
-
-    .lock-banner .lock-actions { display: flex; gap: 8px; flex-shrink: 0; }
-
     /* Board */
     .board-wrap { padding: 18px 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 14px; }
 
@@ -376,8 +334,6 @@
       opacity: 0.45;
       transform: rotate(1.5deg);
     }
-
-    .card.locked-card { cursor: pointer; }
 
     .card-company {
       font-size: 13.5px;
@@ -644,12 +600,6 @@
     .empty-board-note h2 { font-size: 18px; margin: 0 0 6px; color: var(--text); }
     .empty-board-note p { font-size: 13.5px; margin: 0 0 18px; }
 
-    .readonly-note {
-      font-size: 11px;
-      color: var(--yellow);
-      margin-top: 6px;
-    }
-
     /* Tour / onboarding */
     .tour-overlay { position: fixed; inset: 0; z-index: 1000; display: none; }
     .tour-catcher { position: absolute; inset: 0; cursor: default; }
@@ -769,22 +719,6 @@
       <button class="btn" id="openSettingsBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span></button>
     </div>
   </header>
-
-  <div class="lock-banner" id="lockBanner">
-    <div class="lock-copy">
-      <p class="lock-title" id="lockTitle">Sign in to use the Job Tracker</p>
-      <p class="lock-text" id="lockText">Create an account to capture every job you apply to. Free to try until Dec 31.</p>
-      <ul class="lock-list">
-        <li>Job Tracker</li>
-        <li>Form Filler</li>
-        <li>Cloud sync</li>
-      </ul>
-    </div>
-    <div class="lock-actions">
-      <button class="btn btn-primary" id="upgradeBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg><span>Create account</span></button>
-      <button class="btn" id="dismissLockBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span>Not now</span></button>
-    </div>
-  </div>
 
   <main id="boardView" class="board-wrap"></main>
 
