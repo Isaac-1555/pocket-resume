@@ -30,6 +30,12 @@ Launch copy — one-liners, store listing, posts and the claims this release can
 - **Multi-Profile** — save up to 3 master profiles, switch between them, and duplicate one into a free slot when you want a variant without touching the master
 - **Privacy First** — resumes stay in `chrome.storage.local`; generation and form filling are local, and nothing leaves the browser unless you sign in. The only network calls are the opt-in Resume health/letter providers, the optional sync, and the daily refresh of the public company/title/location lists
 
+### What's New in v11.0.1
+
+- **Cover letters land in the cover letter field.** On forms with a Resume and a Cover Letter upload, the panel now tells the page which file it is carrying, so the letter no longer overwrites the resume.
+- **Drop where you mean it.** When two upload fields look identical, the field under your pointer gets the file.
+- **No silent overwrite.** If the page only takes the other kind of file, the attach stops and says so instead of replacing what is already there.
+
 ### What's New in v11.0.0
 
 - **Free forever, no account needed.** Generate resumes, cover letters, fill forms and use the Job Tracker without signing in. There is no trial, no deadline and no paywall — the app is the whole app from the first launch.

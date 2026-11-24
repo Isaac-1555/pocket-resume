@@ -810,13 +810,21 @@ async function attachFileToPage(tabId, request) {
     const applied = await collectFormFrames(tabId, 'ATTACH_FILE', {
         filename: String((request && request.filename) || 'document.pdf'),
         mime: 'application/pdf',
-        dataUrl: String((request && request.dataUrl) || '')
+        dataUrl: String((request && request.dataUrl) || ''),
+        kind: request && request.kind === 'cover-letter' ? 'cover-letter' : 'resume'
     });
     let attached = 0;
+    const reasons = new Set();
     for (const entry of applied) {
         if (entry && entry.attached) attached++;
+        else if (entry && entry.reason) reasons.add(entry.reason);
     }
-    return { status: 'success', attached, frames: applied.length };
+    return {
+        status: 'success',
+        attached,
+        frames: applied.length,
+        reason: reasons.size === 1 ? Array.from(reasons)[0] : ''
+    };
 }
 
 function buildCoverLetterPayload(template, resume, jobMeta) {
@@ -1211,6 +1219,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 sendResponse({
                     status: 'success',
                     filename: item.filename || 'document.pdf',
+                    kind: item.kind === 'cover-letter' ? 'cover-letter' : 'resume',
                     dataUrl: item.dataUrl
                 });
             } catch (error) {
@@ -1235,7 +1244,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 if (!result.attached) {
                     sendResponse({
                         status: 'error',
-                        message: 'No upload field found on this page. Open the Apply form and try again.'
+                        message: result.reason === 'kind-mismatch'
+                            ? 'This page has no upload field for that file. Open the Apply form and try again.'
+                            : 'No upload field found on this page. Open the Apply form and try again.'
                     });
                     return;
                 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## [11.0.1] — 2026-11-24
+### Fixed
+- **The cover letter no longer replaces the resume on an application form with two upload fields.** Dragging or attaching a file scored the fields only by their text, so the Resume and Cover Letter fields on an Ashby application tied and the first input in the DOM took every file. The shelf item's `kind` now travels with both attach paths (the *Attach* button's message and the `GET_STORED_PDF` reply the drop bridge reads), a field that names the requested file wins outright, and a drop also carries the element under the pointer so two generic *Upload file* fields are told apart by where the file was dropped.
+- **A mismatched upload is refused instead of overwriting.** When the file has a known kind and every upload field names the other one, the attach stops with *"This page has no upload field for that file"* instead of replacing the resume.
+- **`cover_letter` is recognised as a cover letter field.** The label match accepted `cover letter` but not the underscore spelling the ATS platforms use for the input id.
+
+Tests: `npm run test:formfill-dom` now covers the two-field Ashby layout (letter-only attach, both files side by side, drop-target selection, mismatch refusal).
+
 ## [11.0.0] — 2026-11-21
 ### Changed
 - **PocketResume is free forever, with no account needed.** Generation, cover letters, the Form Filler and the Job Tracker all work signed out. There is no trial, no access window and no paywall: the service worker's generation gate, the side panel's sign-in and plan cards, and the tracker's lock banner are gone. The only thing that still needs a session is cloud sync.

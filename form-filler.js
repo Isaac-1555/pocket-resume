@@ -762,15 +762,72 @@
         });
     }
 
-    function scoreFileInput(el, context, total) {
+    const RESUME_UPLOAD = /\bresume\b|curriculum|vitae|\bcv\b/i;
+    const LETTER_UPLOAD = /cover[\s_-]*letter/i;
+
+    function requestedFileKind(value) {
+        const kind = cleanText(value).toLowerCase();
+        if (kind === 'cover-letter' || kind === 'letter') return 'cover-letter';
+        if (kind === 'resume' || kind === 'cv') return 'resume';
+        return '';
+    }
+
+    // How well a field's text names the file being attached. A form with a
+    // Resume and a Cover Letter field scores the same for both without this,
+    // and the first input in the DOM took every file (Ashby).
+    function fileKindMatch(context, kind) {
+        if (!kind || !context) return 0;
+        const letter = LETTER_UPLOAD.test(context);
+        const resume = RESUME_UPLOAD.test(context);
+        if (kind === 'cover-letter') return letter ? 2 : 0;
+        if (resume && !letter) return 2;
+        if (resume && letter) return 1;
+        return 0;
+    }
+
+    // True when the field asks for the other file and has no generic wording:
+    // a cover letter must not replace the resume on a one-field form.
+    function fileKindConflict(context, kind) {
+        if (!kind || !context) return false;
+        const letter = LETTER_UPLOAD.test(context);
+        const resume = RESUME_UPLOAD.test(context);
+        if (kind === 'cover-letter') return resume && !letter;
+        return letter && !resume;
+    }
+
+    function hasAttachedFile(el) {
+        try {
+            return !!(el.files && el.files.length);
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function scoreFileInput(el, context, total, kindScore) {
         let score = 0;
-        if (/\bresume\b|curriculum|vitae|\bcv\b|cover\s*letter/i.test(context)) score += 5;
+        if (kindScore === 2) score += 6;
+        else if (kindScore === 1) score += 5;
+        else if (RESUME_UPLOAD.test(context) || LETTER_UPLOAD.test(context)) score += 4;
         else if (/upload|attach|browse|choose|select\s+(a\s+)?file/i.test(context)) score += 2;
         if (isVisible(el)) score += 2;
         else if (context) score += 1;
         if (/pdf/i.test(el.getAttribute('accept') || '')) score += 1;
         if (total === 1) score += 1;
         return score;
+    }
+
+    // Two generic "Upload file" fields are only told apart by where the file
+    // was dropped, so the nearest field under the pointer wins the tie.
+    function dropTargetBonus(el, target) {
+        if (!target || typeof target.querySelectorAll !== 'function') return 0;
+        let node = target;
+        for (let depth = 0; node && depth < 6; depth++) {
+            const inputs = Array.from(node.querySelectorAll('input[type="file"]'));
+            if (inputs.length && inputs.length <= 2 && inputs.includes(el)) return Math.max(1, 6 - depth);
+            if (node.nodeType !== 1 || node.matches('form, body, html')) break;
+            node = node.parentElement;
+        }
+        return 0;
     }
 
     function visibleDialogs() {
@@ -834,16 +891,30 @@
         const request = payload || {};
         const filename = cleanText(request.filename || 'document.pdf') || 'document.pdf';
         const mime = cleanText(request.mime || 'application/pdf') || 'application/pdf';
+        const kind = requestedFileKind(request.kind);
         const dialogsBefore = new Set(visibleDialogs());
         const inputs = candidateFileInputs();
         if (!inputs.length) return { attached: false, reason: 'no-input', filename };
+        const ranked = inputs.map((el) => {
+            const context = fileInputContext(el);
+            return { el, context, kindScore: fileKindMatch(context, kind) };
+        });
+        // A field that names the file wins outright: a cover letter never
+        // replaces the resume in the resume field, whatever sits closer.
+        const typed = ranked.filter((entry) => entry.kindScore > 0);
+        if (kind && !typed.length && ranked.every((entry) => fileKindConflict(entry.context, kind))) {
+            return { attached: false, reason: 'kind-mismatch', filename };
+        }
+        const pool = typed.length ? typed : ranked;
         let best = null;
-        let bestScore = -1;
-        for (const el of inputs) {
-            const score = scoreFileInput(el, fileInputContext(el), inputs.length);
+        let bestScore = -Infinity;
+        for (const entry of pool) {
+            let score = scoreFileInput(entry.el, entry.context, inputs.length, entry.kindScore);
+            score += dropTargetBonus(entry.el, request.target);
+            if (hasAttachedFile(entry.el)) score -= 3;
             if (score > bestScore) {
                 bestScore = score;
-                best = el;
+                best = entry.el;
             }
         }
         if (!best) return { attached: false, reason: 'no-input', filename };

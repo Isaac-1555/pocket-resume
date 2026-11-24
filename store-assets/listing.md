@@ -51,6 +51,12 @@ Source: github.com/Isaac-1555/pocket-resume
 Website: pocket-resume.xyz
 ```
 
+## "What's new" (11.0.1 listing update)
+
+```
+Dropping or attaching a cover letter now lands in the Cover Letter field on application forms that ask for both files. Before, the resume upload was picked every time, so the letter replaced the resume. When two upload fields look identical, the field under your pointer gets the file, and a mismatched upload now stops with a message instead of overwriting.
+```
+
 ## "What's new" (11.0.0 listing update)
 
 ```

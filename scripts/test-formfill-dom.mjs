@@ -188,19 +188,26 @@ assert.equal(filled.state.consent, false, 'a consent checkbox is never touched')
 
 // --- Attaching: the file lands on the page's upload field. ---
 
-async function attachIn(html, filename) {
+async function attachIn(html, filename, options = {}) {
     const page = await browser.newPage();
     await page.setContent(html);
     await page.addScriptTag({ content: source });
-    const result = await page.evaluate((name) => {
+    const result = await page.evaluate(({ name, kind, target }) => {
         const dataUrl = 'data:application/pdf;base64,' + btoa('%PDF-1.4 pocketresume');
-        const outcome = globalThis.__PocketResumeForm.attachFile({ filename: name, mime: 'application/pdf', dataUrl });
+        const node = target ? document.querySelector(target) : null;
+        const outcome = globalThis.__PocketResumeForm.attachFile({
+            filename: name,
+            mime: 'application/pdf',
+            dataUrl,
+            kind: kind || '',
+            target: node
+        });
         const state = {};
         for (const el of document.querySelectorAll('input[type="file"]')) {
             state[el.id || el.name] = el.files && el.files[0] ? el.files[0].name : '';
         }
         return { outcome, state };
-    }, filename);
+    }, { name: filename, ...(options || {}) });
     await page.close();
     return result;
 }
@@ -236,6 +243,70 @@ const noInput = await attachIn(`
     </form>
 `, 'Jordan_Lee_Resume.pdf');
 assert.equal(noInput.outcome.attached, false, 'a page without an upload field reports no attachment');
+
+// --- Ashby: an autofill upload plus a Resume and a Cover Letter field. The
+// cover letter must not land on the resume field, and the two files must be
+// able to sit side by side. ---
+
+const ASHBY_UPLOADS = `
+    <form id="form">
+        <div class="ashby-application-form-autofill-input-root">
+            <div>Autofill from resume</div>
+            <input type="file" accept="application/pdf,.pdf" style="opacity: 0">
+            <button type="button">Upload file</button>
+        </div>
+        <div class="ashby-application-form-field-entry" id="resumeEntry">
+            <label class="ashby-application-form-question-title" for="_systemfield_resume">Resume</label>
+            <div class="ashby-application-form-input-file"><input type="file" id="_systemfield_resume" accept="application/pdf,.pdf"></div>
+        </div>
+        <div class="ashby-application-form-field-entry" id="letterEntry">
+            <label class="ashby-application-form-question-title" for="cover_letter">Cover Letter</label>
+            <div class="ashby-application-form-input-file"><input type="file" id="cover_letter" accept="application/pdf,.pdf"></div>
+        </div>
+    </form>
+`;
+
+const letterAttach = await attachIn(ASHBY_UPLOADS, 'Jordan_Lee_Cover_Letter.pdf', { kind: 'cover-letter' });
+assert.equal(letterAttach.outcome.attached, true, 'the cover letter is attached');
+assert.equal(letterAttach.state.cover_letter, 'Jordan_Lee_Cover_Letter.pdf', 'the cover letter field holds the file');
+assert.equal(letterAttach.state._systemfield_resume, '', 'the resume field is left empty');
+
+const bothAttach = await (async () => {
+    const page = await browser.newPage();
+    await page.setContent(ASHBY_UPLOADS);
+    await page.addScriptTag({ content: source });
+    const state = await page.evaluate(() => {
+        const dataUrl = 'data:application/pdf;base64,' + btoa('%PDF-1.4 pocketresume');
+        const api = globalThis.__PocketResumeForm;
+        api.attachFile({ filename: 'Jordan_Lee_Resume.pdf', mime: 'application/pdf', dataUrl, kind: 'resume' });
+        api.attachFile({ filename: 'Jordan_Lee_Cover_Letter.pdf', mime: 'application/pdf', dataUrl, kind: 'cover-letter' });
+        const files = {};
+        for (const el of document.querySelectorAll('input[type="file"]')) {
+            files[el.id || 'autofill'] = el.files && el.files[0] ? el.files[0].name : '';
+        }
+        return files;
+    });
+    await page.close();
+    return state;
+})();
+assert.equal(bothAttach._systemfield_resume, 'Jordan_Lee_Resume.pdf', 'the resume keeps its own file');
+assert.equal(bothAttach.cover_letter, 'Jordan_Lee_Cover_Letter.pdf', 'the cover letter sits beside it');
+
+// Without a kind, the field under the drop target decides.
+const targetedDrop = await attachIn(ASHBY_UPLOADS, 'Jordan_Lee_Cover_Letter.pdf', { target: '#letterEntry' });
+assert.equal(targetedDrop.state.cover_letter, 'Jordan_Lee_Cover_Letter.pdf', 'the drop target picks the field');
+assert.equal(targetedDrop.state._systemfield_resume, '', 'the resume field is untouched');
+
+// A cover letter never replaces the resume on a form with a single resume field.
+const mismatch = await attachIn(`
+    <form>
+        <label for="resumeUpload">Resume</label>
+        <input type="file" id="resumeUpload" accept="application/pdf">
+    </form>
+`, 'Jordan_Lee_Cover_Letter.pdf', { kind: 'cover-letter' });
+assert.equal(mismatch.outcome.attached, false, 'a mismatched upload is refused');
+assert.equal(mismatch.outcome.reason, 'kind-mismatch', 'the reason says why');
+assert.equal(mismatch.state.resumeUpload, '', 'the resume upload is left alone');
 
 // --- The page holds the upload behind a consent dialog (Eightfold): the dialog
 // must be brought into view instead of leaving the page looking unchanged. ---
