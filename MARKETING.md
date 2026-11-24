@@ -109,4 +109,4 @@ Close with:
 - Settings → Account card: "No account needed", **Sign in to sync**, **Support PocketResume**.
 - Job Tracker badge: Free / Supporter.
 - One-time supporter nudge, after the first generated resume, dismissible.
-- What's New modal on 11.0.0.
+- What's New modal, shown once per version.

@@ -504,6 +504,7 @@ document.addEventListener('DOMContentLoaded', () => {
       payload: {
         tabId: tab.id,
         filename,
+        kind: item.kind === 'cover-letter' ? 'cover-letter' : 'resume',
         mime: 'application/pdf',
         dataUrl: item.dataUrl || ''
       }
@@ -2589,8 +2590,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const whatsNewGotBtn = document.getElementById('whatsNewGotBtn');
   const whatsNewPlansBtn = document.getElementById('whatsNewPlansBtn');
   const whatsNewVersionEl = document.getElementById('whatsNewVersion');
-  const ANNOUNCEMENT_VERSION = '11.0.0';
-  const ANNOUNCEMENT_SEEN_VALUE = '11.0.0';
+  const ANNOUNCEMENT_VERSION = '11.0.1';
+  const ANNOUNCEMENT_SEEN_VALUE = '11.0.1';
 
   function dismissWhatsNew() {
     chrome.storage.local.set({ lastSeenAnnouncement: ANNOUNCEMENT_SEEN_VALUE });

@@ -85,7 +85,7 @@ function initScript(seed) {
                 onMessage: { addListener() {} },
                 onInstalled: { addListener() {} },
                 getURL: (p) => new URL(p, window.location.href).href,
-                getManifest: () => ({ version: '11.0.0', name: 'PocketResume' }),
+                getManifest: () => ({ version: '11.0.1', name: 'PocketResume' }),
                 openOptionsPage() {},
                 sendMessage(msg, cb) {
                     setTimeout(() => {
@@ -222,7 +222,7 @@ async function main() {
             animationsEnabled: false,
             jdReviewDisabled: true,
             onboardingCompleted: true,
-            lastSeenAnnouncement: '11.0.0',
+            lastSeenAnnouncement: '11.0.1',
             growthRatingPrompt: { converted: true },
             growthSharePrompt: { converted: true },
             quickDownloadNewBadgeDismissed: true,
@@ -337,7 +337,7 @@ async function main() {
             selectedResumeId: 'r1',
             resumeType: 'professional',
             onboardingCompleted: true,
-            lastSeenAnnouncement: '11.0.0',
+            lastSeenAnnouncement: '11.0.1',
             proAccessCache: FREE_ACCESS,
         }));
         const page = await context.newPage();

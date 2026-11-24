@@ -358,13 +358,23 @@ document.addEventListener('drop', (event) => {
         let attached = null;
         try {
             attached = api && api.attachFile
-                ? api.attachFile({ filename: response.filename, mime: 'application/pdf', dataUrl: response.dataUrl })
+                ? api.attachFile({
+                    filename: response.filename,
+                    mime: 'application/pdf',
+                    dataUrl: response.dataUrl,
+                    kind: response.kind || '',
+                    target: event.target
+                })
                 : null;
         } catch (error) {
             attached = null;
         }
         if (!attached || !attached.attached) {
-            if (api && api.toast) api.toast('No upload field found on this page. Open the Apply form and drop it there.');
+            if (api && api.toast) {
+                api.toast(attached && attached.reason === 'kind-mismatch'
+                    ? 'This page has no upload field for that file. Use the Attach button in the panel.'
+                    : 'No upload field found on this page. Open the Apply form and drop it there.');
+            }
         }
     });
 }, true);
@@ -374,7 +384,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const api = globalThis.__PocketResumeForm;
         let result = { attached: false, filename: request.filename || '' };
         try {
-            if (api && api.attachFile) result = api.attachFile(request);
+            if (api && api.attachFile) {
+                result = api.attachFile({
+                    filename: request.filename,
+                    mime: request.mime,
+                    dataUrl: request.dataUrl,
+                    kind: request.kind || ''
+                });
+            }
         } catch (error) {
             result = { attached: false, filename: request.filename || '', error: error.message };
         }
